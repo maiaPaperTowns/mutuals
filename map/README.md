@@ -19,6 +19,7 @@ Prerequisites: Node.js 20.19+ and the SpacetimeDB CLI 2.x. Install the CLI from 
 
    ```powershell
    npm install
+   npm ci --prefix spacetimedb
    npm run stdb:publish
    npm run stdb:generate
    ```
