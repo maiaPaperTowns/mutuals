@@ -19,6 +19,9 @@ export const LiveLocation = __t.object("LiveLocation", {
 });
 export type LiveLocation = __Infer<typeof LiveLocation>;
 
+export const MyProfile = __t.object("MyProfile", {});
+export type MyProfile = __Infer<typeof MyProfile>;
+
 export const ParticipantOwner = __t.object("ParticipantOwner", {
   participantId: __t.string(),
   ownerIdentity: __t.identity(),
@@ -31,4 +34,25 @@ export const Presence = __t.object("Presence", {
   isDemoPersona: __t.bool(),
 });
 export type Presence = __Infer<typeof Presence>;
+
+export const PublicProfile = __t.object("PublicProfile", {
+  participantId: __t.string(),
+  displayName: __t.string(),
+  headline: __t.string(),
+  interests: __t.string(),
+});
+export type PublicProfile = __Infer<typeof PublicProfile>;
+
+export const PublicProfiles = __t.object("PublicProfiles", {});
+export type PublicProfiles = __Infer<typeof PublicProfiles>;
+
+export const UserProfile = __t.object("UserProfile", {
+  identity: __t.identity(),
+  displayName: __t.string(),
+  headline: __t.string(),
+  interests: __t.string(),
+  showOnMap: __t.bool(),
+  updatedAt: __t.timestamp(),
+});
+export type UserProfile = __Infer<typeof UserProfile>;
 

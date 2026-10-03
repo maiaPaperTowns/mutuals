@@ -35,6 +35,7 @@ import {
 
 // Import all reducer arg schemas
 import LeaveMapReducer from "./leave_map_reducer";
+import SaveMyProfileReducer from "./save_my_profile_reducer";
 import SetMyPresenceReducer from "./set_my_presence_reducer";
 import StopSharingLocationReducer from "./stop_sharing_location_reducer";
 import UpdateMyLocationReducer from "./update_my_location_reducer";
@@ -43,7 +44,9 @@ import UpdateMyLocationReducer from "./update_my_location_reducer";
 
 // Import all table schema definitions
 import LiveLocationRow from "./live_location_table";
+import MyProfileRow from "./my_profile_table";
 import PresenceRow from "./presence_table";
+import PublicProfilesRow from "./public_profiles_table";
 
 /** Type-only namespace exports for generated type groups. */
 
@@ -74,11 +77,26 @@ const tablesSchema = __schema({
       { name: 'presence_participant_id_key', constraint: 'unique', columns: ['participantId'] },
     ],
   }, PresenceRow),
+  myProfile: __table({
+    name: 'my_profile',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyProfileRow),
+  publicProfiles: __table({
+    name: 'public_profiles',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, PublicProfilesRow),
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
   __reducerSchema("leave_map", LeaveMapReducer),
+  __reducerSchema("save_my_profile", SaveMyProfileReducer),
   __reducerSchema("set_my_presence", SetMyPresenceReducer),
   __reducerSchema("stop_sharing_location", StopSharingLocationReducer),
   __reducerSchema("update_my_location", UpdateMyLocationReducer),

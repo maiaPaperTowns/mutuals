@@ -12,6 +12,7 @@
     "stdb:publish": "spacetime publish mhacks-live-map --server maincloud --module-path spacetimedb"
   },
   "dependencies": {
+    "@clerk/react": "^6.17.5",
     "leaflet": "^1.9.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

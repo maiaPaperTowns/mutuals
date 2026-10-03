@@ -29,6 +29,8 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
 .account-name b { overflow: hidden; color: #354338; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .account-name small { color: #899187; font: 7px var(--mono); letter-spacing: .07em; }
 .sign-out { padding: 6px 0 6px 8px; border: 0; border-left: 1px solid #e7eae2; background: transparent; color: #768075; font-size: 9px; cursor: pointer; }
+.profile-button, .profile-open-button { padding: 6px 8px; border: 1px solid #dce5d8; border-radius: 7px; background: #f4f7f0; color: #385640; font-size: 9px; font-weight: 700; cursor: pointer; }
+.profile-open-button { pointer-events: auto; }
 .dialog-backdrop { position: fixed; z-index: 1500; inset: 0; display: grid; place-items: center; padding: 18px; background: #17231bd1; backdrop-filter: blur(4px); pointer-events: auto; }
 .demo-dialog { position: relative; width: min(420px, 100%); padding: 29px; border: 1px solid #e5e9e0; border-radius: 18px; background: #fbfcf7; box-shadow: 0 24px 80px #0004; }
 .dialog-close { position: absolute; top: 13px; right: 15px; width: 30px; height: 30px; border: 0; border-radius: 8px; background: transparent; color: #758075; font-size: 23px; line-height: 1; cursor: pointer; }
@@ -42,6 +44,19 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
 .demo-dialog input:focus { border-color: #63836b; outline: 3px solid #63836b25; }
 .dialog-submit { min-height: 44px; margin-top: 10px; border: 0; border-radius: 9px; background: #294c37; color: white; font-size: 11px; font-weight: 700; cursor: pointer; }
 .dialog-submit:hover { background: #376348; }
+.demo-dialog textarea { width: 100%; min-height: 74px; padding: 10px 11px; resize: vertical; border: 1px solid #dde3d9; border-radius: 9px; background: white; color: #2e3b31; font: inherit; font-size: 12px; }
+.profile-visibility { display: flex; align-items: flex-start; gap: 8px; margin: 8px 0 2px !important; color: #53634f !important; line-height: 1.5; }
+.profile-visibility input { width: 15px; height: 15px; min-width: 15px; margin: 0; accent-color: #294c37; }
+.auth-tabs { display: flex; gap: 6px; margin: 14px 0; padding: 4px; border-radius: 10px; background: #eef1e9; }
+.auth-tabs button { flex: 1; min-height: 34px; border: 0; border-radius: 7px; background: transparent; color: #778176; font-size: 11px; font-weight: 700; cursor: pointer; }
+.auth-tabs button.active { background: white; color: #294c37; box-shadow: 0 1px 4px #25312818; }
+.clerk-form { max-height: min(62vh, 510px); overflow: auto; }
+.clerk-form [data-clerk-component] { width: 100%; }
+.profile-tooltip { display: flex; flex-direction: column; gap: 4px; max-width: 220px; }
+.profile-tooltip b { color: #294c37; }
+.profile-tooltip small { color: #657265; white-space: normal; }
+.map-loading { display: grid; width: 100%; height: 100%; min-height: 100dvh; place-items: center; background: #e9ece8; color: #53634f; font: 11px var(--mono); }
+.profile-link { margin: 11px 0 0; padding: 0; border: 0; background: transparent; color: #4e7258; font-size: 10px; font-weight: 700; text-decoration: underline; cursor: pointer; }
 .map-card { position: absolute; z-index: 500; top: 88px; left: 20px; width: min(362px, calc(100vw - 40px)); padding: 23px; border: 1px solid #e7eae2; border-radius: 18px; background: #fffffff4; box-shadow: 0 12px 40px #2531281a; backdrop-filter: blur(12px); }
 .eyebrow { color: #7f897f; font: 9px var(--mono); letter-spacing: .1em; }
 .map-card h1 { margin: 12px 0 6px; color: #253128; font: 800 25px/1.15 Manrope, sans-serif; letter-spacing: -.055em; }
@@ -80,6 +95,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
   .connection { padding: 8px 10px; font-size: 10px; }
   .topbar-actions { gap: 6px; }
   .sign-in-button, .account-chip { min-height: 38px; padding: 4px 7px; gap: 6px; font-size: 10px; }
+  .profile-button, .profile-open-button { padding: 5px 6px; font-size: 8px; }
   .account-name { max-width: 74px; }
   .sign-out { padding-left: 6px; font-size: 8px; }
   .map-card { top: auto; bottom: 34px; left: 10px; width: calc(100vw - 20px); padding: 17px; border-radius: 15px; }

@@ -7,11 +7,13 @@ import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
 import LeaveMapReducer from "../leave_map_reducer";
+import SaveMyProfileReducer from "../save_my_profile_reducer";
 import SetMyPresenceReducer from "../set_my_presence_reducer";
 import StopSharingLocationReducer from "../stop_sharing_location_reducer";
 import UpdateMyLocationReducer from "../update_my_location_reducer";
 
 export type LeaveMapParams = __Infer<typeof LeaveMapReducer>;
+export type SaveMyProfileParams = __Infer<typeof SaveMyProfileReducer>;
 export type SetMyPresenceParams = __Infer<typeof SetMyPresenceReducer>;
 export type StopSharingLocationParams = __Infer<typeof StopSharingLocationReducer>;
 export type UpdateMyLocationParams = __Infer<typeof UpdateMyLocationReducer>;

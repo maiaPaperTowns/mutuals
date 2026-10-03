@@ -1,6 +1,10 @@
 import { schema, table, t, SenderError } from 'spacetimedb/server';
 import type { InferSchema, ReducerCtx } from 'spacetimedb/server';
 
+// Replace these with the issuer and JWT audience configured in the Clerk dashboard.
+const CLERK_ISSUER = 'https://your-clerk-instance.clerk.accounts.dev';
+const CLERK_AUDIENCE = 'mhacks-live-map';
+
 const ZONES = [
   'main-hall',
   'sponsor-row',
@@ -38,7 +42,26 @@ const liveLocation = table(
   },
 );
 
-const spacetimedb = schema({ presence, participantOwner, liveLocation });
+const userProfile = table(
+  { name: 'user_profile', public: false },
+  {
+    identity: t.identity().primaryKey(),
+    displayName: t.string(),
+    headline: t.string(),
+    interests: t.string(),
+    showOnMap: t.bool().index('btree'),
+    updatedAt: t.timestamp(),
+  },
+);
+
+const publicProfile = t.row('PublicProfile', {
+  participantId: t.string().primaryKey(),
+  displayName: t.string(),
+  headline: t.string(),
+  interests: t.string(),
+});
+
+const spacetimedb = schema({ presence, participantOwner, liveLocation, userProfile });
 export default spacetimedb;
 
 function assertZone(zoneId: string): void {
@@ -56,10 +79,69 @@ function assertOwner(ctx: ModuleContext, participantId: string): void {
   }
 }
 
+function requireClerkUser(ctx: ModuleContext): void {
+  const jwt = ctx.senderAuth.jwt;
+  if (!jwt || jwt.issuer !== CLERK_ISSUER || !jwt.audience.includes(CLERK_AUDIENCE)) {
+    throw new SenderError('Sign in with your MHacks account before sharing or saving a profile.');
+  }
+}
+
+export const myProfile = spacetimedb.view(
+  { name: 'my_profile', public: true },
+  t.option(userProfile.rowType),
+  (ctx) => ctx.db.userProfile.identity.find(ctx.sender) ?? undefined,
+);
+
+export const publicProfiles = spacetimedb.anonymousView(
+  { name: 'public_profiles', public: true },
+  t.array(publicProfile),
+  (ctx) => Array.from(ctx.db.userProfile.showOnMap.filter(true))
+    .filter((profile) => ctx.db.liveLocation.participantId.find(profile.identity.toHexString()))
+    .map((profile) => ({
+      participantId: profile.identity.toHexString(),
+      displayName: profile.displayName,
+      headline: profile.headline,
+      interests: profile.interests,
+    })),
+);
+
+export const saveMyProfile = spacetimedb.reducer(
+  {
+    displayName: t.string(),
+    headline: t.string(),
+    interests: t.string(),
+    showOnMap: t.bool(),
+  },
+  (ctx, { displayName, headline, interests, showOnMap }) => {
+    requireClerkUser(ctx);
+    const name = displayName.trim();
+    const title = headline.trim();
+    const topics = interests.trim();
+    if (name.length < 1 || name.length > 60 || title.length > 120 || topics.length > 180) {
+      throw new SenderError('Keep your name under 60 characters, headline under 120, and interests under 180.');
+    }
+    const row = {
+      identity: ctx.sender,
+      displayName: name,
+      headline: title,
+      interests: topics,
+      showOnMap,
+      updatedAt: ctx.timestamp,
+    };
+    const existing = ctx.db.userProfile.identity.find(ctx.sender);
+    if (existing) ctx.db.userProfile.identity.update(row);
+    else ctx.db.userProfile.insert(row);
+  },
+);
+
 export const setMyPresence = spacetimedb.reducer(
   { participantId: t.string(), zoneId: t.string() },
   (ctx, { participantId, zoneId }) => {
+    requireClerkUser(ctx);
     assertZone(zoneId);
+    if (participantId !== ctx.sender.toHexString()) {
+      throw new SenderError('Use your signed-in account identity for your map pin.');
+    }
     if (participantId.length < 16 || participantId.length > 80) {
       throw new SenderError('Invalid anonymous participant ID.');
     }
@@ -90,6 +172,7 @@ export const setMyPresence = spacetimedb.reducer(
 export const leaveMap = spacetimedb.reducer(
   { participantId: t.string() },
   (ctx, { participantId }) => {
+    requireClerkUser(ctx);
     assertOwner(ctx, participantId);
     const row = ctx.db.presence.participantId.find(participantId);
     if (row && !row.isDemoPersona) {
@@ -106,6 +189,10 @@ export const updateMyLocation = spacetimedb.reducer(
     accuracyMeters: t.f64(),
   },
   (ctx, { participantId, latitude, longitude, accuracyMeters }) => {
+    requireClerkUser(ctx);
+    if (participantId !== ctx.sender.toHexString()) {
+      throw new SenderError('Use your signed-in account identity for your map pin.');
+    }
     assertOwner(ctx, participantId);
     if (
       !Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
@@ -131,6 +218,7 @@ export const updateMyLocation = spacetimedb.reducer(
 export const stopSharingLocation = spacetimedb.reducer(
   { participantId: t.string() },
   (ctx, { participantId }) => {
+    requireClerkUser(ctx);
     assertOwner(ctx, participantId);
     ctx.db.liveLocation.participantId.delete(participantId);
   },
