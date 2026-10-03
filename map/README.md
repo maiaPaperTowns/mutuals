@@ -11,6 +11,10 @@ A mobile-friendly 2D OpenStreetMap centered on the Duderstadt Center. A particip
 - The location point can be spoofed by a modified client. Treat this as a voluntary event coordination tool, not a security or safety system.
 - OpenStreetMap tiles include required attribution in the map. Tile service availability is best effort; see [the tile usage policy](https://operations.osmfoundation.org/policies/tiles/).
 
+## Demo account
+
+The `Sign in` control creates a clearly labeled demo profile saved in the current browser's local storage. Its display name and optional, unverified email are not sent to SpacetimeDB or Google and are not synced across devices. This is a UI prototype, not authentication. It does not change the map's anonymous participant identity or location-sharing state.
+
 ## Local preview
 
 ```powershell

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Circle, MapContainer, Marker, TileLayer, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
 import { reducers, tables } from './module_bindings';
@@ -6,7 +6,20 @@ import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
 
 const DUDERSTADT: [number, number] = [42.2912, -83.7157];
 const ID_KEY = 'mhacks-map-participant-id';
+const DEMO_PROFILE_KEY = 'mhacks-demo-profile';
 type LocationPin = { participantId: string; latitude: number; longitude: number; accuracyMeters: number };
+type DemoProfile = { id: string; name: string; email: string };
+
+function readDemoProfile(): DemoProfile | null {
+  const saved = localStorage.getItem(DEMO_PROFILE_KEY);
+  if (!saved) return null;
+  try {
+    const profile = JSON.parse(saved) as DemoProfile;
+    return profile.id && profile.name ? profile : null;
+  } catch {
+    return null;
+  }
+}
 
 function participantId() {
   let id = localStorage.getItem(ID_KEY);
@@ -115,6 +128,57 @@ function LiveMapContent() {
   return <MapExperience pins={pins} myId={id} loaded={loaded} connected={connected} sharing={sharing} busy={busy} message={message || locationError} onToggle={toggleSharing} />;
 }
 
+function AccountControl() {
+  const [profile, setProfile] = useState<DemoProfile | null>(readDemoProfile);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+
+  useEffect(() => {
+    if (!dialogOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDialogOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [dialogOpen]);
+
+  const createDemoProfile = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const next = { id: `demo-${crypto.randomUUID()}`, name: name.trim(), email: email.trim() };
+    localStorage.setItem(DEMO_PROFILE_KEY, JSON.stringify(next));
+    setProfile(next);
+    setDialogOpen(false);
+    setName('');
+    setEmail('');
+  };
+
+  const signOut = () => {
+    localStorage.removeItem(DEMO_PROFILE_KEY);
+    setProfile(null);
+  };
+
+  return <>
+    {profile ? <div className="account-chip"><span className="account-avatar">{profile.name.slice(0, 1).toUpperCase()}</span><span className="account-name"><b>{profile.name}</b><small>DEMO ACCOUNT</small></span><button className="sign-out" type="button" onClick={signOut}>Sign out</button></div>
+      : <button className="sign-in-button" type="button" onClick={() => setDialogOpen(true)}>Sign in <span>DEMO</span></button>}
+    {dialogOpen && <div className="dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setDialogOpen(false); }}>
+      <section className="demo-dialog" role="dialog" aria-modal="true" aria-labelledby="demo-dialog-title">
+        <button className="dialog-close" type="button" aria-label="Close" onClick={() => setDialogOpen(false)}>×</button>
+        <span className="eyebrow">MHACKS ACCOUNT · DEMO</span>
+        <h2 id="demo-dialog-title">Create a demo profile</h2>
+        <p className="dialog-copy">This demo profile is saved in this browser only. It is not connected to Google or SpacetimeDB.</p>
+        <form onSubmit={createDemoProfile}>
+          <label htmlFor="demo-name">Display name</label>
+          <input id="demo-name" name="name" autoComplete="name" autoFocus required maxLength={60} value={name} onChange={event => setName(event.target.value)} placeholder="Your name" />
+          <label htmlFor="demo-email">Email <span>optional, not verified</span></label>
+          <input id="demo-email" name="email" type="email" autoComplete="email" maxLength={254} value={email} onChange={event => setEmail(event.target.value)} placeholder="you@example.com" />
+          <button className="dialog-submit" type="submit">Continue with demo account</button>
+        </form>
+      </section>
+    </div>}
+  </>;
+}
+
 function MapExperience({ pins, myId, loaded, connected, sharing, busy, message, onToggle, preview = false }: {
   pins: LocationPin[]; myId: string; loaded: boolean; connected: boolean; sharing: boolean; busy: boolean; message: string; onToggle: () => void; preview?: boolean;
 }) {
@@ -129,7 +193,7 @@ function MapExperience({ pins, myId, loaded, connected, sharing, busy, message, 
       </Fragment>)}
     </MapContainer>
 
-    <header className="map-topbar"><a className="brand" href="/" aria-label="MHacks live map"><span className="brand-mark">mh<span>+</span></span><span><b>MHACKS</b><small>LIVE CAMPUS MAP</small></span></a><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div></header>
+    <header className="map-topbar"><a className="brand" href="/" aria-label="MHacks live map"><span className="brand-mark">mh<span>+</span></span><span><b>MHACKS</b><small>LIVE CAMPUS MAP</small></span></a><div className="topbar-actions"><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div><AccountControl /></div></header>
 
     <section className="map-card" aria-label="Live location sharing controls">
       <span className="eyebrow">DUDERSTADT CENTER · ANN ARBOR</span>
