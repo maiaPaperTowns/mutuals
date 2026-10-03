@@ -77,6 +77,9 @@ function clean(line: string): string {
     .replace(/\b([A-Za-z]*[A-Z][A-Za-z]*)(A|U)l\b/g, "$1$2I")
     .replace(/\bAl\b/g, "AI")
     .replace(/\s+[-—]\s+/g, " – ")
+    .replace(/\s*\((?:\d+\s+(?:years?|yrs?|months?|mos?)\s*)+\)|\s*\(less than a year\)/gi, "") // LinkedIn durations
+    .replace(/^page \d+ of \d+$/i, "")
+    .replace(/\s*[•·]\s*(?=\(|$)/g, " ")
     .replace(/[  ]{2,}/g, " ")
     .trim();
 }
@@ -88,9 +91,9 @@ const SECTIONS: [Section, RegExp][] = [
   ["education", /^education\b/i],
   ["experience", /^((work|professional|relevant|research|industry) )?experience\b|^employment\b|^internships?\b|^leadership( &| and)? (experience|activities)?|^leadership$|^involvement\b|^extracurriculars?\b/i],
   ["projects", /^((personal|selected|technical|academic) )?projects?\b/i],
-  ["skills", /^((technical|core|relevant) )?skills\b|^technologies\b|^tech(nical)? stack\b|^tools\b|^languages( &| and) (tools|technologies)/i],
+  ["skills", /^((technical|core|relevant|top) )?skills\b|^technologies\b|^tech(nical)? stack\b|^tools\b|^languages( &| and) (tools|technologies)/i],
   ["interests", /^(interests|hobbies|side quests?|fun facts?|outside (of )?(work|school)|personal)\b|^(activities|hobbies) (&|and) interests\b/i],
-  ["other", /^(awards?|honors?|certifications?|publications?|relevant coursework|coursework|summary|objective|about( me)?|volunteer(ing)?)\b/i],
+  ["other", /^(awards?|honors?(-awards)?|certifications?|publications?|relevant coursework|coursework|summary|objective|about( me)?|volunteer(ing)?|contact|languages|patents|recommendations)\b/i],
 ];
 
 function sectionOf(line: string): Section | undefined {
@@ -108,7 +111,8 @@ const isDates = (t: string) => {
   const m = t.match(DATES);
   return Boolean(m && m[0].length >= t.replace(/[()]/g, "").trim().length - 2);
 };
-const LOCATION = /^(remote|hybrid|[A-Z][a-zA-Z .'-]+,\s*([A-Z]{2}|[A-Z][a-z]+))$/;
+// "Ann Arbor, MI", "Pittsburgh, Pennsylvania, United States", "Remote"
+const LOCATION = /^(remote|hybrid|[A-Z][a-zA-Z .'-]+(,\s*([A-Z]{2}|[A-Z][a-zA-Z .'-]+)){1,2})$/;
 const ROLE = /\b(intern(ship)?|engineer(ing)?|developer|researcher|research assistant|assistant|analyst|designer|scientist|manager|lead|founder|co-?founder|president|director|officer|chair|ta\b|teaching assistant|tutor|consultant|fellow|member|organizer|mentor|associate|coordinator|head of|vp\b|swe\b)/i;
 const SCHOOL = /\b(university|college|institute|school|academy|polytechnic)\b/i;
 const DEGREE = /\b(b\.?s\.?e?|b\.?a\.?|m\.?s\.?|m\.?eng|ph\.?d|bachelor|master|associate|major|minor|diploma|candidate)\b/i;
@@ -163,7 +167,9 @@ function parseExperience(lines: string[]): Profile["experience"] {
     }
     const r = row(line);
     if (!r.text) {
+      // Dates or location on their own line (LinkedIn exports) belong to the current role.
       if (cur && r.dates && !cur.dates) cur.dates = r.dates;
+      if (cur && r.location && !cur.location) cur.location = r.location;
       continue;
     }
     if (!cur || headerCount >= 2) {
@@ -243,6 +249,7 @@ function headlineFrom(p: Omit<Profile, "headline" | "can_help_with">): string {
   if (edu) {
     const major = edu.degree
       .replace(/[,;|]?\s*(minor|concentration|gpa)\b.*$/i, "") // drop minor/GPA
+      .replace(/^.*?\b(?:BSE?|BA|BEng|MS|MEng|MBA|PhD)\s*,\s*/, "") // LinkedIn: "Bachelor of Science - BS, X" → "X"
       .replace(/^.*\b(?:in|of)\s+(?=[A-Z])/, "") // "Bachelor of Science in X" → "X" (last in/of)
       .replace(/^(?:b\.?s\.?e?\.?|b\.?a\.?|m\.?s\.?|m\.?eng\.?|ph\.?d\.?)\s+/i, "") // "B.S.E. X" → "X"
       .replace(/[,.;:]\s*$/, "")

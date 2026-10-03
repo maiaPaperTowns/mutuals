@@ -20,6 +20,8 @@ import { parseCommand, REPLIES } from "./commands.ts";
 import { askAgent } from "./agent.ts";
 import { parseZone } from "./zones.ts";
 import { handlesFromLinks, linkUrls, parseHandles } from "./handles.ts";
+import { renderCard } from "./businessCard.ts";
+import { warmOpener } from "./opener.ts";
 import * as mini from "./miniapp.ts";
 import * as store from "./store.ts";
 import { formatProfile, readResumeProfile, toJpeg, UnsupportedResume, type ListField, type Profile } from "./resume.ts";
@@ -97,13 +99,23 @@ const phoneOf = (id: string) => id.match(/;-;(\+?\d{7,})$/)?.[1];
 const send = async (to: string, msg: Outbound) => {
   const space = await spaceFor(to);
   if ("contactOf" in msg) {
-    await space.send(businessCard(msg.contactOf));
-    // The pretty version: their business card page (opens in Safari, or updates in place as a Photon app card).
+    // After a double yes: their business card image, a saveable contact card, and a ready-to-send opener.
+    const other = msg.contactOf;
     const m = msg.matchId ? intros.get(msg.matchId) : undefined;
-    if (m && miniAppsOn() && !appCards()) await space.send(card(mini.introUrl(m, to)));
+    try {
+      const img = renderCard(cardInput(other));
+      await space.send(attachment(img, { name: `${other.name.split(" ")[0] || "mutual"}-card.png`, mimeType: "image/png" }));
+    } catch (err) {
+      console.error("card image failed", err);
+    }
+    await space.send(businessCard(other));
+    if (m) {
+      const reason = m.a.id === to ? m.reasonForA : m.reasonForB;
+      const opener = await warmOpener({ fromName: people.get(to)?.name ?? "", toName: other.name, zone: other.zone, reason });
+      await space.send(`💌 Say hi:\n${opener}`);
+    }
   } else if (msg.celebrate && cloud) {
     await space.send(effect(msg.text, imessage.effect.message.confetti));
-    await space.send(sticker("sticker-double-yes")).catch((e) => console.error("sticker failed", e));
   } else {
     await space.send(msg.text);
   }
@@ -189,7 +201,7 @@ async function refreshIntroCards(m: Match) {
 
 const WELCOME = (name?: string) =>
   `Hey${name ? ` ${name}` : ""}! I'm Mutual 🐶 I find your people at MHacks.\n` +
-  `Send me your resume (photo or PDF) to start. Nothing's shared unless you both say yes.`;
+  `Send your resume or LinkedIn PDF (profile → More → Save to PDF) to start. Nothing's shared unless you both say yes.`;
 
 /** The agent starts the conversation, so new users just reply. They must already be added in Photon → Users. */
 async function welcome(phone: string, name?: string) {
@@ -199,6 +211,22 @@ async function welcome(phone: string, name?: string) {
   if (cloud) await space.send(sticker("hero")).catch((e) => console.error("sticker failed", e));
   await space.send(WELCOME(name));
   return space.id;
+}
+
+/** What goes on someone's business card image: only what they gave us. */
+function cardInput(p: Person) {
+  const prof = profiles.get(p.id);
+  const role = prof?.experience[0];
+  return {
+    name: p.name,
+    title: p.title || role?.title,
+    org: p.org || role?.org,
+    headline: prof?.headline,
+    zone: p.zone,
+    links: p.links,
+    helpWith: prof?.can_help_with,
+    avatar: avatars.get(p.id),
+  };
 }
 
 /** Native iMessage contact card: tap "Create New Contact" to save. Sent only after a double yes. */
@@ -256,7 +284,8 @@ async function handle(space: Space, id: string, text: string) {
     const p = people.get(id) ?? { id, name: profiles.get(id)?.name ?? "" };
     people.set(id, { ...p, links: { ...p.links, ...handles } });
     const what = Object.keys(handles).map((k) => k[0]!.toUpperCase() + k.slice(1)).join(" + ");
-    return void (await space.send(`🔗 ${what} added to your card. Only shared after a double yes.`));
+    const tip = handles.linkedin && !profiles.has(id) ? "\nTip: LinkedIn → More → Save to PDF, then send it here for a full card." : "";
+    return void (await space.send(`🔗 ${what} added to your card. Only shared after a double yes.${tip}`));
   }
   const zone = parseZone(text);
   if (zone) {

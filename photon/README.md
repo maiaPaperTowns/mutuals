@@ -29,7 +29,7 @@ Texts people can send: `help`, `profile`, `map`, `I'm in the <zone>`, `new pic`,
 
 ```bash
 npm install
-npm test          # double-yes, resume parser, zones, pages (19 tests)
+npm test          # double-yes, resume + LinkedIn parser, zones, pages, cards (25 tests)
 npm start         # no creds → terminal chat; with creds → real iMessage
 ```
 
@@ -69,9 +69,15 @@ mb.offer_intro("m42", "+15550100002", "Elena", "+15550100001", "Maia",
 mb.forget("+15550100002")    # "delete me" on ASI:One
 ```
 
-After a double yes, each person gets the other's **business card**: a native iMessage contact card (name,
-title @ company, photo, LinkedIn/Instagram/GitHub URLs, Discord in the note) plus the business card page.
-People can also add handles by text: "my instagram is @x", "linkedin.com/in/x", "discord: x".
+After a double yes, each person gets: the other's **business card image** (rendered from their own profile in
+the Mutual puppy style, `src/businessCard.ts`), a native **contact card** to save, and a **💌 ready-to-send opener**
+(written by Gemini if `GEMINI_API_KEY` is set, otherwise a template).
+
+**No scraping.** For the most detailed card, people send their **LinkedIn PDF** (profile → More → Save to PDF);
+the reader handles its two-column layout (Experience, Education, Top Skills). Handles are added by text.
+
+The contact card has name, title @ company, photo, LinkedIn/Instagram/GitHub URLs and Discord in the note.
+People add handles by text: "my instagram is @x", "linkedin.com/in/x", "discord: x".
 
 ## Interfaces for the team
 

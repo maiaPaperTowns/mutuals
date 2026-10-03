@@ -32,17 +32,28 @@ for image in cgImages(CommandLine.arguments[1]) {
     guard let t = obs.topCandidates(1).first?.string else { return nil }
     return Piece(text: t, box: obs.boundingBox) // normalized, origin bottom-left
   }
-  // Top to bottom, then group pieces whose vertical centers are within half a line of each other.
-  var rows: [[Piece]] = []
-  for p in pieces.sorted(by: { $0.box.midY > $1.box.midY }) {
-    if let last = rows.last?.first, abs(last.box.midY - p.box.midY) < min(last.box.height, p.box.height) * 0.5 {
-      rows[rows.count - 1].append(p)
-    } else {
-      rows.append([p])
-    }
+  // Two-column layouts (LinkedIn "Save to PDF" has a sidebar): if some x in 20–45% of the width has no
+  // text crossing it and both sides have plenty of text, read the main (wider) column first, then the sidebar.
+  var columns: [[Piece]] = [pieces]
+  for step in 20...45 {
+    let x = CGFloat(step) / 100
+    if pieces.contains(where: { $0.box.minX < x && $0.box.maxX > x }) { continue }
+    let left = pieces.filter { $0.box.maxX <= x }, right = pieces.filter { $0.box.minX >= x }
+    if left.count >= 6 && right.count >= 6 { columns = [right, left]; break }
   }
-  for row in rows {
-    out.append(row.sorted(by: { $0.box.minX < $1.box.minX }).map(\.text).joined(separator: "\t"))
+  for column in columns {
+    // Top to bottom, then group pieces whose vertical centers are within half a line of each other.
+    var rows: [[Piece]] = []
+    for p in column.sorted(by: { $0.box.midY > $1.box.midY }) {
+      if let last = rows.last?.first, abs(last.box.midY - p.box.midY) < min(last.box.height, p.box.height) * 0.5 {
+        rows[rows.count - 1].append(p)
+      } else {
+        rows.append([p])
+      }
+    }
+    for row in rows {
+      out.append(row.sorted(by: { $0.box.minX < $1.box.minX }).map(\.text).joined(separator: "\t"))
+    }
   }
 }
 print(out.joined(separator: "\n"))

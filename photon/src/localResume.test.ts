@@ -41,3 +41,18 @@ test("company-first resume, ALL CAPS name, bullet-separated hobbies", () => {
   assert.deepEqual(p.interests, ["Ceramics", "half marathons", "K-dramas", "latte art"]);
   assert.ok(p.skills.includes("Docker") && p.skills.includes("OpenCV"));
 });
+
+test("LinkedIn 'Save to PDF' export (sidebar read after the main column)", () => {
+  const p = profileFromText(fixture("resume-linkedin.txt"));
+  assert.equal(p.name, "Maia Le");
+  assert.equal(p.headline, "Computer Science @ University of Michigan ’27");
+  assert.deepEqual(
+    p.experience.map((e) => [e.title, e.org, e.dates, e.location]),
+    [
+      ["Software Engineering Intern", "Duolingo", "May 2025 – August 2025", "Pittsburgh, Pennsylvania, United States"],
+      ["Product Design Intern", "Figma", "June 2024 – August 2024", "San Francisco, California, United States"],
+    ],
+  );
+  for (const s of ["Figma", "React Native", "User Research"]) assert.ok(p.skills.includes(s), s); // "Top Skills"
+  assert.ok(p.links.some((l) => l.includes("linkedin.com/in/example")));
+});

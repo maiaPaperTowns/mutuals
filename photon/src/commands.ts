@@ -21,7 +21,7 @@ export const REPLIES: Record<Command, string> = {
   forget: "Deleted everything 🗑 Text me anytime to start fresh.",
   help:
     "🐶 Mutual can:\n" +
-    "📄 read your resume (photo/PDF)\n" +
+    "📄 read your resume or LinkedIn PDF\n" +
     "🔍 find people: \"who knows React?\"\n" +
     "📍 \"I'm in the lounge\" · \"map\" · \"profile\"\n" +
     "⏸ STOP · 🗑 DELETE ME",
