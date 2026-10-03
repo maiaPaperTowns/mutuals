@@ -32,7 +32,7 @@ make sure the agreed schema has them (or tell Maia the real names).
 
 - `person`: `id`, `name`, `imessage_id` (Spectrum DM space id), `open_to_meet` (bool)
 - `profile`: `person_id`, `skills[]`, `projects[]`, `can_help_with[]`, `off_limits[]`
-- `presence`: `person_id`, `zone`, `updated_at`
+- `presence`: anonymous `participant_id`, `zone_id`, `is_demo_persona`; the map module keeps its SpacetimeDB owner identity in a private `participant_owner` table
 - `match`: `id`, `a_id`, `b_id`, `reason_for_a`, `reason_for_b`, `a_yes`, `b_yes`, `status` (offered/accepted/declined/expired)
 - `rating`: `match_id`, `person_id`, `worth_it` (bool)
 
@@ -42,7 +42,8 @@ make sure the agreed schema has them (or tell Maia the real names).
 - [ ] **Photon:** text the agent's number from a real iPhone and get a reply. *(Works in the terminal; needs Photon project creds.)*
 - [ ] **Photon:** double-yes flow passes tests and a two-chat terminal demo. *(Done: `cd photon && npm test`.)*
 - [ ] **Agents:** concierge registered on Agentverse; responds in ASI:One.
-- [ ] **Map:** React page with zones + 15 "demo persona" dots from Spacetime.
+- [x] **Map:** React page with six schematic zones, opt-in dots, and 15 clearly labeled demo personas; local preview works without credentials.
+- [ ] **Map live deployment:** publish the SpacetimeDB module, set frontend connection values, and verify two browsers receive the same opt-in/zone/opt-out changes.
 - [ ] **Scoreboard:** thumbs up/down writes to `rating`, page shows real counts.
 
 ### CP2: Saturday night: the key checkpoint ⭐
@@ -84,8 +85,8 @@ One resume goes in → a profile comes out → one match is found → an iMessag
 **Fetch.ai (Ziquan).** Agents on Agentverse, discoverable and usable in ASI:One, a public README with
 names, addresses and the Innovation Lab badge. Demo video must show the ASI:One flow.
 
-**SpacetimeDB (Terry).** Live shared state is the point: map dots, the toggle, and match state all update
-without refresh. Show two screens updating at once.
+**SpacetimeDB (Terry).** Live shared map state is the point: opted-in dots, zone changes, and opt-outs update
+without refresh. Show two screens updating at once. The current `map/spacetimedb` module is a standalone map+database for the MVP; when other modules need one shared database, merge its `presence` and private+`participant_owner` tables/reducers into the team's module rather than publishing a second module over it.
 
 **Overall / FREE-WILi (Elena).** Real-phone testing, a bug list, and an honest ROI measure
 (intros → meetings → % worth it). Never state a number we didn't measure.

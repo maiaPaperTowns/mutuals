@@ -45,7 +45,7 @@ iPhone ──iMessage──► Photon Spectrum bridge ──► Concierge agent 
 |---|---|---|
 | [`photon/`](photon/) | iMessage bridge on Photon Spectrum, double-yes intros, privacy commands, worth-it follow-up | Maia |
 | `agents/` | Agentverse agents: concierge, onboarding, matcher, recruiter | Ziquan |
-| `map/` | React venue map: zones, live dots, open-to-meet toggle; seeded "demo persona" profiles | Terry |
+| [`map/`](map/) | React venue map: zones, anonymous live dots, open-to-meet toggle; 15 seeded `DEMO PERSONA` pins | Terry |
 | `scoreboard/` | Worth-it scoreboard, real counts only | Elena |
 
 See [PLAN.md](PLAN.md) for checkpoints, the shared schema and fallbacks.
@@ -62,6 +62,16 @@ npm start
 ```
 
 To use real iMessage, put your Photon project keys in `photon/.env` (see [photon/README.md](photon/README.md)).
+
+**Live venue map** (local preview works without cloud credentials):
+
+```bash
+cd map
+npm install
+npm run dev
+```
+
+The local preview has 15 synthetic demo pins and a browser-local opt-in. To enable shared live presence, publish the SpacetimeDB module and configure `map/.env.local`; see [map/README.md](map/README.md). For a Vercel deployment, set the same public database URI and name in the project's environment settings. The map database stores anonymous zone presence only; it does not store names, resumes, or contact details.
 
 Other folders: see the README inside each one.
 
