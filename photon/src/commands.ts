@@ -20,9 +20,11 @@ export const REPLIES: Record<Command, string> = {
   start: "You're back in! I'll text you when I find someone worth meeting.",
   forget: "Done. I've deleted your profile and intros. Text me anytime to start fresh.",
   help:
-    "Here's what I can do:\n" +
+    "I'm Mutual 🐶 Here's what I can do:\n" +
     "• Send your resume PDF and I'll build your profile\n" +
     "• Tell me what you're stuck on or who you want to meet\n" +
     "• \"What do you know about me?\" shows your profile\n" +
+    "• \"I'm in the lounge\" tells me where you are, \"map\" opens the live map\n" +
+    "• \"profile\" shows your card\n" +
     "• STOP pauses intros, DELETE ME erases everything",
 };

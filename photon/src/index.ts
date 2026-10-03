@@ -9,7 +9,8 @@
 //   POST /welcome { phone, name? }                                      → agent texts someone first
 //   GET  /app/...                                                       → mini app pages (see miniapp.ts)
 import http from "node:http";
-import { Spectrum, app as appCard, contact, edit, richlink, type Message, type Space } from "spectrum-ts";
+import { existsSync, readFileSync } from "node:fs";
+import { Spectrum, app as appCard, attachment, contact, edit, richlink, type Message, type Space } from "spectrum-ts";
 import { effect, imessage } from "spectrum-ts/providers/imessage";
 import { terminal } from "spectrum-ts/providers/terminal";
 import { DoubleYes, type Match, type Outbound, type Person } from "./doubleYes.ts";
@@ -68,6 +69,9 @@ async function spaceFor(id: string): Promise<Space> {
   return s;
 }
 
+// photon puppy stickers sent as images in the chat.
+const sticker = (name: string) => attachment(new URL(`../assets/${name}.png`, import.meta.url).pathname);
+
 // iMessage DM space ids look like "any;-;+15551234567".
 const phoneOf = (id: string) => id.match(/;-;(\+?\d{7,})$/)?.[1];
 
@@ -78,6 +82,7 @@ const send = async (to: string, msg: Outbound) => {
     await space.send(contact({ name: { formatted: p.name }, phones: [{ value: p.phone!, type: "mobile" }] }));
   } else if (msg.celebrate && cloud) {
     await space.send(effect(msg.text, imessage.effect.message.confetti));
+    await space.send(sticker("sticker-double-yes")).catch((e) => console.error("sticker failed", e));
   } else {
     await space.send(msg.text);
   }
@@ -159,7 +164,7 @@ async function refreshIntroCards(m: Match) {
 }
 
 const WELCOME = (name?: string) =>
-  `Hey${name ? ` ${name}` : ""}! 👋 I'm your networking agent at MHacks.\n\n` +
+  `Hey${name ? ` ${name}` : ""}! 👋 I'm Mutual, your networking pup at MHacks. People find people.\n\n` +
   `Send me your resume (a photo or PDF) and tell me what you're stuck on or who you want to meet. ` +
   `I'll find the right person nearby, and nothing is shared unless you both say yes.\n\n` +
   `Tip: save this chat as a contact so it's easy to find. Text HELP anytime.`;
@@ -171,6 +176,7 @@ async function welcome(phone: string, name?: string) {
   const space = await dmByPhone(e164);
   spaces.set(space.id, space);
   if (name) people.set(space.id, { ...(people.get(space.id) ?? { id: space.id }), id: space.id, name });
+  if (cloud) await space.send(sticker("hero")).catch((e) => console.error("sticker failed", e));
   await space.send(WELCOME(name));
   return space.id;
 }
@@ -337,6 +343,15 @@ function trustedCaller(req: http.IncomingMessage): boolean {
 /** Mini app pages. Returns false if the URL isn't one of ours. */
 async function miniAppRoute(req: http.IncomingMessage, res: http.ServerResponse): Promise<boolean> {
   const path = new URL(req.url ?? "/", "http://x").pathname;
+
+  // Brand art (puppy poses, stickers, icons) cut from the photon brand sheet.
+  const asset = path.match(/^\/app\/assets\/([a-z0-9-]+)\.png$/);
+  if (asset) {
+    const file = new URL(`../assets/${asset[1]}.png`, import.meta.url).pathname;
+    if (!existsSync(file)) return void res.writeHead(404).end(), true;
+    res.writeHead(200, { "content-type": "image/png", "cache-control": "public, max-age=86400" }).end(readFileSync(file));
+    return true;
+  }
 
   const me = path.match(/^\/app\/me\/([\w-]+)(?:\/(delete|pause|resume|forget|avatar\.jpg))?$/);
   if (me) {
