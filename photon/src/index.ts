@@ -7,6 +7,8 @@
 //   GET  /stats                                                         → real intro/rating counts
 //   GET  /profiles                                                      → profiles read from resumes
 //   POST /welcome { phone, name? }                                      → agent texts someone first
+//   POST /profile { phone, name, title?, org?, zone?, links?, skills? }  → ASI agent saves a person's card
+//   POST /forget  { phone }                                             → erase a person (delete me on ASI:One)
 //   GET  /app/...                                                       → mini app pages (see miniapp.ts)
 import http from "node:http";
 import { existsSync, readFileSync } from "node:fs";
@@ -17,6 +19,7 @@ import { DoubleYes, type Match, type Outbound, type Person } from "./doubleYes.t
 import { parseCommand, REPLIES } from "./commands.ts";
 import { askAgent } from "./agent.ts";
 import { parseZone } from "./zones.ts";
+import { handlesFromLinks, linkUrls, parseHandles } from "./handles.ts";
 import * as mini from "./miniapp.ts";
 import * as store from "./store.ts";
 import { formatProfile, readResumeProfile, toJpeg, UnsupportedResume, type ListField, type Profile } from "./resume.ts";
@@ -61,10 +64,26 @@ const ABOUT_ME = /what do you (know|have) (about|on) me/i;
 const PROFILE_CMD = /^\s*(my )?(profile|me)\s*[?.!]*\s*$/i;
 const MAP_CMD = /^\s*(show me the |open the |the )?map\s*[?.!]*\s*$/i;
 
+/** US-friendly E.164: "(555-010-0002" → "+15550100002". */
+function e164(phone: string): string {
+  const digits = phone.replace(/[^\d+]/g, "");
+  return digits.startsWith("+") ? digits : digits.length === 11 && digits.startsWith("1") ? `+${digits}` : `+1${digits}`;
+}
+/** The person id we use for someone known only by phone (e.g. matched on ASI:One): their iMessage DM id. */
+const dmId = (phone: string) => `any;-;${e164(phone)}`;
+
 async function spaceFor(id: string): Promise<Space> {
   const known = spaces.get(id);
   if (known) return known;
-  const s = await getSpace(id);
+  let s: Space;
+  try {
+    s = await getSpace(id);
+  } catch (err) {
+    // Never texted us (e.g. came from ASI:One): start the iMessage chat from their phone number.
+    const phone = phoneOf(id);
+    if (!phone) throw err;
+    s = await dmByPhone(phone);
+  }
   spaces.set(id, s);
   return s;
 }
@@ -78,8 +97,10 @@ const phoneOf = (id: string) => id.match(/;-;(\+?\d{7,})$/)?.[1];
 const send = async (to: string, msg: Outbound) => {
   const space = await spaceFor(to);
   if ("contactOf" in msg) {
-    const p = msg.contactOf;
-    await space.send(contact({ name: { formatted: p.name }, phones: [{ value: p.phone!, type: "mobile" }] }));
+    await space.send(businessCard(msg.contactOf));
+    // The pretty version: their business card page (opens in Safari, or updates in place as a Photon app card).
+    const m = msg.matchId ? intros.get(msg.matchId) : undefined;
+    if (m && miniAppsOn() && !appCards()) await space.send(card(mini.introUrl(m, to)));
   } else if (msg.celebrate && cloud) {
     await space.send(effect(msg.text, imessage.effect.message.confetti));
     await space.send(sticker("sticker-double-yes")).catch((e) => console.error("sticker failed", e));
@@ -102,32 +123,35 @@ const intros = new DoubleYes(send, {
 });
 setInterval(() => void intros.expire(), 30_000);
 
-// ---------- saved state ----------
-{
-  const saved = store.load();
-  if (saved) {
-    for (const [k, v] of saved.people) people.set(k, v as Person);
-    for (const [k, v] of saved.profiles) profiles.set(k, v as Profile);
-    for (const [k, v] of saved.avatars) avatars.set(k, Buffer.from(v, "base64"));
-    mini.restoreTokens(saved.tokens);
-    intros.restorePaused(saved.paused);
-    console.log(`restored ${profiles.size} profiles, ${avatars.size} photos`);
-  }
+// ---------- user database (AWS DynamoDB or local file, see store.ts) ----------
+for (const r of await store.open()) {
+  if (r.person) people.set(r.userId, r.person as Person);
+  if (r.profile) profiles.set(r.userId, r.profile as Profile);
+  if (r.avatar) avatars.set(r.userId, Buffer.from(r.avatar, "base64"));
+  if (r.token) mini.restoreTokens([[r.userId, r.token]]);
+  if (r.paused) intros.restorePaused([r.userId]);
 }
-const saveState = () =>
-  store.save({
-    people: [...people],
-    profiles: [...profiles],
-    avatars: [...avatars].map(([k, v]) => [k, v.toString("base64")]),
-    tokens: mini.tokenEntries(),
-    paused: intros.pausedIds(),
-  });
-setInterval(saveState, 5_000);
-for (const sig of ["SIGINT", "SIGTERM"] as const) {
-  process.on(sig, () => {
-    saveState();
-    process.exit(0);
-  });
+
+/** One record per person who has given us anything. */
+function userRecords(): store.UserRecord[] {
+  const tokens = new Map(mini.tokenEntries());
+  const paused = new Set(intros.pausedIds());
+  const ids = new Set([...people.keys(), ...profiles.keys(), ...avatars.keys(), ...tokens.keys(), ...paused]);
+  return [...ids].map((userId) => ({
+    userId,
+    person: people.get(userId),
+    profile: profiles.get(userId),
+    avatar: avatars.get(userId)?.toString("base64"),
+    token: tokens.get(userId),
+    paused: paused.has(userId) || undefined,
+  }));
+}
+let saving = Promise.resolve();
+const saveUsers = () =>
+  (saving = saving.then(() => store.sync(userRecords())).catch((err) => console.error("database save failed", err)));
+setInterval(saveUsers, 3_000);
+for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
+  process.on(sig, () => void saveUsers().finally(() => process.exit(0)));
 }
 
 // ---------- mini app cards ----------
@@ -164,21 +188,35 @@ async function refreshIntroCards(m: Match) {
 }
 
 const WELCOME = (name?: string) =>
-  `Hey${name ? ` ${name}` : ""}! 👋 I'm Mutual, your networking pup at MHacks. People find people.\n\n` +
-  `Send me your resume (a photo or PDF) and tell me what you're stuck on or who you want to meet. ` +
-  `I'll find the right person nearby, and nothing is shared unless you both say yes.\n\n` +
-  `Tip: save this chat as a contact so it's easy to find. Text HELP anytime.`;
+  `Hey${name ? ` ${name}` : ""}! I'm Mutual 🐶 I find your people at MHacks.\n` +
+  `Send me your resume (photo or PDF) to start. Nothing's shared unless you both say yes.`;
 
 /** The agent starts the conversation, so new users just reply. They must already be added in Photon → Users. */
 async function welcome(phone: string, name?: string) {
-  const digits = phone.replace(/[^\d+]/g, "");
-  const e164 = digits.startsWith("+") ? digits : digits.length === 11 && digits.startsWith("1") ? `+${digits}` : `+1${digits}`;
-  const space = await dmByPhone(e164);
+  const space = await dmByPhone(e164(phone));
   spaces.set(space.id, space);
   if (name) people.set(space.id, { ...(people.get(space.id) ?? { id: space.id }), id: space.id, name });
   if (cloud) await space.send(sticker("hero")).catch((e) => console.error("sticker failed", e));
   await space.send(WELCOME(name));
   return space.id;
+}
+
+/** Native iMessage contact card: tap "Create New Contact" to save. Sent only after a double yes. */
+function businessCard(p: Person) {
+  const prof = profiles.get(p.id);
+  const role = prof?.experience[0];
+  const title = p.title || role?.title;
+  const org = p.org || role?.org;
+  const photo = avatars.get(p.id);
+  const extras = [p.links?.discord && `Discord: ${p.links.discord}`, prof?.headline].filter(Boolean);
+  return contact({
+    name: { formatted: p.name },
+    phones: p.phone ? [{ value: p.phone, type: "mobile" }] : undefined,
+    org: title || org ? { name: org, title } : undefined,
+    urls: linkUrls(p.links).map((l) => l.url),
+    note: [`Met on Mutual · MHacks 2026`, ...extras].join("\n"),
+    photo: photo ? { mimeType: "image/jpeg", read: async () => photo } : undefined,
+  });
 }
 
 async function sendProfileCard(space: Space, id: string) {
@@ -207,17 +245,24 @@ async function handle(space: Space, id: string, text: string) {
   if (await intros.handleReply(id, text)) return;
   if (awaitingAvatar.has(id) && /^\s*(skip|no|nah|later|no thanks)\b/i.test(text)) {
     awaitingAvatar.delete(id);
-    return void (await space.send("No problem! Your card will use your initials. Send a pic anytime to change it."));
+    return void (await space.send("No problem! Send a pic anytime 📸"));
   }
   if (/^\s*(new |change |update )?(profile )?(pic|photo|picture|avatar)\s*[.!?]*\s*$/i.test(text)) {
     awaitingAvatar.add(id);
     return void (await space.send("Send it over! 📸"));
   }
+  const handles = parseHandles(text);
+  if (handles) {
+    const p = people.get(id) ?? { id, name: profiles.get(id)?.name ?? "" };
+    people.set(id, { ...p, links: { ...p.links, ...handles } });
+    const what = Object.keys(handles).map((k) => k[0]!.toUpperCase() + k.slice(1)).join(" + ");
+    return void (await space.send(`🔗 ${what} added to your card. Only shared after a double yes.`));
+  }
   const zone = parseZone(text);
   if (zone) {
     people.set(id, { ...(people.get(id) ?? { id, name: "" }), zone: zone.label });
-    const map = process.env.MAP_URL ? `\nWant to show up on the live map too? ${process.env.MAP_URL}` : "";
-    return void (await space.send(`Got it, you're at ${zone.label}. I'll use that when I introduce you.${map}`));
+    const map = process.env.MAP_URL ? `\nLive map: ${process.env.MAP_URL}` : "";
+    return void (await space.send(`📍 ${zone.label}, got it!${map}`));
   }
   if (MAP_CMD.test(text)) {
     if (!process.env.MAP_URL) return void (await space.send("The live map isn't up yet. Tell me your zone instead, like \"I'm in the lounge\"."));
@@ -229,7 +274,7 @@ async function handle(space: Space, id: string, text: string) {
   if (useLocalReader() && ABOUT_ME.test(text)) {
     const p = profiles.get(id);
     return void (await space.send(
-      p ? `Here's everything I have on you:\n${formatProfile(p)}\n\nText DELETE ME to erase it.` : "Nothing yet! Send me your resume (a photo or PDF) and I'll show you what I kept.",
+      p ? `${formatProfile(p)}\nDELETE ME erases it.` : "Nothing yet! Send your resume 📄",
     ));
   }
   await space.responding(async () => {
@@ -270,7 +315,7 @@ async function handle(space: Space, id: string, text: string) {
       }
     } catch (err) {
       console.error("handler error", err);
-      await space.send("Sorry, something broke on my end. Try again in a sec?").catch(() => {});
+      await space.send("Oops, something broke 🙈 Try again?").catch(() => {});
     }
   }
 })();
@@ -286,7 +331,7 @@ async function isProfilePhoto(id: string, file: Buffer, mimeType: string): Promi
 async function setAvatar(space: Space, id: string, file: Buffer) {
   avatars.set(id, await toJpeg(file, 512));
   awaitingAvatar.delete(id);
-  await space.send("Looking good! 😎 Your card is updated.");
+  await space.send("Looking good! 😎");
   await sendProfileCard(space, id);
 }
 
@@ -294,19 +339,36 @@ async function readResume(space: Space, id: string, file: Buffer, mimeType: stri
   try {
     const p = await readResumeProfile(file, mimeType);
     profiles.set(id, p);
-    if (p.name) people.set(id, { ...people.get(id), id, name: p.name });
+    const prev = people.get(id);
+    people.set(id, {
+      ...prev,
+      id,
+      name: p.name || prev?.name || "",
+      title: prev?.title ?? p.experience[0]?.title,
+      org: prev?.org ?? p.experience[0]?.org,
+      links: { ...handlesFromLinks(p.links), ...prev?.links },
+    });
+    const first = p.name.split(" ")[0];
+    const counts = [
+      p.experience.length && `${p.experience.length} roles`,
+      p.projects.length && `${p.projects.length} projects`,
+      `${p.skills.length} skills`,
+    ].filter(Boolean).join(" · ");
+    const wantsPhoto = !avatars.has(id);
+    if (wantsPhoto) awaitingAvatar.add(id);
+    const hasCard = miniAppsOn();
     await space.send(
-      `Here's what I kept from your resume:\n${formatProfile(p)}\n\n` +
-        `Anything wrong, or off-limits? Tell me. Now, what are you stuck on, or who do you want to meet?`,
+      [
+        `✨ Got it${first ? `, ${first}` : ""}! ${counts}`,
+        hasCard ? "" : formatProfile(p),
+        wantsPhoto ? "📸 Send a selfie for your card (or SKIP)" : "",
+        "Then tell me who you want to meet!",
+      ].filter(Boolean).join("\n"),
     );
     await sendProfileCard(space, id);
-    if (!avatars.has(id)) {
-      awaitingAvatar.add(id);
-      await space.send("📸 Want a photo on your card? Send a selfie or any pic that's very you (or text SKIP).");
-    }
   } catch (err) {
     if (err instanceof UnsupportedResume) {
-      return void (await space.send("I can read resumes as a photo or a PDF. Could you send it as one of those?"));
+      return void (await space.send("Send your resume as a photo or PDF 📄"));
     }
     throw err;
   }
@@ -398,7 +460,18 @@ async function miniAppRoute(req: http.IncomingMessage, res: http.ServerResponse)
       await intros.answerMatch(m.id, id, answer === "yes");
       return back(res, path), true;
     }
-    html(res, mini.introPage({ m, personId: id, token, otherHasAvatar: avatars.has(otherId) }));
+    const other = people.get(otherId);
+    const card =
+      m.status === "accepted"
+        ? {
+            title: other?.title,
+            org: other?.org,
+            links: linkUrls(other?.links),
+            discord: other?.links?.discord,
+            profile: profiles.get(otherId),
+          }
+        : undefined; // nothing about them before a double yes
+    html(res, mini.introPage({ m, personId: id, token, otherHasAvatar: avatars.has(otherId), card }));
     return true;
   }
   return false;
@@ -412,12 +485,56 @@ http
       if (req.method === "POST" && req.url === "/offer") {
         const body = await readJson(req);
         for (const p of [body.a, body.b]) {
-          p.phone ??= phoneOf(p.id);
+          if (!p.id && p.phone) p.id = dmId(p.phone); // ASI:One users are identified by phone
+          p.phone = p.phone ? e164(p.phone) : phoneOf(p.id);
+          Object.assign(p, { ...people.get(p.id), ...p }); // fill title/org/links we already know
           p.zone ??= people.get(p.id)?.zone; // what they last texted us
           p.name ||= people.get(p.id)?.name;
         }
         const m = await startIntro(body);
         res.writeHead(200).end(JSON.stringify({ ok: true, id: m.id }));
+      } else if (req.method === "POST" && req.url === "/profile") {
+        // The ASI agent saves what it learned on ASI:One, so iMessage intros and business cards can use it.
+        const b = await readJson(req);
+        if (!b.phone) return void res.writeHead(400).end(JSON.stringify({ ok: false, error: "phone required" }));
+        const id = dmId(String(b.phone));
+        const prev = people.get(id);
+        people.set(id, {
+          ...prev,
+          id,
+          name: b.name ?? prev?.name ?? "",
+          phone: e164(String(b.phone)),
+          zone: b.zone ?? prev?.zone,
+          title: b.title ?? prev?.title,
+          org: b.org ?? prev?.org,
+          links: { ...prev?.links, ...b.links },
+        });
+        if (b.headline || b.skills || b.interests || b.can_help_with) {
+          const p = profiles.get(id);
+          profiles.set(id, {
+            name: b.name ?? p?.name ?? "",
+            headline: b.headline ?? p?.headline ?? "",
+            education: p?.education ?? [],
+            experience: p?.experience ?? (b.title || b.org ? [{ title: b.title ?? "", org: b.org ?? "", dates: "", location: "" }] : []),
+            projects: p?.projects ?? [],
+            skills: b.skills ?? p?.skills ?? [],
+            interests: b.interests ?? p?.interests ?? [],
+            links: p?.links ?? [],
+            can_help_with: b.can_help_with ?? p?.can_help_with ?? [],
+          });
+        }
+        res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, id }));
+      } else if (req.method === "POST" && req.url === "/forget") {
+        // "Delete me" said on ASI:One: erase everything the bridge holds for that phone.
+        const { phone } = await readJson(req);
+        const id = dmId(String(phone));
+        await intros.forget(id);
+        people.delete(id);
+        profiles.delete(id);
+        avatars.delete(id);
+        awaitingAvatar.delete(id);
+        mini.forgetToken(id);
+        res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true }));
       } else if (req.method === "POST" && req.url === "/welcome") {
         const { phone, name } = await readJson(req);
         const id = await welcome(String(phone), name);

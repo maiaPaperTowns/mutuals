@@ -93,18 +93,14 @@ export class UnsupportedResume extends Error {
 }
 
 export function formatProfile(p: Profile): string {
-  const lines = [p.name ? `${p.name} · ${p.headline}` : p.headline];
-  for (const e of p.experience.slice(0, 4)) {
-    lines.push(`💼 ${[e.title, e.org].filter(Boolean).join(" @ ")}${e.dates ? ` (${e.dates})` : ""}`);
-  }
-  if (p.projects.length) lines.push(`🛠 Built: ${p.projects.map((x) => x.name).join(", ")}`);
-  if (p.skills.length) {
-    const more = p.skills.length > 10 ? ` +${p.skills.length - 10} more` : "";
-    lines.push(`🧰 ${p.skills.slice(0, 10).join(", ")}${more}`);
-  }
-  if (p.interests.length) lines.push(`🎲 Side quests: ${p.interests.join(", ")}`);
-  if (p.can_help_with.length) lines.push(`🤝 Can help with: ${p.can_help_with.join(", ")}`);
-  return lines.join("\n");
+  const role = p.experience[0];
+  return [
+    p.name ? `${p.name} · ${p.headline}` : p.headline,
+    role && `💼 ${[role.title, role.org].filter(Boolean).join(" @ ")}${p.experience.length > 1 ? ` +${p.experience.length - 1}` : ""}`,
+    p.skills.length && `🧰 ${p.skills.slice(0, 6).join(", ")}${p.skills.length > 6 ? ` +${p.skills.length - 6}` : ""}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 /** Claude if ANTHROPIC_API_KEY is set, otherwise the free on-device reader. */

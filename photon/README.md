@@ -48,6 +48,31 @@ chat-1:  yes        → "waiting on the other person"
 chat-2:  yes        → both get the name + zone
 ```
 
+## ASI first, then iMessage (how Mutual is wired)
+
+```
+ASI:One / Agentverse (Mutual agent, Ziquan) ── chat, onboarding, "who should I meet?", matching
+      │ clients/mutual_bridge.py: save_profile() → offer_intro()
+      ▼
+Photon bridge (this folder) ── iMessage double-yes ── 🎉 both yes → business cards
+```
+
+From the ASI agent (Python, no dependencies):
+
+```python
+import mutual_bridge as mb   # photon/clients/mutual_bridge.py; set BRIDGE_URL + BRIDGE_KEY
+mb.save_profile("+1 555 010 0002", "Elena Jin", title="SWE Intern", org="AWS", zone="Workshop Zone",
+                links={"linkedin": "elena-example", "instagram": "elena.makes", "discord": "elena"})
+mb.offer_intro("m42", "+15550100002", "Elena", "+15550100001", "Maia",
+               "Someone nearby needs help hosting a matcher, which you've done on AWS.",
+               "Someone two tables away shipped CV on AWS and can help you deploy tonight.")
+mb.forget("+15550100002")    # "delete me" on ASI:One
+```
+
+After a double yes, each person gets the other's **business card**: a native iMessage contact card (name,
+title @ company, photo, LinkedIn/Instagram/GitHub URLs, Discord in the note) plus the business card page.
+People can also add handles by text: "my instagram is @x", "linkedin.com/in/x", "discord: x".
+
 ## Interfaces for the team
 
 **Bridge → agents (Ziquan).** If `AGENT_URL` is set, every text and attachment is POSTed there:

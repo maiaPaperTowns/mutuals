@@ -22,7 +22,7 @@ test("intro page hides the other person until both say yes", () => {
     assert.ok(!/Bob|Food Court|5550000002/.test(html), m.status);
   }
   const done = introPage({ m: match({ status: "accepted", answers: { a: true, b: true } }), personId: "alice", token: "t" });
-  assert.match(done, /Meet Bob/);
+  assert.match(done, /<h1>Bob<\/h1>/);
   assert.match(done, /Food Court/);
 });
 
@@ -53,4 +53,13 @@ test("tokens map to people and can be revoked", () => {
   assert.ok(!t.includes("carol"));
   forgetToken("carol");
   assert.equal(personFor(t), undefined);
+});
+
+test("business card details only render after a double yes", () => {
+  const card = { title: "SWE Intern", org: "Duolingo", links: [{ label: "Instagram", url: "https://instagram.com/bob" }], discord: "bob#1" };
+  const before = introPage({ m: match({ answers: { a: true } }), personId: "alice", token: "t", card });
+  assert.doesNotMatch(before, /Duolingo|instagram\.com\/bob|bob#1/);
+  const after = introPage({ m: match({ status: "accepted", answers: { a: true, b: true } }), personId: "alice", token: "t", card });
+  assert.match(after, /SWE Intern @ Duolingo/);
+  assert.match(after, /instagram\.com\/bob/);
 });

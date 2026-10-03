@@ -127,5 +127,6 @@ test("forget drops the person's matches", async () => {
   await offer();
   await dy.forget("bob");
   assert.equal(dy.stats().offered, 0);
+  assert.ok(!dy.pausedIds().includes("bob")); // no trace left
   assert.equal(dy.pendingFor("alice"), undefined);
 });

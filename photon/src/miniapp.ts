@@ -67,8 +67,7 @@ function page(title: string, body: string): string {
 <meta name="theme-color" content="#fcfbf1">
 <title>${esc(title)}</title>
 <meta property="og:title" content="${esc(title)}">
-<meta property="og:image" content="${A("app-icon")}">
-<link rel="icon" href="${A("app-icon")}">
+<link rel="icon" href="${A("app-icon")}"><link rel="apple-touch-icon" href="${A("app-icon")}">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet">
 <style>
@@ -225,8 +224,15 @@ Tap × to delete anything. Only you can see this page. Nothing is shared unless 
   );
 }
 
-export function introPage(opts: { m: Match; personId: string; token: string; otherHasAvatar?: boolean }): string {
-  const { m, personId, token, otherHasAvatar } = opts;
+export function introPage(opts: {
+  m: Match;
+  personId: string;
+  token: string;
+  otherHasAvatar?: boolean;
+  // Business card details, used only once both said yes.
+  card?: { title?: string; org?: string; links: { label: string; url: string }[]; discord?: string; profile?: Profile };
+}): string {
+  const { m, personId, token, otherHasAvatar, card } = opts;
   const side = m.a.id === personId ? "a" : "b";
   const other = side === "a" ? m.b : m.a;
   const reason = side === "a" ? m.reasonForA : m.reasonForB;
@@ -237,13 +243,23 @@ export function introPage(opts: { m: Match; personId: string; token: string; oth
     const avatar = otherHasAvatar
       ? `<img class="avatar" src="${action}/avatar.jpg" alt="">`
       : `<div class="avatar" aria-hidden="true">${esc(initials(other.name))}</div>`;
+    const p = card?.profile;
+    const role = [card?.title, card?.org].filter(Boolean).join(" @ ");
+    const links = (card?.links ?? []).map((l) => `<a class="btn soft" href="${esc(l.url)}">${esc(l.label)}</a>`).join("");
+    const chips = (items: string[] = [], deco = (x: string) => esc(x)) =>
+      items.length ? `<ul class="chips">${items.map((v) => `<li class="chip" style="padding-right:13px">${deco(v)}</li>`).join("")}</ul>` : "";
     return page(
-      "Double yes!",
+      `${other.name} · Mutual`,
       `${WORDMARK}<img class="sticker" src="${A("sticker-double-yes")}" alt="Double yes!">
-<section class="card hero">${avatar}<h1>Meet ${esc(other.name)}</h1>
-<p class="sub">${other.zone ? `They're at ${esc(other.zone)}.` : "You both said yes."}</p>
+<section class="card hero">${avatar}<h1>${esc(other.name)}</h1>
+<p class="sub">${esc(role || p?.headline || "")}</p>
+<div class="tags">${other.zone ? `<span class="tag">📍 ${esc(other.zone)}</span>` : ""}${card?.discord ? `<span class="tag lav">Discord · ${esc(card.discord)}</span>` : ""}</div>
+${links ? `<div class="tags" style="margin-top:14px">${links}</div>` : ""}
 <p class="reason">${esc(reason)}</p>
-<ul class="checks"><li>${CHECK}Their contact card is in your chat</li><li>${CHECK}Go say hi. See you there?</li></ul></section>`,
+${p?.can_help_with.length ? `<ul class="checks">${p.can_help_with.slice(0, 3).map((h) => `<li>${CHECK}${esc(h[0]!.toUpperCase() + h.slice(1))}</li>`).join("")}</ul>` : ""}</section>
+${p?.skills.length ? `${label("Toolbox", "settings")}<section class="card">${chips(p.skills.slice(0, 8))}</section>` : ""}
+${p?.interests.length ? `${label("Side quests", "worth")}<section class="card">${chips(p.interests.slice(0, 6), (x) => `${emojiFor(x)} ${esc(x)}`)}</section>` : ""}
+<p class="fine">Their contact card is in your chat. Tap it to save them. Go say hi!</p>`,
     );
   }
   if (m.status === "declined" || m.status === "expired") {
