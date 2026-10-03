@@ -56,7 +56,7 @@ function LiveMapContent() {
     const watcher = navigator.geolocation.watchPosition(position => {
       if (!sharingRef.current) return;
       if (position.coords.accuracy > 10000) {
-        setLocationError('当前定位精度太低，暂不显示。请到室外或稍后重试。');
+        setLocationError('Location accuracy is too low to show. Move outdoors or try again later.');
         return;
       }
       const now = Date.now();
@@ -70,11 +70,11 @@ function LiveMapContent() {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         accuracyMeters: position.coords.accuracy,
-      }).catch(() => setLocationError('位置同步失败。请确认仍在线后重试。'));
+      }).catch(() => setLocationError('Location sync failed. Check your connection and try again.'));
     }, error => {
       setLocationError(error.code === error.PERMISSION_DENIED
-        ? '浏览器未授权定位。请在地址栏权限设置中允许定位后再试。'
-        : error.code === error.POSITION_UNAVAILABLE ? '设备暂时无法获取定位。' : '定位请求超时，请到室外或重试。');
+        ? 'Location permission was denied. Allow location in your browser settings, then try again.'
+        : error.code === error.POSITION_UNAVAILABLE ? 'Your device cannot determine a location right now.' : 'Location timed out. Move outdoors or try again.');
     }, { enableHighAccuracy: true, maximumAge: 4000, timeout: 20000 });
     return () => navigator.geolocation.clearWatch(watcher);
   }, [sharing, isActive, id, updateLocation]);
@@ -90,13 +90,13 @@ function LiveMapContent() {
         await stopLocation({ participantId: id });
         await leaveMap({ participantId: id });
       } else {
-        if (!navigator.geolocation) throw new Error('此浏览器不支持定位。请使用手机上的现代浏览器。');
+        if (!navigator.geolocation) throw new Error("This browser doesn't support location. Try a modern browser on your phone.");
         lastSentRef.current = null;
         await new Promise<void>((resolve, reject) => navigator.geolocation.getCurrentPosition(
           () => resolve(),
           error => reject(new Error(error.code === error.PERMISSION_DENIED
-            ? '浏览器未授权定位。请在地址栏权限设置中允许定位后再试。'
-            : error.code === error.POSITION_UNAVAILABLE ? '设备暂时无法获取定位。' : '定位请求超时，请到室外或重试。')),
+            ? 'Location permission was denied. Allow location in your browser settings, then try again.'
+            : error.code === error.POSITION_UNAVAILABLE ? 'Your device cannot determine a location right now.' : 'Location timed out. Move outdoors or try again.')),
           { enableHighAccuracy: true, maximumAge: 4000, timeout: 20000 },
         ));
         await setPresence({ participantId: id, zoneId: 'main-hall' });
@@ -105,7 +105,7 @@ function LiveMapContent() {
       }
     } catch (error) {
       if (!sharing) sharingRef.current = false;
-      setMessage(error instanceof Error ? error.message : '操作失败，请检查连接后重试。');
+      setMessage(error instanceof Error ? error.message : 'Something went wrong. Check your connection and try again.');
     } finally {
       setBusy(false);
     }
@@ -125,26 +125,26 @@ function MapExperience({ pins, myId, loaded, connected, sharing, busy, message, 
       <Marker position={DUDERSTADT} icon={venueIcon} interactive={false} />
       {pins.map(pin => <Fragment key={pin.participantId}>
         <Circle center={[pin.latitude, pin.longitude]} radius={Math.max(5, pin.accuracyMeters)} pathOptions={{ color: pin.participantId === myId ? '#174d39' : '#227c62', fillColor: pin.participantId === myId ? '#31835f' : '#58a88b', fillOpacity: 0.1, weight: 1 }} />
-        <Marker position={[pin.latitude, pin.longitude]} icon={pinIcon(pin.participantId === myId)}><title>{pin.participantId === myId ? '你的位置' : '匿名参与者'}</title></Marker>
+        <Marker position={[pin.latitude, pin.longitude]} icon={pinIcon(pin.participantId === myId)}><title>{pin.participantId === myId ? 'Your location' : 'Anonymous participant'}</title></Marker>
       </Fragment>)}
     </MapContainer>
 
-    <header className="map-topbar"><a className="brand" href="/" aria-label="MHacks live map"><span className="brand-mark">mh<span>+</span></span><span><b>MHACKS</b><small>LIVE CAMPUS MAP</small></span></a><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? '本地预览' : connected ? '实时同步中' : '连接中'}</div></header>
+    <header className="map-topbar"><a className="brand" href="/" aria-label="MHacks live map"><span className="brand-mark">mh<span>+</span></span><span><b>MHACKS</b><small>LIVE CAMPUS MAP</small></span></a><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div></header>
 
-    <section className="map-card" aria-label="实时位置分享控制">
+    <section className="map-card" aria-label="Live location sharing controls">
       <span className="eyebrow">DUDERSTADT CENTER · ANN ARBOR</span>
-      <h1>找到正在这里的人。</h1>
-      <p className="subhead">地图仅显示匿名实时位置，不显示姓名或个人资料。</p>
-      <div className="count-line"><span className="count-number">{loaded ? pins.length : '—'}</span><span>人正在分享位置</span><i className="count-live" /></div>
+      <h1>Find people nearby.</h1>
+      <p className="subhead">Only anonymous live locations appear here. Names and profiles stay private.</p>
+      <div className="count-line"><span className="count-number">{loaded ? pins.length : '—'}</span><span>people sharing location</span><i className="count-live" /></div>
       <button className={`share-button${sharing ? ' sharing' : ''}`} type="button" role="switch" aria-checked={sharing} disabled={busy || (!connected && !preview)} onClick={onToggle}>
-        <span className="switch-dot" />{busy ? '正在更新…' : sharing ? '停止分享我的位置' : '分享我的实时位置'}
+        <span className="switch-dot" />{busy ? 'Updating…' : sharing ? 'Stop sharing my location' : 'Share my live location'}
       </button>
-      <div className="consent"><span aria-hidden="true">◉</span><p>{preview ? <>本地预览只会在此浏览器显示你的<strong> GPS 位置</strong>，不会同步到云端。</> : <>开启后，你的<strong>精确 GPS 位置</strong>会显示给所有打开本地图的人。随时可以关闭。</>}</p></div>
-      {sharing && <p className="sharing-status">{message || (preview ? '本地预览：位置不会发送给其他人。' : '正在等待手机定位…首次定位可能需要几秒。')}</p>}
+      <div className="consent"><span aria-hidden="true">◉</span><p>{preview ? <>In local preview, your <strong>GPS location</strong> appears only in this browser and isn't synced to the cloud.</> : <>When enabled, your <strong>exact GPS location</strong> is visible to everyone viewing this map. You can turn sharing off at any time.</>}</p></div>
+      {sharing && <p className="sharing-status">{message || (preview ? 'Local preview: your location is not sent to anyone.' : "Waiting for your phone's location… The first fix may take a few seconds.")}</p>}
       {!sharing && message && <p className="error-message" role="alert">{message}</p>}
     </section>
 
-    <div className="map-bottom"><span>GPS 精度以圆圈表示 · 室内定位可能漂移</span><span>地图数据 &copy; OpenStreetMap</span></div>
+    <div className="map-bottom"><span>GPS accuracy shown by circles · Indoor locations may drift</span><span>Map data &copy; OpenStreetMap</span></div>
   </main>;
 }
 
