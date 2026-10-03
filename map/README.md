@@ -1,56 +1,55 @@
 # MHacks Live Map
 
-Anonymous, opt-in zone map for finding people who are open to meeting at MHacks. This project uses a simplified, not-to-scale venue diagram; it does not use GPS or expose names, resumes, or contact details.
+A mobile-friendly 2D OpenStreetMap centered on the Duderstadt Center. A participant can explicitly share their device's current GPS position; opted-in positions are synchronized live through SpacetimeDB.
 
-## Run a local preview
+## Location and privacy behavior
+
+- Sharing is off by default. The browser asks for location permission only after the participant turns sharing on.
+- While sharing, the device reports its latest latitude, longitude, and accuracy to the public `live_location` table. Everyone who opens this public map can see those exact coordinates and accuracy circles. The map shows no names or profile information.
+- Turning sharing off deletes the participant's location row. SpacetimeDB also removes the row when that client disconnects. The table stores only the latest position, not a location history.
+- GPS can be inaccurate inside the Duderstadt Center. The accuracy circle is shown; a location outside the accepted 10 km accuracy range is not published. This is a live GPS map, not an indoor positioning system.
+- The location point can be spoofed by a modified client. Treat this as a voluntary event coordination tool, not a security or safety system.
+- OpenStreetMap tiles include required attribution in the map. Tile service availability is best effort; see [the tile usage policy](https://operations.osmfoundation.org/policies/tiles/).
+
+## Local preview
 
 ```powershell
-npm install
+npm ci
 npm run dev
 ```
 
-Without SpacetimeDB settings, the app runs in **Local preview** mode with 15 synthetic points marked `DEMO PERSONA`. The opt-in toggle is local to that browser and does not create shared state.
+Without SpacetimeDB environment variables, the page runs in local preview. If location sharing is enabled, the user's GPS appears only in that browser and is not sent to anyone.
 
-## Enable shared live state
+## Publish the SpacetimeDB module
 
-Prerequisites: Node.js 20.19+ and the SpacetimeDB CLI 2.x. Install the CLI from [spacetimedb.com/install](https://spacetimedb.com/install), then authenticate with `spacetime login`.
+Prerequisites: Node.js 20.19+ and the SpacetimeDB CLI 2.x. Authenticate with `spacetime login`.
 
-1. Build and publish the database:
+```powershell
+npm ci
+npm ci --prefix spacetimedb
+npm run stdb:build
+npm run stdb:publish
+npm run stdb:generate
+```
 
-   ```powershell
-   npm install
-   npm ci --prefix spacetimedb
-   npm run stdb:publish
-   npm run stdb:generate
-   ```
+The existing `presence` table and participant-owner bindings are retained. `live_location` is a separate public table. Its two reducers enforce the existing owner identity, validate coordinate ranges, and let a participant update or remove only their own row. `clientDisconnected` removes that participant's latest location on disconnect.
 
-   The module init reducer seeds 15 anonymous demo persona pins. The `presence` table contains only an opaque participant ID, zone ID, and demo flag. A private table binds each real anonymous participant ID to the caller identity; reducers only let that caller update or remove their own pin.
+Create `.env.local` from `.env.example`:
 
-2. Create `.env.local` from `.env.example` and set the public database connection values:
+```env
+VITE_SPACETIMEDB_URI=wss://maincloud.spacetimedb.com
+VITE_SPACETIMEDB_DATABASE=mhacks-live-map
+```
 
-   ```env
-   VITE_SPACETIMEDB_URI=wss://maincloud.spacetimedb.com
-   VITE_SPACETIMEDB_DATABASE=mhacks-live-map
-   ```
+Run `npm run dev` and open the page in two browsers to see opted-in location updates. Geolocation requires HTTPS in production (localhost is allowed by browsers). The Vercel project should use this `map` directory as its root and expose only the two public `VITE_` settings. Never add an admin token to Vercel's frontend environment.
 
-3. Run `npm run dev`. Two browsers connected to the same published database should see opt-ins, zone changes, and opt-outs update live. The anonymous identity token is saved in local storage so a returning browser keeps its participant identity.
+## Vercel
 
-## Deploy the frontend to Vercel
+Configure the Vercel project with root directory `map`, framework preset `Vite`, build command `npm run build`, output directory `dist`, and install command `npm ci`. Add the two environment variables above for Production and Preview, then deploy.
 
-Import this folder as a Vercel project. Set `VITE_SPACETIMEDB_URI` and `VITE_SPACETIMEDB_DATABASE` in the Vercel project settings, then deploy. The frontend only needs the public URI and database name; do not add a SpacetimeDB admin token to Vercel or commit one to this repository.
-
-## Privacy and scope
-
-- The floor plan is a clearly labeled zone-level schematic, not an organizer floor plan or precise location feed.
-- The map never shows participant names or profile fields. Identity exchange after dual consent belongs to the separate recruiter flow.
-- Demo records are fictional, synthetic, and permanently labeled in the UI. Do not count them as real usage or ROI.
-- The map is useful independently: SpacetimeDB is the shared live backend for opt-in presence, zone updates, and removals.
-
-## Useful commands
+## Verification
 
 ```powershell
 npm run build
 npm run stdb:build
-npm run stdb:generate
-npm run stdb:publish
 ```

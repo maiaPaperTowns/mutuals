@@ -10,6 +10,15 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+export const LiveLocation = __t.object("LiveLocation", {
+  participantId: __t.string(),
+  latitude: __t.f64(),
+  longitude: __t.f64(),
+  accuracyMeters: __t.f64(),
+  updatedAt: __t.timestamp(),
+});
+export type LiveLocation = __Infer<typeof LiveLocation>;
+
 export const ParticipantOwner = __t.object("ParticipantOwner", {
   participantId: __t.string(),
   ownerIdentity: __t.identity(),

@@ -12,11 +12,14 @@
     "stdb:publish": "spacetime publish mhacks-live-map --server maincloud --module-path spacetimedb"
   },
   "dependencies": {
+    "leaflet": "^1.9.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-leaflet": "^5.0.0",
     "spacetimedb": "^2.0.0"
   },
   "devDependencies": {
+    "@types/leaflet": "^1.9.22",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.4",

@@ -36,16 +36,30 @@ import {
 // Import all reducer arg schemas
 import LeaveMapReducer from "./leave_map_reducer";
 import SetMyPresenceReducer from "./set_my_presence_reducer";
+import StopSharingLocationReducer from "./stop_sharing_location_reducer";
+import UpdateMyLocationReducer from "./update_my_location_reducer";
 
 // Import all procedure arg schemas
 
 // Import all table schema definitions
+import LiveLocationRow from "./live_location_table";
 import PresenceRow from "./presence_table";
 
 /** Type-only namespace exports for generated type groups. */
 
 /** The schema information for all tables in this module. This is defined the same was as the tables would have been defined in the server. */
 const tablesSchema = __schema({
+  liveLocation: __table({
+    name: 'live_location',
+    indexes: [
+      { accessor: 'participantId', name: 'live_location_participant_id_idx_btree', algorithm: 'btree', columns: [
+        'participantId',
+      ] },
+    ],
+    constraints: [
+      { name: 'live_location_participant_id_key', constraint: 'unique', columns: ['participantId'] },
+    ],
+  }, LiveLocationRow),
   presence: __table({
     name: 'presence',
     indexes: [
@@ -66,6 +80,8 @@ const tablesSchema = __schema({
 const reducersSchema = __reducers(
   __reducerSchema("leave_map", LeaveMapReducer),
   __reducerSchema("set_my_presence", SetMyPresenceReducer),
+  __reducerSchema("stop_sharing_location", StopSharingLocationReducer),
+  __reducerSchema("update_my_location", UpdateMyLocationReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */

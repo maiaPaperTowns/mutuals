@@ -27,7 +27,18 @@ const participantOwner = table(
   },
 );
 
-const spacetimedb = schema({ presence, participantOwner });
+const liveLocation = table(
+  { name: 'live_location', public: true },
+  {
+    participantId: t.string().primaryKey(),
+    latitude: t.f64(),
+    longitude: t.f64(),
+    accuracyMeters: t.f64(),
+    updatedAt: t.timestamp(),
+  },
+);
+
+const spacetimedb = schema({ presence, participantOwner, liveLocation });
 export default spacetimedb;
 
 function assertZone(zoneId: string): void {
@@ -86,6 +97,49 @@ export const leaveMap = spacetimedb.reducer(
     }
   },
 );
+
+export const updateMyLocation = spacetimedb.reducer(
+  {
+    participantId: t.string(),
+    latitude: t.f64(),
+    longitude: t.f64(),
+    accuracyMeters: t.f64(),
+  },
+  (ctx, { participantId, latitude, longitude, accuracyMeters }) => {
+    assertOwner(ctx, participantId);
+    if (
+      !Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+      !Number.isFinite(longitude) || longitude < -180 || longitude > 180 ||
+      !Number.isFinite(accuracyMeters) || accuracyMeters < 0 || accuracyMeters > 10000
+    ) {
+      throw new SenderError('Invalid location update.');
+    }
+
+    const row = {
+      participantId,
+      latitude,
+      longitude,
+      accuracyMeters,
+      updatedAt: ctx.timestamp,
+    };
+    const existing = ctx.db.liveLocation.participantId.find(participantId);
+    if (existing) ctx.db.liveLocation.participantId.update(row);
+    else ctx.db.liveLocation.insert(row);
+  },
+);
+
+export const stopSharingLocation = spacetimedb.reducer(
+  { participantId: t.string() },
+  (ctx, { participantId }) => {
+    assertOwner(ctx, participantId);
+    ctx.db.liveLocation.participantId.delete(participantId);
+  },
+);
+
+export const clientDisconnected = spacetimedb.clientDisconnected((ctx) => {
+  const owner = ctx.db.participantOwner.ownerIdentity.find(ctx.sender);
+  if (owner) ctx.db.liveLocation.participantId.delete(owner.participantId);
+});
 
 const DEMO_SEEDS = [
   ['demo-01', 'main-hall'],
