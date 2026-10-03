@@ -120,6 +120,20 @@ export class DoubleYes {
     return false;
   }
 
+  get(matchId: string): Match | undefined {
+    return this.matches.get(matchId);
+  }
+
+  /** Answer one specific intro (from the mini app's buttons). False if it's not open for this person. */
+  async answerMatch(matchId: string, personId: string, answer: boolean): Promise<boolean> {
+    const m = this.matches.get(matchId);
+    if (!m || m.status !== "offered") return false;
+    const side = m.a.id === personId ? "a" : m.b.id === personId ? "b" : undefined;
+    if (!side || m.answers[side] !== undefined) return false;
+    await this.answer(m, personId, answer);
+    return true;
+  }
+
   private async answer(m: Match, personId: string, answer: boolean) {
     const side = m.a.id === personId ? "a" : "b";
     const other = side === "a" ? m.b : m.a;
@@ -195,6 +209,14 @@ export class DoubleYes {
 
   resume(personId: string) {
     this.paused.delete(personId);
+  }
+
+  pausedIds(): string[] {
+    return [...this.paused];
+  }
+
+  restorePaused(ids: string[]) {
+    for (const id of ids) this.paused.add(id);
   }
 
   /** "delete me": pause, then drop every match that mentions this person. */

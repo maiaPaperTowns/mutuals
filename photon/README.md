@@ -12,11 +12,24 @@ What it does:
 - **Privacy commands** handled by the bridge itself, so they work even if the agent is down:
   `STOP`, `START`, `DELETE ME`, `HELP`.
 
+- **Resume reader** (no API key): Apple's on-device text recognition reads a resume photo/PDF section by section:
+  experience timeline (role, company, dates, location), school, projects + stack, every skill, side quests, links.
+  Uses Claude instead if `ANTHROPIC_API_KEY` is set; Ziquan's agent takes over when `AGENT_URL` is set.
+- **Profile photo**: after the resume the agent asks for a selfie; "new pic" changes it.
+- **Profile + intro pages** ("mini app"): text `profile` to get your page (delete any fact, pause, erase everything);
+  intros come with a page with Yes / Not now buttons that turns into "🎉 Meet …". Links open in Safari by default;
+  `CARD_STYLE=app` sends Photon mini app cards that open inside Messages instead (needs the free Spectrum iMessage app).
+- **Zones**: "I'm in the lounge" sets your zone (same zone names as the live map); "map" sends `MAP_URL`.
+- **Agent texts first**: `POST /welcome {phone, name}` so new users just reply (shared lines differ per person).
+- **Saved state**: profiles, photos and links survive restarts (`photon/data/`, gitignored, never committed).
+
+Texts people can send: `help`, `profile`, `map`, `I'm in the <zone>`, `new pic`, `STOP`, `START`, `DELETE ME`.
+
 ## Run
 
 ```bash
 npm install
-npm test          # double-yes, follow-up, privacy (11 tests)
+npm test          # double-yes, resume parser, zones, pages (19 tests)
 npm start         # no creds → terminal chat; with creds → real iMessage
 ```
 
@@ -64,6 +77,17 @@ The response is a 500 error if either person has texted STOP.
 When someone texts DELETE ME, the agent gets `{ "userId": "...", "event": "forget" }` and should drop their profile.
 "What do you know about me?" and "delete X" are normal texts, so the agent answers those from the profile.
 
+## Phones need a public URL for the pages
+
+```bash
+brew install cloudflared
+cloudflared tunnel --url http://localhost:8787   # copy the https://….trycloudflare.com link
+```
+
+Put it in `.env` as `PUBLIC_URL=…` and restart. The quick-tunnel link changes each time cloudflared restarts.
+Through the tunnel only `/app/…` pages are public; `/offer`, `/send`, `/welcome`, `/stats`, `/profiles` need the
+`x-bridge-key` header set to `BRIDGE_KEY` (ask Maia for it; it is not in the repo).
+
 ## Photon gotchas (from the docs)
 
 - Free & Pro (our HACKWITHPHOTON promo) = **shared pool**: each user may see a different sender number. DMs work; **no group chats**.
@@ -73,3 +97,5 @@ When someone texts DELETE ME, the agent gets `{ "userId": "...", "event": "forge
   ([deliverability](https://photon.codes/docs/best-practices/imessage-deliverability.md)).
 - Fallback if Photon fails: `@spectrum-ts/imessage-local` runs on a Mac signed into iMessage, same code,
   just change the provider. Last resort: the terminal provider + screen recording.
+- **Each user gets their own "Texts on" number** on the shared pool (Users page), and a running bridge only sees a
+  newly added user's line after a restart. Add all demo phones, then restart once.

@@ -9,7 +9,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "spectrum-ts": "^12.10.1"
+    "@anthropic-ai/sdk": "^0.131.0",
+    "spectrum-ts": "^12.10.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",
