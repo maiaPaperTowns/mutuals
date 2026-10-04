@@ -49,12 +49,12 @@ export default function EventBadge({ active, checkedIn, myName, nearby, request,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only when the accepted list changes
   }, [connectionKey, addEventConnection]);
 
-  let status: BadgeStatus = { state: checkedIn ? 'A' : 'H', nearby: 0, meters: 0, name: '', nearbyIds: [] };
-  if (active && request) status = { state: 'Q', nearby: 1, meters: 0, name: request.name, nearbyIds: [], why: request.reason };
-  else if (active && chatting) status = { state: 'C', nearby: 1, meters: 0, name: chatting.name, nearbyIds: [], why: formal ? 'Connected: go talk' : 'connected - go say hi!' };
+  let status: BadgeStatus = { state: checkedIn ? 'A' : 'H', nearby: 0, meters: 0, name: '', nearbyIds: [], page: 'events' };
+  if (active && request) status = { state: 'Q', nearby: 1, meters: 0, name: request.name, nearbyIds: [], why: request.reason, page: 'events' };
+  else if (active && chatting) status = { state: 'C', nearby: 1, meters: 0, name: chatting.name, nearbyIds: [], why: formal ? 'Connected: go talk' : 'connected - go say hi!', page: 'events' };
   else if (active && nearby) {
     const n = readNearby(nearby);
-    status = { state: 'N', nearby: 1, meters: n.meters, name: n.name, nearbyIds: [], why: n.why };
+    status = { state: 'N', nearby: 1, meters: n.meters, name: n.name, nearbyIds: [], why: n.why, page: 'events' };
   }
 
   const badge = useBadge(status, { points: score.points, met: score.met }, myName, formal, score.connections.map(c => c.name),

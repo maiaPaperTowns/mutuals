@@ -24,6 +24,7 @@ export type BadgeStatus = {
   state: 'H' | 'A' | 'N' | 'C' | 'Q'; nearby: number; meters: number; name: string;
   nearbyIds: string[]; closestId?: string;
   why?: string;  // the AI's reason / talking points for this person (events page); alternates on the badge
+  page?: 'events'; // the Events page: there YES / NO answer requests and alerts instead of sharing / hiding
 };
 
 // Minimal Web Serial typings (not in TypeScript's DOM lib yet).
@@ -77,7 +78,7 @@ export type RadioPeer = { count: number; rssi: number; name: string; at: number 
 export function badgeLine(status: BadgeStatus, score: BadgeScore): string {
   const why = status.why ? status.why.normalize('NFKD').replace(/[^\x20-\x7e]/g, '').replace(/\s+/g, ' ').trim().slice(0, 44) : '';
   return `M ${status.state} ${status.nearby} ${status.meters} ${score.points} ${score.met} ${badgeText(status.name)}\n`
-    + (why ? `W ${why}\n` : 'W\n');
+    + (why ? `W ${why}\n` : 'W\n') + `E ${status.page === 'events' ? 1 : 0}\n`;
 }
 
 /** Connect / disconnect the badge, send it a status every second, hear its buttons and its practice points. */

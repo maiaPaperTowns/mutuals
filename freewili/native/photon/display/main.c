@@ -258,13 +258,18 @@ static char my_name[MUTUALS_NAME_MAX + 1];
  *                   "N <my name>"  (the name this badge broadcasts to nearby badges while discoverable)
  *                   "T C" / "T F"  (style: cute / formal)
  *                   "C name1,name2,..."  (your connections, newest first, for the MENU → NEXT page)
+ *                   "E 0" / "E 1"  (map page / events page: YES and NO mean different things there)
  *                   "W <why>"  (the AI's reason / talking points for the person on screen; alternates on the detail line)
  * badge → website:  "B gray|yellow|green|blue|red", "P <points> <caught> <met>" when the badge earns points
  *                   (practice, radio finds), "R <count> <rssi> <name>" while other badges are heard,
  *                   "F <id> <name>" when the radio finds someone new (so the website adds them to your connections),
  *                   "HI mutuals-badge 3" when asked with "?". */
 static struct { bool on; char state; int nearby, meters, gained; char name[28]; uint32_t last; } map;
-static char why[64];  /* "W <text>": the AI's reason / talking points for the current person (events page) */
+static char why[64];
+static bool on_events;      /* "E 1": the website's Events page drives the badge (YES/NO answer requests/alerts) */
+static char toast[44];      /* instant feedback for a button press, shown on the detail line */
+static uint32_t toast_until;
+#define TOAST_MS 1400u  /* "W <text>": the AI's reason / talking points for the current person (events page) */
 static char rx[112];
 static unsigned rx_n;
 
@@ -273,6 +278,7 @@ static void report_points(void) { printf("P %d %d %d\n", points, caught, met); }
 static void map_parse(const char *s, uint32_t now) {
     if (s[0] == '?') { printf("HI mutuals-badge 3\n"); report_points(); return; }
     if (s[0] == 'T' && s[1] == ' ') { formal = s[2] == 'F'; return; }
+    if (s[0] == 'E' && s[1] == ' ') { on_events = s[2] == '1'; return; }  /* which page: "E 0" map, "E 1" events */
     if (s[0] == 'W') {  /* "W <why>": AI reason for the person on screen; "W" alone clears it */
         strncpy(why, s[1] == ' ' ? s + 2 : "", sizeof why - 1);
         why[sizeof why - 1] = 0;
@@ -463,7 +469,21 @@ static bool show_why(void) {  /* alternate between the usual detail and the AI's
     return why[0] && (to_ms_since_boot(get_absolute_time()) / 2500u) % 2u == 1u;
 }
 
+static void say(const char *text, uint32_t now) {  /* flash a short message for the button just pressed */
+    strncpy(toast, text, sizeof toast - 1);
+    toast[sizeof toast - 1] = 0;
+    toast_until = now + TOAST_MS;
+}
+
+static void view_text_base(view_t v, char *title, char *detail, size_t n);
+
 static void view_text(view_t v, char *title, char *detail, size_t n) {
+    view_text_base(v, title, detail, n);
+    if (toast[0] && (int32_t)(to_ms_since_boot(get_absolute_time()) - toast_until) < 0) snprintf(detail, n, "%s", toast);
+    else toast[0] = 0;
+}
+
+static void view_text_base(view_t v, char *title, char *detail, size_t n) {
     const char *who = radio_src ? (radio.name[0] ? radio.name : "a mutuals badge") : (map.name[0] ? map.name : "someone");
     detail[0] = 0;
     switch (v) {
@@ -592,38 +612,62 @@ int main(void) {
         if (me_dirty || (int32_t)(now - next_me) >= 0) { link_send_me(); me_dirty = false; next_me = now + 2000u; }
         if (was_map && !map.on) game = V_HOME, entered = now, next_prompt = now + NEXT_GAP();
 
-        /* ---- buttons ---- */
+        /* ---- buttons: every press gets an instant click + a word on screen, and the screen changes right away ---- */
         if (pressed) misses = 0;  /* someone's here: practice can resume */
-        const bool menu = pressed & FWOG_BTN_BIT(FWOG_BTN_GRAY);
-        if (menu && overlay != V_STATS) {
-            overlay = V_STATS, overlay_until = now + STATS_MS, stats_page_conn = false;
-        } else if (overlay == V_STATS && (pressed & FWOG_BTN_BIT(FWOG_BTN_BLUE))) {
-            stats_page_conn = !stats_page_conn, overlay_until = now + STATS_MS;  /* NEXT: stats <-> connections */
-            drawn_points = -1;
-        } else if (overlay == V_STATS && (menu || (pressed & FWOG_BTN_BIT(FWOG_BTN_YELLOW)))) {
-            overlay = V_NONE;
-        } else if (map.on) {
+        if (pressed && !power.armed) play(snd_f_tick, snd_f_tick_len);  /* click; an action sound below replaces it */
+        const bool menu = pressed & FWOG_BTN_BIT(FWOG_BTN_GRAY), back = pressed & FWOG_BTN_BIT(FWOG_BTN_YELLOW);
+        const bool yes = pressed & FWOG_BTN_BIT(FWOG_BTN_GREEN), next = pressed & FWOG_BTN_BIT(FWOG_BTN_BLUE);
+        const bool no = pressed & FWOG_BTN_BIT(FWOG_BTN_RED);
+        if (map.on) {  /* tell the website first, so its side starts as early as possible */
             static const char *const names[5] = {"gray", "yellow", "green", "blue", "red"};
             for (unsigned b = 1; b < 5; ++b)
                 if (pressed & FWOG_BTN_BIT(b)) printf("B %s\n", names[b]);
-            if ((pressed & FWOG_BTN_BIT(FWOG_BTN_GREEN)) && map_state_now(now) == 'H') {
-                pending = 'A', pending_until = now + PENDING_ON_MS;
-            } else if ((pressed & FWOG_BTN_BIT(FWOG_BTN_RED)) && map_state_now(now) != 'H') {
-                pending = 'H', pending_until = now + PENDING_OFF_MS;
-                discoverable = false, me_dirty = true;  /* radio goes silent right away */
+            if (pressed & ~FWOG_BTN_BIT(FWOG_BTN_GRAY)) stdio_flush();
+        }
+        if (menu && overlay != V_STATS) {
+            overlay = V_STATS, overlay_until = now + STATS_MS, stats_page_conn = false;
+        } else if (overlay == V_STATS) {
+            if (next) { stats_page_conn = !stats_page_conn, overlay_until = now + STATS_MS; drawn_points = -1; }
+            else if (pressed) overlay = V_NONE;  /* MENU, BACK, YES or NO: close */
+        } else if (map.on) {
+            const char st = map_state_now(now);
+            if (on_events) {  /* Events page: answer the AI's alerts and people's requests */
+                if (st == 'Q' && yes) { pending = 'C', pending_until = now + 6000u; say(STYLE("yay! connecting...", "Accepting..."), now); }
+                else if (st == 'Q' && no) { pending = 'A', pending_until = now + 4000u; say(STYLE("maybe next time", "Declined"), now); }
+                else if (st == 'N' && yes) say(STYLE("request sent!", "Request sent"), now);
+                else if (st == 'N' && no) { pending = 'A', pending_until = now + 4000u; say(STYLE("ok, dismissed", "Dismissed"), now); }
+                else if (st == 'H' && (yes || no)) say(STYLE("check in on the website", "Check in on the website"), now);
+                else if (yes || no) say(STYLE("waiting for your people...", "Nothing to answer yet"), now);
+            } else {  /* map page: YES shares, NO hides */
+                if (yes && st == 'H') pending = 'A', pending_until = now + PENDING_ON_MS;
+                else if (yes) say(STYLE("you're already sharing", "Already visible"), now);
+                else if (no && st != 'H') {
+                    pending = 'H', pending_until = now + PENDING_OFF_MS;
+                    discoverable = false, me_dirty = true;  /* radio goes silent right away */
+                } else if (no) say(STYLE("already hidden", "Already private"), now);
             }
-        } else if (overlay != V_STATS) {
-            if (game == V_PROMPT && (pressed & FWOG_BTN_BIT(FWOG_BTN_GREEN))) {
+            if (back) say(STYLE("MENU for stats", "MENU for summary"), now);
+            if (next) say(STYLE("MENU, then NEXT: your mutuals", "MENU, then NEXT: connections"), now);
+        } else {  /* practice */
+            if (game == V_PROMPT && yes) {
                 points += PTS_CATCH, caught++;
                 if (social < MAX_SOCIAL) social++;
                 game = V_MUTUAL, entered = now;
                 report_points();
-            } else if (game == V_PROMPT && (pressed & FWOG_BTN_BIT(FWOG_BTN_RED))) {
+            } else if (game == V_PROMPT && no) {
                 game = V_MISS, entered = now;  /* a skip, not a miss: doesn't count toward pausing */
-            } else if ((game == V_HOME || game == V_LONELY) && (pressed & FWOG_BTN_BIT(FWOG_BTN_GREEN))) {
+            } else if (game == V_MUTUAL || game == V_MISS) {  /* any button skips the result screen */
+                game = V_HOME, entered = now, next_prompt = next ? now : now + NEXT_GAP();
+            } else if (yes) {
                 sfx(SFX_HI);  /* say hi */
-            } else if ((game == V_HOME || game == V_LONELY) && (pressed & FWOG_BTN_BIT(FWOG_BTN_BLUE))) {
+                say(STYLE("hi friend!", "Hello"), now);
+                frame++, next_frame = now;  /* a little hop right away */
+            } else if (next) {
                 next_prompt = now;  /* NEXT: call the next match now */
+            } else if (no) {
+                say(STYLE("nothing to skip", "Nothing to decline"), now);
+            } else if (back) {
+                say(STYLE("NEXT for a match", "NEXT for a practice match"), now);
             }
         }
 

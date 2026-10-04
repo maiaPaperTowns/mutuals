@@ -112,6 +112,10 @@ The badge reacts as soon as you press (for example "turning on sharing..."), and
 blue **"YES pressed on the badge → …"** line saying what happened. If YES doesn't turn sharing on, read that line:
 it tells you whether you need to sign in or allow location.
 
+Every button press clicks and shows a short message on the badge right away (for example "request sent!", "already
+hidden", "MENU for stats"), so you always know it registered. On the stats screen, NEXT flips pages and any other
+button closes it. In practice mode, any button skips the "it's mutual" / "too slow" screen.
+
 What the badge shows (Cute wording; Formal in brackets):
 
 - **looking...** [Searching nearby]: you're on the map, nobody near yet.
