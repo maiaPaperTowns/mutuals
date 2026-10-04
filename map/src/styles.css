@@ -52,7 +52,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
 .auth-tabs button.active { background: white; color: #294c37; box-shadow: 0 1px 4px #25312818; }
 .clerk-form { width: 100%; }
 .clerk-form [data-clerk-component] { width: 100%; }
-.profile-tooltip { display: flex; flex-direction: column; gap: 4px; width: 260px; max-width: calc(100vw - 48px); white-space: normal; word-break: normal; }
+.profile-tooltip { display: flex; flex-direction: column; gap: 4px; width: max-content; max-width: min(260px, calc(100vw - 48px)); white-space: normal; word-break: normal; }
 .profile-tooltip b { color: #294c37; }
 .profile-tooltip small { color: #657265; white-space: normal; overflow-wrap: normal; line-height: 1.45; }
 .map-loading { display: grid; width: 100%; height: 100%; min-height: 100dvh; place-items: center; background: #e9ece8; color: #53634f; font: 11px var(--mono); }
