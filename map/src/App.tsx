@@ -46,6 +46,10 @@ function LiveMapContent({ authEnabled, accountName }: { authEnabled: boolean; ac
   const updateLocation = useReducer(reducers.updateMyLocation);
   const stopLocation = useReducer(reducers.stopSharingLocation);
   const leaveMap = useReducer(reducers.leaveMap);
+  // Your own profile: its name goes on your dot (and on other people's badges) while you share.
+  const [myProfileRows] = useTable(tables.myProfile);
+  const myProfile = myProfileRows[0];
+  const saveMyProfile = useReducer(reducers.saveMyProfile);
   const { isActive, identity } = useSpacetimeDB();
   const id = identity?.toHexString() ?? '';
   const signedIn = useContext(SignedInContext);
@@ -92,6 +96,15 @@ function LiveMapContent({ authEnabled, accountName }: { authEnabled: boolean; ac
     return () => navigator.geolocation.clearWatch(watcher);
   }, [sharing, isActive, id, updateLocation]);
 
+  // Already sharing with a hidden profile (made on the profile/events pages)? Show the name once, so you aren't
+  // "someone" on the map and on badges. Only once per visit, so unticking it in Profile afterwards still sticks.
+  const namedOnce = useRef(false);
+  useEffect(() => {
+    if (!sharing || !myProfile || myProfile.showOnMap || namedOnce.current) return;
+    namedOnce.current = true;
+    void saveMyProfile({ displayName: myProfile.displayName, headline: myProfile.headline, interests: myProfile.interests, showOnMap: true }).catch(() => {});
+  }, [sharing, myProfile, saveMyProfile]);
+
   const toggleSharing = async () => {
     setBusy(true);
     setMessage('');
@@ -119,6 +132,15 @@ function LiveMapContent({ authEnabled, accountName }: { authEnabled: boolean; ac
           { enableHighAccuracy: false, maximumAge: 300000, timeout: 10000 },
         ));
         await setPresence({ participantId: id, zoneId: 'main-hall' });
+        // Sharing your location shows your profile name on your dot, so people (and their badges) see who you are
+        // instead of "someone". Profiles made on the profile/events pages start hidden, so switch them on here.
+        if (myProfile && !myProfile.showOnMap) {
+          void saveMyProfile({ displayName: myProfile.displayName, headline: myProfile.headline, interests: myProfile.interests, showOnMap: true })
+            .catch(() => {});
+        } else if (!myProfile) {
+          void saveMyProfile({ displayName: accountName.trim().slice(0, 60) || 'Participant', headline: '', interests: '', showOnMap: true })
+            .catch(() => {});
+        }
         // Publish that first fix right away so your dot (and the badge) update now, not after the next GPS reading.
         if (first.coords.accuracy <= 10000) {
           lastSentRef.current = { lat: first.coords.latitude, lng: first.coords.longitude, time: Date.now() };
@@ -141,7 +163,7 @@ function LiveMapContent({ authEnabled, accountName }: { authEnabled: boolean; ac
   };
 
   const connected = isActive;
-  return <MapExperience pins={pins} profileById={profileById} myId={id} loaded={loaded} connected={connected} signedIn={signedIn} sharing={sharing} busy={busy} message={message || locationError} onToggle={toggleSharing} onRequestSignIn={requestSignIn} authEnabled={authEnabled} accountName={accountName} areas={areas} />;
+  return <MapExperience myName={myProfile?.displayName || accountName} pins={pins} profileById={profileById} myId={id} loaded={loaded} connected={connected} signedIn={signedIn} sharing={sharing} busy={busy} message={message || locationError} onToggle={toggleSharing} onRequestSignIn={requestSignIn} authEnabled={authEnabled} accountName={accountName} areas={areas} />;
 }
 
 function AccountControl({ authEnabled, signedIn, accountName, onRequestSignIn }: {
@@ -237,8 +259,8 @@ function AuthDialog({ onClose, authEnabled }: { onClose: () => void; authEnabled
   </div>;
 }
 
-function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, sharing, busy, message, onToggle, onRequestSignIn, authEnabled, accountName, preview = false, areas = [] }: {
-  pins: LocationPin[]; profileById: Map<string, PublicMapProfile>; myId: string; loaded: boolean; connected: boolean; signedIn: boolean; sharing: boolean; busy: boolean; message: string; onToggle: () => void; onRequestSignIn: () => void; authEnabled: boolean; accountName: string; preview?: boolean; areas?: EventArea[];
+function MapExperience({ myName = '', pins, profileById, myId, loaded, connected, signedIn, sharing, busy, message, onToggle, onRequestSignIn, authEnabled, accountName, preview = false, areas = [] }: {
+  myName?: string; pins: LocationPin[]; profileById: Map<string, PublicMapProfile>; myId: string; loaded: boolean; connected: boolean; signedIn: boolean; sharing: boolean; busy: boolean; message: string; onToggle: () => void; onRequestSignIn: () => void; authEnabled: boolean; accountName: string; preview?: boolean; areas?: EventArea[];
 }) {
   // mutuals: who's near you earns points (+10 nearby, +50 found) and levels; the FREE-WILi badge mirrors it all
   // and its YES / NO buttons work the share switch.
@@ -253,7 +275,7 @@ function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, s
   }, [nearbyKey, status.closestId, award]);
   const { style } = useContext(StyleContext);
   const formal = style === 'formal';
-  const badge = useBadge(status, { points: score.points, met: score.met }, nameOf(myId) ?? '', formal,
+  const badge = useBadge(status, { points: score.points, met: score.met }, myName || nameOf(myId) || '', formal,
     score.connections.map(c => c.name), button => {
     if (busy) return;
     if (button === 'green' && !sharing) onToggle();
@@ -287,7 +309,7 @@ function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, s
       <button className={`share-button${sharing ? ' sharing' : ''}`} type="button" role={signedIn || preview ? 'switch' : undefined} aria-checked={signedIn || preview ? sharing : undefined} disabled={busy || (!connected && !preview)} onClick={onToggle}>
         <span className="switch-dot" />{busy ? 'Updating…' : sharing ? 'Stop sharing my location' : preview ? 'Preview my location' : signedIn ? 'Share my live location' : 'Sign in to share your location'}
       </button>
-      <div className="consent"><span aria-hidden="true">◉</span><p>{preview ? <>In local preview, your <strong>GPS location</strong> appears only in this browser and isn't synced to the cloud.</> : signedIn ? <>When enabled, your <strong>exact GPS location</strong> is visible to everyone viewing this map. Share a profile separately if you want it shown on your dot.</> : <>Anyone can view this map. <strong>Sign in</strong> before sharing your own live location or saving a profile.</>}</p></div>
+      <div className="consent"><span aria-hidden="true">◉</span><p>{preview ? <>In local preview, your <strong>GPS location</strong> appears only in this browser and isn't synced to the cloud.</> : signedIn ? <>When enabled, your <strong>exact GPS location</strong> and your <strong>profile name</strong> are visible to everyone viewing this map, so people (and their mutuals badges) know who's nearby.</> : <>Anyone can view this map. <strong>Sign in</strong> before sharing your own live location or saving a profile.</>}</p></div>
       {sharing && <p className="sharing-status">{message || (preview ? 'Local preview: your location is not sent to anyone.' : "Waiting for your phone's location… The first fix may take a few seconds.")}</p>}
       {!sharing && message && <p className="error-message" role="alert">{message}</p>}
       {!signedIn && !preview && <button className="profile-link" type="button" onClick={onRequestSignIn}>Sign up or log in to share your location</button>}
