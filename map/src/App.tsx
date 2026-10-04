@@ -6,6 +6,7 @@ import { reducers, tables } from './module_bindings';
 import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
 import ProfileChat from './ProfileChat';
 import LiveProfileChat from './LiveProfileChat';
+import NetworkingWorkspace from './NetworkingWorkspace';
 import { createProfileApi } from './profileApi';
 
 const noToken = async () => null;
@@ -235,7 +236,7 @@ function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, s
       </Fragment>)}
     </MapContainer>
 
-    <header className="map-topbar"><a className="brand" href="/" aria-label="MHacks live map"><span className="brand-mark">mh<span>+</span></span><span><b>MHACKS</b><small>LIVE CAMPUS MAP</small></span></a><div className="topbar-actions"><a className="nav-link" href="/chat">My profile</a><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div><AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={onRequestSignIn} /></div></header>
+    <header className="map-topbar"><a className="brand" href="/" aria-label="MHacks live map"><span className="brand-mark">mh<span>+</span></span><span><b>MHACKS</b><small>LIVE CAMPUS MAP</small></span></a><div className="topbar-actions"><a className="nav-link" href="/events">Events & assistants</a><a className="nav-link" href="/chat">My profile</a><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div><AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={onRequestSignIn} /></div></header>
 
     <section className="map-card" aria-label="Live location sharing controls">
       <span className="eyebrow">DUDERSTADT CENTER · ANN ARBOR</span>
@@ -276,7 +277,9 @@ export default function App({ live, authEnabled, signedIn, accountName = 'Your a
   }, [signedIn]);
   return <AuthDialogContext.Provider value={requestSignIn}>
     <SignedInContext.Provider value={signedIn}>
-      {window.location.pathname.replace(/\/$/, '') === '/chat'
+      {['/events', '/assistant'].includes(window.location.pathname.replace(/\/$/, '')) && live
+        ? <NetworkingWorkspace signedIn={signedIn} accountName={accountName} onSignIn={requestSignIn} accountControl={<AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={requestSignIn} />} />
+        : window.location.pathname.replace(/\/$/, '') === '/chat'
         ? live ? <LiveProfileChat signedIn={signedIn} accountName={accountName} getToken={getApiToken} onSignIn={requestSignIn} accountControl={<AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={requestSignIn} />} />
           : <ProfileChat signedIn={false} accountName={accountName} api={previewProfileApi} onSignIn={requestSignIn} />
         : live ? <LiveMapContent authEnabled={authEnabled} accountName={accountName} /> : <PreviewMap />}

@@ -6,7 +6,8 @@
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/module.test.ts test/networking.test.ts",
-    "test:integration": "tsx test/local-integration.ts"
+    "test:integration": "tsx test/local-integration.ts",
+    "test:networking": "tsx test/networking-integration.ts"
   },
   "dependencies": {
     "spacetimedb": "^2.0.0"

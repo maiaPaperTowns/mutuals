@@ -91,6 +91,44 @@ export type AgentUserLink = __Infer<typeof AgentUserLink>;
 export const AgentUserLinks = __t.object("AgentUserLinks", {});
 export type AgentUserLinks = __Infer<typeof AgentUserLinks>;
 
+export const AssistantMessage = __t.object("AssistantMessage", {
+  messageId: __t.string(),
+  userId: __t.string(),
+  eventId: __t.string(),
+  stage: __t.string(),
+  role: __t.string(),
+  content: __t.string(),
+  createdAt: __t.timestamp(),
+});
+export type AssistantMessage = __Infer<typeof AssistantMessage>;
+
+export const AssistantNotification = __t.object("AssistantNotification", {
+  notificationId: __t.string(),
+  userId: __t.string(),
+  eventId: __t.string(),
+  stage: __t.string(),
+  kind: __t.string(),
+  targetId: __t.string(),
+  interactionId: __t.string(),
+  title: __t.string(),
+  body: __t.string(),
+  read: __t.bool(),
+  createdAt: __t.timestamp(),
+});
+export type AssistantNotification = __Infer<typeof AssistantNotification>;
+
+export const AssistantTurn = __t.object("AssistantTurn", {
+  turnId: __t.string(),
+  userId: __t.string(),
+  eventId: __t.string(),
+  stage: __t.string(),
+  input: __t.string(),
+  status: __t.string(),
+  resultJson: __t.string(),
+  startedAtMs: __t.u64(),
+});
+export type AssistantTurn = __Infer<typeof AssistantTurn>;
+
 export const CloudAdmin = __t.object("CloudAdmin", {
   identity: __t.identity(),
 });
@@ -118,6 +156,53 @@ export const Event = __t.object("Event", {
   agentScope: __t.string(),
 });
 export type Event = __Infer<typeof Event>;
+
+export const EventInterestList = __t.object("EventInterestList", {
+  listId: __t.string(),
+  eventId: __t.string(),
+  userId: __t.string(),
+  itemsJson: __t.string(),
+});
+export type EventInterestList = __Infer<typeof EventInterestList>;
+
+export const EventLocation = __t.object("EventLocation", {
+  locationId: __t.string(),
+  eventId: __t.string(),
+  userId: __t.string(),
+  latitude: __t.f64(),
+  longitude: __t.f64(),
+  accuracyMeters: __t.f64(),
+  updatedAt: __t.timestamp(),
+});
+export type EventLocation = __Infer<typeof EventLocation>;
+
+export const EventLocationExpiry = __t.object("EventLocationExpiry", {
+  scheduledId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+  locationId: __t.string(),
+});
+export type EventLocationExpiry = __Infer<typeof EventLocationExpiry>;
+
+export const EventMapPin = __t.object("EventMapPin", {
+  locationId: __t.string(),
+  eventId: __t.string(),
+  userId: __t.string(),
+  name: __t.string(),
+  zoneId: __t.string(),
+  latitude: __t.f64(),
+  longitude: __t.f64(),
+  accuracyMeters: __t.f64(),
+  updatedAt: __t.timestamp(),
+});
+export type EventMapPin = __Infer<typeof EventMapPin>;
+
+export const EventStar = __t.object("EventStar", {
+  starId: __t.string(),
+  eventId: __t.string(),
+  userId: __t.string(),
+  targetId: __t.string(),
+});
+export type EventStar = __Infer<typeof EventStar>;
 
 export const FollowUpPlan = __t.object("FollowUpPlan", {
   planId: __t.string(),
@@ -177,11 +262,83 @@ export type MyAgentRoiHistory = __Infer<typeof MyAgentRoiHistory>;
 export const MyAgentTranscripts = __t.object("MyAgentTranscripts", {});
 export type MyAgentTranscripts = __Infer<typeof MyAgentTranscripts>;
 
+export const MyAssistantMessages = __t.object("MyAssistantMessages", {});
+export type MyAssistantMessages = __Infer<typeof MyAssistantMessages>;
+
+export const MyAssistantNotifications = __t.object("MyAssistantNotifications", {});
+export type MyAssistantNotifications = __Infer<typeof MyAssistantNotifications>;
+
+export const MyEventMapPins = __t.object("MyEventMapPins", {});
+export type MyEventMapPins = __Infer<typeof MyEventMapPins>;
+
+export const MyEventStars = __t.object("MyEventStars", {});
+export type MyEventStars = __Infer<typeof MyEventStars>;
+
+export const MyNetworkingMemberships = __t.object("MyNetworkingMemberships", {});
+export type MyNetworkingMemberships = __Infer<typeof MyNetworkingMemberships>;
+
 export const MyProfile = __t.object("MyProfile", {});
 export type MyProfile = __Infer<typeof MyProfile>;
 
 export const MyProfileDetails = __t.object("MyProfileDetails", {});
 export type MyProfileDetails = __Infer<typeof MyProfileDetails>;
+
+export const NetworkingEvent = __t.object("NetworkingEvent", {
+  eventId: __t.string(),
+  title: __t.string(),
+  description: __t.string(),
+  venue: __t.string(),
+  startAtMs: __t.u64(),
+  createdBy: __t.identity(),
+  createdAt: __t.timestamp(),
+  status: __t.string(),
+  matchingStatus: __t.string(),
+  memberCount: __t.u32(),
+  preparedCount: __t.u32(),
+  vectorsReady: __t.bool(),
+  processingId: __t.string(),
+  processingAtMs: __t.u64(),
+});
+export type NetworkingEvent = __Infer<typeof NetworkingEvent>;
+
+export const NetworkingInvitation = __t.object("NetworkingInvitation", {
+  eventId: __t.string(),
+  title: __t.string(),
+  description: __t.string(),
+  venue: __t.string(),
+  startAtMs: __t.u64(),
+  status: __t.string(),
+  matchingStatus: __t.string(),
+  memberCount: __t.u32(),
+  preparedCount: __t.u32(),
+});
+export type NetworkingInvitation = __Infer<typeof NetworkingInvitation>;
+
+export const NetworkingInvitations = __t.object("NetworkingInvitations", {});
+export type NetworkingInvitations = __Infer<typeof NetworkingInvitations>;
+
+export const NetworkingMember = __t.object("NetworkingMember", {
+  memberId: __t.string(),
+  eventId: __t.string(),
+  userId: __t.string(),
+  joinedAt: __t.timestamp(),
+  profileSnapshotJson: __t.string(),
+  discoverable: __t.bool(),
+  zoneId: __t.string(),
+  availabilityStatus: __t.string(),
+  presenceUpdatedAt: __t.option(__t.timestamp()),
+});
+export type NetworkingMember = __Infer<typeof NetworkingMember>;
+
+export const NetworkingMembership = __t.object("NetworkingMembership", {
+  memberId: __t.string(),
+  eventId: __t.string(),
+  userId: __t.string(),
+  discoverable: __t.bool(),
+  zoneId: __t.string(),
+  availabilityStatus: __t.string(),
+});
+export type NetworkingMembership = __Infer<typeof NetworkingMembership>;
 
 export const ParticipantOwner = __t.object("ParticipantOwner", {
   participantId: __t.string(),

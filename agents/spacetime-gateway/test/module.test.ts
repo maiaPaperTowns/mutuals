@@ -77,6 +77,10 @@ function fixture() {
   const peer = identity('b'.repeat(64));
   const service = identity('c'.repeat(64));
   const db = {
+    networkingEvent: table('eventId'), networkingMember: table('memberId'), eventInterestList: table('listId'),
+    eventStar: table('starId'), eventLocation: table('locationId'), assistantMessage: table('messageId'),
+    eventLocationExpiry: table('scheduledId'),
+    assistantNotification: table('notificationId'), assistantTurn: table('turnId'),
     cloudProviderConfig: table('name'), cloudAdmin: table('identity'), cloudOperation: table('userId'),
     agentService: table('identity'), agentAuthSubject: table('subject', ['ownerIdentity']),
     agentUserLink: table('userId', ['authSubject', 'ownerIdentity']), agentProfile: table('userId'),
@@ -107,7 +111,7 @@ function cloudFixture() {
   f.db.cloudProviderConfig.insert({ name: 'pinecone_api_key', value: 'fake-pinecone-key' });
   f.db.cloudProviderConfig.insert({ name: 'pinecone_host', value: 'https://test.svc.pinecone.io' });
   const tx = { ...f.ctx, sender: f.owner, timestamp: { microsSinceUnixEpoch: 1_790_000_000_000_000n },
-    senderAuth: { jwt: { issuer: 'https://novel-griffon-9073.clerk.accounts.dev', audience: ['mhacks-live-map'], subject: 'clerk-a' } } };
+    senderAuth: { jwt: { issuer: 'https://novel-griffon-9073.clerk.accounts.dev', audience: ['mhacks-live-map'], subject: 'clerk-a' } }, newUuidV4: () => 'cloud-test-id' };
   const ctx = { sender: f.owner, timestamp: tx.timestamp, newUuidV4: () => 'cloud-test-id',
     withTx: (fn: any) => fn(tx), http: { fetch: (url: string, options: any) => {
       const body = options?.body ? JSON.parse(options.body) : null;
@@ -119,6 +123,201 @@ function cloudFixture() {
     } } } as any;
   return { ...f, tx, ctx, calls };
 }
+
+function networkingFixture(count = 3) {
+  const f = cloudFixture();
+  f.db.cloudAdmin.insert({ identity: f.owner });
+  const saved = JSON.parse(module.submitCloudIntroduction(f.ctx, { message: 'Python maps', resumeText: '', filename: '' }));
+  const event = JSON.parse(module.createNetworkingEvent(f.ctx, { title: 'Engineering meetup', description: 'Meet builders', venue: 'Duderstadt', startAtMs: 1_790_000_000_000n }));
+  const users: any[] = [f.owner];
+  module.joinNetworkingEvent(f.tx, { eventId: event.event_id });
+  for (let i = 1; i < count; i++) {
+    const id = identity(i.toString(16).padStart(64, '0'));
+    const profile = { ...saved, user_id: id.toHexString(), name: `Peer ${i}`, embedding: Array(1024).fill(i === 1 ? 0.1 : -0.1) };
+    f.db.userProfile.insert({ identity: id, displayName: profile.name, headline: 'Engineer', interests: 'Python', agentProfileJson: JSON.stringify(profile) });
+    f.db.agentUserLink.insert({ userId: id.toHexString(), authSubject: `clerk-${i}`, ownerIdentity: id, agentScope: 'agent' });
+    module.joinNetworkingEvent({ ...f.tx, sender: id, senderAuth: { jwt: { ...f.tx.senderAuth.jwt, subject: `clerk-${i}` } } }, { eventId: event.event_id });
+    users.push(id);
+  }
+  return { ...f, eventId: event.event_id, users, forUser: (id: any) => ({ ...f.tx, sender: id, senderAuth: { jwt: { ...f.tx.senderAuth.jwt, subject: `clerk-${users.indexOf(id)}` } } }) };
+}
+
+test('event creation requires provisioned admin identity, never a display name', () => {
+  const f = cloudFixture();
+  f.db.userProfile.identity.update({ ...f.db.userProfile.identity.find(f.owner), displayName: 'Terry' });
+  assert.throws(() => module.createNetworkingEvent(f.ctx, { title: 'Meetup', description: '', venue: 'Hall', startAtMs: 1n }), /administrator/);
+  assert.equal(f.db.networkingEvent.iter().next().done, true);
+});
+
+test('joining is idempotent and start atomically freezes membership and profiles', () => {
+  const f = networkingFixture();
+  module.joinNetworkingEvent(f.tx, { eventId: f.eventId });
+  assert.equal([...f.db.networkingMember.iter()].length, 3);
+  assert.throws(() => module.startNetworkingEvent(f.forUser(f.users[1]), { eventId: f.eventId }), /administrator/);
+  module.startNetworkingEvent(f.tx, { eventId: f.eventId });
+  assert.equal(f.db.networkingEvent.eventId.find(f.eventId).status, 'started');
+  const snapshots = [...f.db.networkingMember.iter()].map(r => r.profileSnapshotJson);
+  assert.ok(snapshots.every(Boolean));
+  assert.throws(() => module.joinNetworkingEvent(f.tx, { eventId: f.eventId }), /closed|started/);
+  assert.throws(() => module.leaveNetworkingEvent(f.tx, { eventId: f.eventId }), /frozen|started/);
+});
+
+test('Pre compares every frozen member and paginates the complete private list', () => {
+  const f = networkingFixture(8);
+  module.startNetworkingEvent(f.tx, { eventId: f.eventId });
+  // Changing a live profile must not replace the event snapshot.
+  f.db.userProfile.identity.update({ ...f.db.userProfile.identity.find(f.users[1]), agentProfileJson: '{"embedding":null}' });
+  const state = JSON.parse(module.prepareNetworkingEvent(f.ctx, { eventId: f.eventId }));
+  assert.equal(state.matching_status, 'ready');
+  assert.equal([...f.db.eventInterestList.iter()].length, 8);
+  const page = JSON.parse(module.getEventInterestList(f.ctx, { eventId: f.eventId, offset: 0, limit: 5 }));
+  assert.equal(page.total, 7); assert.equal(page.items.length, 5);
+  assert.equal(page.items[0].target_id, f.users[1].toHexString());
+  assert.ok(page.items.every((c: any) => !('embedding' in c) && !('introduction' in c)));
+  const tail = JSON.parse(module.getEventInterestList(f.ctx, { eventId: f.eventId, offset: 5, limit: 5 }));
+  assert.equal(tail.items.length, 2);
+  assert.ok(f.calls.some(c => c.url.endsWith('/vectors/upsert') && c.body.namespace.startsWith('networking-')));
+  assert.equal(f.calls.filter(c => c.url.endsWith('/query')).length, 8);
+  const outsider = { ...f.ctx, withTx: (fn: any) => fn({ ...f.tx, sender: f.peer }) };
+  f.db.userProfile.insert({ identity: f.peer, displayName: 'Outsider', headline: '', interests: '' });
+  assert.throws(() => module.getEventInterestList(outsider, { eventId: f.eventId, offset: 0, limit: 5 }), /join|member/);
+});
+
+test('GPS proximity alerts require opted-in fresh accurate positions and respect cooldown', () => {
+  const f = networkingFixture();
+  module.startNetworkingEvent(f.tx, { eventId: f.eventId });
+  module.prepareNetworkingEvent(f.ctx, { eventId: f.eventId });
+  for (const id of f.users.slice(0, 2)) module.setEventAvailability(f.forUser(id), { eventId: f.eventId, zoneId: 'lounge', availabilityStatus: 'free', discoverable: true });
+  module.updateEventLocation(f.tx, { eventId: f.eventId, latitude: 42.29, longitude: -83.71, accuracyMeters: 5 });
+  const peerTx = f.forUser(f.users[1]);
+  module.updateEventLocation(peerTx, { eventId: f.eventId, latitude: 42.2902, longitude: -83.71, accuracyMeters: 200 });
+  assert.equal([...f.db.assistantNotification.iter()].filter(r => r.kind === 'nearby').length, 0);
+  module.updateEventLocation(peerTx, { eventId: f.eventId, latitude: 42.2902, longitude: -83.71, accuracyMeters: 5 });
+  assert.equal([...f.db.assistantNotification.iter()].filter(r => r.kind === 'nearby').length, 2);
+  module.updateEventLocation(peerTx, { eventId: f.eventId, latitude: 42.2902, longitude: -83.71, accuracyMeters: 5 });
+  assert.equal([...f.db.assistantNotification.iter()].filter(r => r.kind === 'nearby').length, 2);
+  assert.equal(module.myAssistantNotifications({ ...f.tx, sender: f.peer }).length, 0);
+  const mine = module.myAssistantNotifications(f.tx);
+  assert.equal(mine.length, 1);
+  assert.throws(() => module.markAssistantNotificationRead(peerTx, { notificationId: mine[0].notificationId }), /account/);
+  module.stopEventLocation(f.tx, { eventId: f.eventId });
+  assert.equal(f.db.eventLocation.locationId.find(`${f.eventId}__${f.owner.toHexString()}`), undefined);
+});
+
+test('assistant chats call ASI, persist separate personal stage histories and reuse request ids', () => {
+  const f = networkingFixture();
+  const args = { eventId: f.eventId, stage: 'pre', message: 'Who should I meet?', requestId: 'request-1' };
+  const response = JSON.parse(module.sendAssistantMessage(f.ctx, args));
+  assert.ok(response.reply);
+  assert.equal(module.myAssistantMessages(f.tx).length, 2);
+  module.sendAssistantMessage(f.ctx, args);
+  assert.equal(module.myAssistantMessages(f.tx).length, 2);
+  assert.equal(module.myAssistantMessages(f.forUser(f.users[1])).length, 0);
+  assert.throws(() => module.sendAssistantMessage(f.ctx, { ...args, stage: 'unknown', requestId: 'request-2' }), /stage/);
+  const call = f.calls.filter(c => c.url.includes('chat/completions')).at(-1)!;
+  assert.equal(call.body.model, 'asi1');
+  assert.ok(call.body.tools.some((t: any) => t.function.name === 'get_interest_list'));
+  assert.equal(call.body.tools.some((t: any) => t.function.name === 'respond_connection'), false);
+});
+
+test('event connections are idempotent, scoped to members, and only the receiver can answer', () => {
+  const f = networkingFixture();
+  module.startNetworkingEvent(f.tx, { eventId: f.eventId });
+  for (const id of f.users) module.setEventAvailability(f.forUser(id), { eventId: f.eventId, zoneId: 'lounge', availabilityStatus: 'free', discoverable: true });
+  const args = { eventId: f.eventId, targetId: f.users[1].toHexString() };
+  module.requestEventConnection(f.tx, args); module.requestEventConnection(f.tx, args);
+  assert.equal([...f.db.agentInteraction.iter()].length, 1);
+  assert.equal(module.myAssistantNotifications(f.forUser(f.users[1]))[0].kind, 'connection_request');
+  assert.throws(() => module.respondEventConnection(f.tx, { eventId: f.eventId, interactionId: 'cloud-test-id', accept: true }), /target/);
+  module.respondEventConnection(f.forUser(f.users[1]), { eventId: f.eventId, interactionId: 'cloud-test-id', accept: false });
+  assert.equal(f.db.agentInteraction.interactionId.find('cloud-test-id').status, 'declined');
+  assert.equal(module.myAssistantNotifications(f.tx)[0].kind, 'connection_response');
+  assert.throws(() => module.requestEventConnection(f.tx, { eventId: f.eventId, targetId: f.peer.toHexString() }), /member|join/);
+});
+
+test('assistant tools cannot escape their stage or event and retry does not repeat an applied tool', () => {
+  const f = networkingFixture();
+  module.startNetworkingEvent(f.tx, { eventId: f.eventId });
+  const args = { eventId: f.eventId, stage: 'pre', message: 'Star the first participant.', requestId: 'tools-1' };
+  const fetch = f.ctx.http.fetch;
+  let completions = 0;
+  f.ctx.http.fetch = (url: string, options: any) => {
+    if (!url.includes('chat/completions')) return fetch(url, options);
+    completions++;
+    if (completions === 2) return { ok: false, status: 503 };
+    const body = JSON.parse(options.body);
+    return { ok: true, json: () => ({ choices: [{ message: body.tools ? { content: null, tool_calls: [{ id: 'tool-1', function: {
+      name: 'set_star', arguments: JSON.stringify({ target_id: f.users[1].toHexString(), starred: true }),
+    } }] } : { content: 'This participant is now starred.' } }] }) };
+  };
+  assert.throws(() => module.sendAssistantMessage(f.ctx, args), /ASI.*503/);
+  assert.equal([...f.db.eventStar.iter()].length, 1);
+  const appliedAt = [...f.db.assistantTurn.iter()][0].resultJson;
+  assert.ok(appliedAt.includes('set_star'));
+  module.sendAssistantMessage(f.ctx, args);
+  assert.equal([...f.db.eventStar.iter()].length, 1);
+  f.ctx.http.fetch = () => ({ ok: true, json: () => ({ choices: [{ message: completions++ < 5 ? { tool_calls: [{ id: 'bad', function: { name: 'request_connection', arguments: '{}' } }] } : { content: 'This action is not allowed.' } }] }) });
+  // Directly calling a During-only tool through Pre is rejected before writes.
+  try { module.sendAssistantMessage(f.ctx, { ...args, requestId: 'tools-2' }); } catch { /* empty provider reply is acceptable; no tool write is */ }
+  assert.equal([...f.db.agentInteraction.iter()].length, 0);
+});
+
+test('account deletion cleans event snapshots, private conversations and GPS', () => {
+  const f = networkingFixture();
+  module.startNetworkingEvent(f.tx, { eventId: f.eventId }); module.prepareNetworkingEvent(f.ctx, { eventId: f.eventId });
+  module.sendAssistantMessage(f.ctx, { eventId: f.eventId, stage: 'pre', message: 'Hello', requestId: 'delete-chat' });
+  module.deleteCloudAccount(f.ctx, {} as any);
+  assert.equal(f.db.networkingMember.memberId.find(`${f.eventId}__${f.owner.toHexString()}`), undefined);
+  assert.equal(module.myAssistantMessages(f.tx).length, 0);
+  assert.equal([...f.db.assistantTurn.iter()].length, 0);
+  assert.ok(f.calls.some(c => c.url.endsWith('/vectors/delete') && c.body.namespace === `networking-${f.eventId}`));
+});
+
+test('a During agent can read live data then execute a requested action in the same turn', () => {
+  const f = networkingFixture();
+  module.startNetworkingEvent(f.tx, { eventId: f.eventId });
+  const fetch = f.ctx.http.fetch;
+  let round = 0;
+  f.ctx.http.fetch = (url: string, options: any) => {
+    if (!url.includes('chat/completions')) return fetch(url, options);
+    round++;
+    const tool = round === 1 ? { name: 'get_interest_list', arguments: '{}' } : { name: 'set_star', arguments: JSON.stringify({ target_id: f.users[1].toHexString(), starred: true }) };
+    return { ok: true, json: () => ({ choices: [{ message: round < 3 ? { content: null, tool_calls: [{ id: `round-${round}`, function: tool }] } : { content: 'I read your list and starred the participant.' } }] }) };
+  };
+  const response = JSON.parse(module.sendAssistantMessage(f.ctx, { eventId: f.eventId, stage: 'during', message: 'Read my list and star this participant.', requestId: 'multi-step' }));
+  assert.ok(response.reply); assert.equal([...f.db.eventStar.iter()].length, 1); assert.equal(round, 3);
+});
+
+test('event GPS is removed on disconnect and by server expiration even without browser cleanup', () => {
+  const f = networkingFixture();
+  module.startNetworkingEvent(f.tx, { eventId: f.eventId });
+  module.setEventAvailability(f.tx, { eventId: f.eventId, zoneId: 'lounge', availabilityStatus: 'free', discoverable: true });
+  module.updateEventLocation(f.tx, { eventId: f.eventId, latitude: 42.29, longitude: -83.71, accuracyMeters: 5 });
+  const expiry = [...f.db.eventLocationExpiry.iter()][0];
+  assert.ok(expiry);
+  const later = { ...f.tx, timestamp: { microsSinceUnixEpoch: f.tx.timestamp.microsSinceUnixEpoch + 121_000_000n } };
+  module.expireEventLocation(later, { arg: expiry });
+  assert.equal(f.db.eventLocation.locationId.find(`${f.eventId}__${f.owner.toHexString()}`), undefined);
+  module.updateEventLocation(f.tx, { eventId: f.eventId, latitude: 42.29, longitude: -83.71, accuracyMeters: 5 });
+  module.clientDisconnected(f.tx);
+  assert.equal(f.db.eventLocation.locationId.find(`${f.eventId}__${f.owner.toHexString()}`), undefined);
+});
+
+test('checkout revokes legacy discovery and activity in another event cannot renew an old check-in', () => {
+  const f = networkingFixture();
+  module.startNetworkingEvent(f.tx, { eventId: f.eventId });
+  for (const id of f.users.slice(0,2)) module.setEventAvailability(f.forUser(id), { eventId: f.eventId, zoneId: 'lounge', availabilityStatus: 'free', discoverable: true });
+  module.setEventAvailability(f.tx, { eventId: f.eventId, zoneId: 'lounge', availabilityStatus: 'offline', discoverable: false });
+  assert.equal(f.db.agentPresence.userId.find(f.owner.toHexString()), undefined);
+  module.setEventAvailability(f.tx, { eventId: f.eventId, zoneId: 'lounge', availabilityStatus: 'free', discoverable: true });
+  f.ctx.newUuidV4 = () => 'second-event';
+  const second = JSON.parse(module.createNetworkingEvent(f.ctx, { title: 'Second event', description: '', venue: 'Hall', startAtMs: 1_790_000_000_000n }));
+  for (const id of f.users.slice(0,2)) module.joinNetworkingEvent(f.forUser(id), { eventId: second.event_id });
+  module.startNetworkingEvent(f.tx, { eventId: second.event_id });
+  const timestamp = { microsSinceUnixEpoch: f.tx.timestamp.microsSinceUnixEpoch + 600_000_000n };
+  for (const id of f.users.slice(0,2)) module.setEventAvailability({ ...f.forUser(id), timestamp }, { eventId: second.event_id, zoneId: 'lounge', availabilityStatus: 'free', discoverable: true });
+  assert.throws(() => module.requestEventConnection({ ...f.tx, timestamp }, { eventId: f.eventId, targetId: f.users[1].toHexString() }), /expire|checked/);
+});
 
 test('cloud configuration stays private and status never returns secret values', () => {
   const { ctx } = cloudFixture();

@@ -56,7 +56,7 @@ export default function ProfileChat({ signedIn, accountName, api, onSignIn, acco
   return <main className="profile-chat">
     <header className="chat-topbar">
       <a className="brand" href="/" aria-label="MHacks live map"><span className="brand-mark">mh<span>+</span></span><span><b>MHACKS</b><small>PEOPLE & POSSIBILITIES</small></span></a>
-      <div className="chat-nav"><a className="nav-link" href="/">↗ Live map</a>{accountControl}</div>
+      <div className="chat-nav"><a className="nav-link" href="/events">Events & assistants</a><a className="nav-link" href="/">↗ Live map</a>{accountControl}</div>
     </header>
     <div className="chat-layout">
       <section className="intake-panel" aria-labelledby="intake-title">

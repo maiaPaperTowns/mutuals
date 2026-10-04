@@ -1,8 +1,8 @@
 # mhacks-2026
 
-**A recruiter agent for your networking, living in iMessage.**
-Text it your resume, tell it what you need, and it finds the right person in the room.
-Nothing is revealed until you both say yes.
+**Personal networking assistants before, during and after an event.**
+Upload your resume, join an event, find your best matches and chat with your assistants on the website.
+Discoverable participants show their names and areas; accepting a request establishes a connection.
 
 ![tag:innovationlab](https://img.shields.io/badge/innovationlab-3D8BD3)
 ![Photon Spectrum](https://img.shields.io/badge/iMessage-Photon%20Spectrum-black)
@@ -12,9 +12,9 @@ Nothing is revealed until you both say yes.
 
 ## Current cloud deployment
 
-The [public web app](https://mhacks-live-map.vercel.app/chat) uses Clerk login and native SpacetimeDB procedures/reducers for private profile extraction, Pinecone indexing, event recommendations, opt-in networking, connection requests and follow-up drafts. ASI and Pinecone are called from SpacetimeDB Maincloud; this web path does not require the Python gateway or a local process.
+The [profile page](https://mhacks-live-map.vercel.app/chat) and [events and assistants](https://mhacks-live-map.vercel.app/events) use Clerk login and native SpacetimeDB procedures/reducers. Terry's provisioned administrator account can publish invitations and lock the participant roster by starting an event. Pre compares the frozen members using Pinecone and stores complete personal interest lists, initially displayed five or ten at a time. During manages favorites, voluntary event GPS, nearby notifications and connection requests. Post prepares private follow-up drafts. Each assistant has its own policy, permitted tools and personal stage history; all chat calls the ASI:One API from SpacetimeDB.
 
-The iMessage architecture described below is a separate integration path. Photon/Agentverse transport, recording, push and automatic outbound delivery remain unconnected. Activity recommendations need a real catalog; two-account matching and the complete browser resume upload flow still need live acceptance checks. Follow-up drafts are copied and sent manually. See the [cloud acceptance report](reports/云端后端连接验收报告.md) for verified results and remaining configuration.
+The iMessage architecture described below is a separate legacy integration path. Photon/Agentverse transport, recording and automatic outbound delivery remain unconnected. Browser notifications require permission and an open page; durable notifications stay in the private website inbox. Follow-up drafts are copied and sent manually. See the [Chinese implementation and acceptance guide](docs/活动与站内助手实施说明.md) for the current data contracts, operating steps and verification scope. Older reports describe their original release only.
 
 Completed changes must be committed, pushed and deployed to affected cloud targets under the standing instructions in [AGENTS.md](AGENTS.md).
 
