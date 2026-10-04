@@ -85,8 +85,8 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
 .venue-dot { width: 8px; height: 8px; margin-bottom: 2px; background: #d37654; box-shadow: 0 0 0 4px #d3765424; }
 .map-bottom { position: absolute; z-index: 400; bottom: 12px; left: 14px; display: flex; gap: 15px; padding: 7px 10px; border-radius: 7px; background: #fffffff0; color: #747d73; font-size: 9px; box-shadow: 0 2px 8px #00000010; }
 .live-pin { display: grid; place-items: center; border: 0; background: transparent; }
-.live-pin span { display: block; width: 6px; height: 6px; border: 1px solid white; border-radius: 50%; background: #54a487; }
-.live-pin-mine span { background: #244e3a; }
+.live-pin span { display: block; width: 6px; height: 6px; border: 1px solid white; border-radius: 50%; background: #ff2d2d; }
+.live-pin-mine span { background: #ff2d2d; }
 @media (max-width: 600px) {
   .map-app { min-height: 100dvh; }
   .map-topbar { top: 10px; left: 10px; right: 10px; }
@@ -480,18 +480,3 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
   .levels-list { grid-template-columns: repeat(2, 1fr); }
   .levels-list li:last-child { grid-column: 1 / -1; }
 }
-
-/* people on the map: avatar dot + name */
-.person-pin { position: relative; overflow: visible; border: 0; background: transparent; }
-.person-avatar { position: relative; z-index: 1; display: grid; place-items: center; width: 34px; height: 34px; border: 3px solid #fff; border-radius: 50%; color: #fff; font: 800 15px Manrope, sans-serif; text-shadow: 0 1px 2px #0003; box-shadow: 0 4px 12px #1d2b2240, 0 0 0 1px #0000000f; box-sizing: border-box; transition: transform .15s ease; }
-.person-pin:hover .person-avatar { transform: scale(1.12); }
-.person-name { position: absolute; z-index: 2; top: 36px; left: 50%; transform: translateX(-50%); padding: 2px 8px; border-radius: 99px; background: #fffffff2; color: #24284a; font: 800 10.5px Manrope, sans-serif; white-space: nowrap; box-shadow: 0 2px 8px #1d2b2226; pointer-events: none; }
-.person-pulse { position: absolute; inset: 0; border-radius: 50%; }
-.person-pin-mine .person-pulse { background: #2d6a4f55; animation: person-pulse 2.2s ease-out infinite; }
-.person-pin-mine .person-name { background: #2d6a4f; color: #fff; }
-.person-pin-formal { }
-.person-pin-formal .person-avatar { border-radius: 10px; }
-.person-pin-formal.person-pin-mine .person-pulse { background: #1f3a6855; border-radius: 10px; }
-.person-pin-formal.person-pin-mine .person-name { background: #1f3a68; }
-@keyframes person-pulse { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(2.6); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .person-pin-mine .person-pulse { animation: none; } }

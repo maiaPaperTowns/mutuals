@@ -25,25 +25,12 @@ type PublicMapProfile = Pick<UserProfile, 'displayName' | 'headline' | 'interest
 const AuthDialogContext = createContext<() => void>(() => {});
 const SignedInContext = createContext(false);
 
-// People on the map: a round avatar with their initial in their own pastel color, their name underneath, and a
-// soft pulsing ring for you. Formal style uses navy.
-const AVATAR_COLORS = ['#7cc6a4', '#86b6f0', '#f4a3b4', '#f2cc6b', '#a99be6', '#7fd0d6'];
-const escapeHtml = (text: string) => text.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]!));
-const pinIcon = (mine: boolean, name = '', id = '', formal = false) => {
-  const known = Boolean(name) && name !== 'Anonymous participant';
-  const label = mine ? 'You' : known ? name.split(/\s+/)[0]!.slice(0, 14) : '';
-  const initial = known ? name.trim()[0]!.toUpperCase() : mine ? '•' : '?';
-  let hash = 0;
-  for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  const color = formal ? (mine ? '#1f3a68' : '#3d5f99') : mine ? '#2d6a4f' : known ? AVATAR_COLORS[hash % AVATAR_COLORS.length] : '#b9bfb6';
-  return L.divIcon({
-    className: `person-pin${mine ? ' person-pin-mine' : ''}${formal ? ' person-pin-formal' : ''}`,
-    html: `<span class="person-pulse"></span><span class="person-avatar" style="background:${color}">${escapeHtml(initial)}</span>`
-      + (label ? `<span class="person-name">${escapeHtml(label)}</span>` : ''),
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
-  });
-};
+const pinIcon = (mine: boolean) => L.divIcon({
+  className: `live-pin${mine ? ' live-pin-mine' : ''}`,
+  html: '<span></span>',
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
+});
 const venueIcon = L.divIcon({
   className: 'venue-pin',
   html: '<span class="venue-dot"></span><b>DUDERSTADT CENTER</b><small>2281 Bonisteel Blvd</small>',
@@ -324,7 +311,7 @@ function MapExperience({ myName = '', pins, profileById, myId, loaded, connected
       {pins.map(pin => {
         const profile = profileById.get(pin.participantId);
         const name = profile?.displayName || (pin.participantId === myId ? 'Your location' : 'Anonymous participant');
-        return <Marker key={pin.participantId} position={[pin.latitude, pin.longitude]} icon={pinIcon(pin.participantId === myId, profile?.displayName ?? '', pin.participantId, formal)} title={name}>
+        return <Marker key={pin.participantId} position={[pin.latitude, pin.longitude]} icon={pinIcon(pin.participantId === myId)} title={name}>
           <Tooltip direction="top" offset={[0, -6]}>
             <span className="profile-tooltip"><b>{name}</b>{(profile?.headline || profile?.interests) && <small>{profile.headline || `Interests: ${profile.interests}`}</small>}</span>
           </Tooltip>
