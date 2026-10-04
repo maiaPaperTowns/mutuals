@@ -66,7 +66,9 @@ static bool formal;
 #define IDLE_MISSES 2          /* missed prompts in a row before practice pauses */
 #define NEAR_SOUND_GAP_MS 45000u
 #define RADIO_CLOSE_DBM (-50)    /* stronger than this = "you found them!" (badges within a couple of metres) */
-#define RADIO_STALE_MS 1500u     /* main reports every 0.5 s; older than this = nobody heard */
+#define RADIO_STALE_MS 800u      /* main reports every 0.25 s; older than this = nobody heard */
+#define PENDING_ON_MS 10000u     /* YES pressed: show "sharing" right away, until the website confirms (or not) */
+#define PENDING_OFF_MS 4000u
 #define PTS_NEARBY 10
 #define PTS_FOUND 50 /* GPS drift can flicker someone in and out of range: chime at most this often */
 
@@ -360,6 +362,16 @@ typedef enum {
     V_LEVELUP, V_STATS, V_NONE
 } view_t;
 
+/* Optimistic YES / NO: the badge shows the new state the moment the button is pressed, instead of waiting for the
+ * website's round trip (location fix + database), and drops it once the website agrees or the wait runs out. */
+static char pending;
+static uint32_t pending_until;
+
+static char map_state_now(uint32_t now) {
+    if (pending && (map.state == pending || (int32_t)(now - pending_until) >= 0)) pending = 0;
+    return pending ? pending : map.state;
+}
+
 static photon_sprite_id_t view_sprite(view_t v) {
     if (formal) switch (v) {
         case V_HOME: return SPF_HOME;
@@ -399,7 +411,11 @@ static void view_text(view_t v, char *title, char *detail, size_t n) {
         case V_MUTUAL: snprintf(title, n, STYLE("it's mutual!", "Mutual interest")); snprintf(detail, n, "+%d pts", PTS_CATCH); break;
         case V_MISS: snprintf(title, n, STYLE("too slow...", "Missed")); snprintf(detail, n, STYLE("next one will come!", "another will come")); break;
         case V_HIDDEN: snprintf(title, n, STYLE("not discoverable", "Private mode")); snprintf(detail, n, STYLE("press YES to share your spot", "press YES to become visible")); break;
-        case V_LOOKING: snprintf(title, n, STYLE("looking...", "Searching nearby")); snprintf(detail, n, STYLE("you're on the map", "you're visible on the map")); break;
+        case V_LOOKING:
+            snprintf(title, n, STYLE("looking...", "Searching nearby"));
+            snprintf(detail, n, pending == 'A' ? STYLE("turning on sharing...", "becoming visible...")
+                                              : STYLE("you're on the map", "you're visible on the map"));
+            break;
         case V_NEARBY:
             snprintf(title, n, STYLE("someone's nearby!", "Contact nearby"));
             if (radio_src) snprintf(detail, n, "%s  signal %d dBm", who, radio.rssi);
@@ -420,8 +436,8 @@ static void view_text(view_t v, char *title, char *detail, size_t n) {
     }
 }
 
-static view_t map_view(void) {
-    switch (map.state) {
+static view_t map_view(uint32_t now) {
+    switch (map_state_now(now)) {
         case 'A': return V_LOOKING;
         case 'N': return V_NEARBY;
         case 'C': return V_FOUND;
@@ -514,6 +530,12 @@ int main(void) {
             static const char *const names[5] = {"gray", "yellow", "green", "blue", "red"};
             for (unsigned b = 1; b < 5; ++b)
                 if (pressed & FWOG_BTN_BIT(b)) printf("B %s\n", names[b]);
+            if ((pressed & FWOG_BTN_BIT(FWOG_BTN_GREEN)) && map_state_now(now) == 'H') {
+                pending = 'A', pending_until = now + PENDING_ON_MS;
+            } else if ((pressed & FWOG_BTN_BIT(FWOG_BTN_RED)) && map_state_now(now) != 'H') {
+                pending = 'H', pending_until = now + PENDING_OFF_MS;
+                discoverable = false, me_dirty = true;  /* radio goes silent right away */
+            }
         } else if (overlay != V_STATS) {
             if (game == V_PROMPT && (pressed & FWOG_BTN_BIT(FWOG_BTN_GREEN))) {
                 points += PTS_CATCH, caught++;
@@ -547,7 +569,7 @@ int main(void) {
 
         /* ---- overlays ---- */
         if (overlay != V_NONE && (int32_t)(now - overlay_until) >= 0) overlay = V_NONE;
-        view_t base = map.on ? map_view() : game;
+        view_t base = map.on ? map_view(now) : game;
         radio_src = false;
         const bool radio_near = discoverable && radio.count > 0 && now - radio.last < RADIO_STALE_MS;
         if (radio_near && (base == V_HOME || base == V_LONELY || base == V_LOOKING || base == V_NEARBY)) {

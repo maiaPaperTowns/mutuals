@@ -1,7 +1,7 @@
 /* mutuals: messages between the two CPUs (inter-CPU link, link_frame-encoded) and the radio beacon.
  *
  * Badge ↔ badge proximity runs on the main CPU's CC1101 radios (the OG has no Bluetooth): each badge broadcasts a
- * small beacon about every 0.7 s and listens for others; signal strength (RSSI) says how close they are.
+ * small beacon about every 0.4 s and listens for others; signal strength (RSSI) says how close they are.
  * The display CPU owns the screen, so it tells main who you are and whether to broadcast, and main reports the
  * badges it hears. Types start at 0x40: 0x01-0x1F are the bootloader's, 0x20-0x22 the BSP's I/O messages. */
 #ifndef MUTUALS_LINK_H
@@ -32,7 +32,7 @@ typedef struct __attribute__((packed)) {
     char name[MUTUALS_NAME_MAX];      /* NUL-padded; empty = anonymous */
 } mutuals_msg_me_t;
 
-/* main → display: the strongest badge heard in the last few seconds. Sent every 0.5 s. */
+/* main → display: the strongest badge heard in the last few seconds. Sent every 0.25 s. */
 #define MUTUALS_MSG_PEERS 0x41u
 typedef struct __attribute__((packed)) {
     uint8_t type;                     /* MUTUALS_MSG_PEERS */

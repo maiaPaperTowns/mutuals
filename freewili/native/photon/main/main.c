@@ -2,7 +2,7 @@
  * mutuals, main CPU: badge-to-badge proximity over the CC1101 sub-GHz radios (the OG has no Bluetooth).
  *
  *   - Brings the display CPU up (fwog_display_update_run), which also opens the inter-CPU link.
- *   - Radio CS0 transmits a small beacon about every 0.7 s (jittered so two badges don't keep colliding);
+ *   - Radio CS0 transmits a small beacon about every 0.4 s (jittered so two badges don't keep colliding);
  *     radio CS1 listens the rest of the time. Our own beacon is recognised by its id and ignored.
  *   - Tells the display CPU about the strongest badge it hears (MUTUALS_MSG_PEERS), and takes "who I am /
  *     am I discoverable" from it (MUTUALS_MSG_ME). Not discoverable = no beacon at all.
@@ -22,9 +22,9 @@
 FWOG_WATCHDOG_DEFAULT();
 
 #define RADIO_SPI_HZ 1000000u      /* the BSP bench's conservative bus rate */
-#define BEACON_MS 700u
-#define PEER_TIMEOUT_MS 4000u
-#define REPORT_MS 500u
+#define BEACON_MS 400u
+#define PEER_TIMEOUT_MS 2500u
+#define REPORT_MS 250u
 #define REARM_MS 2000u             /* re-enter RX now and then, in case the receiver wedged */
 #define MAX_PEERS 8
 
@@ -180,7 +180,7 @@ int main(void) {
         poll_radio(now);
         if ((int32_t)(now - next_beacon) >= 0) {
             send_beacon();
-            next_beacon = now + BEACON_MS - 150u + get_rand_32() % 300u;
+            next_beacon = now + BEACON_MS - 100u + get_rand_32() % 200u;
         }
         if ((int32_t)(now - next_report) >= 0) { report(now); next_report = now + REPORT_MS; }
         if ((int32_t)(now - next_rearm) >= 0) { rx_arm(); next_rearm = now + REARM_MS; }
