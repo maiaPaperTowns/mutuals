@@ -33,3 +33,5 @@
 - 首次实现 `0814ad2` 已 push 并无删除数据发布 Maincloud；Vercel 在显式指定 `terryzhu2024-8185` scope 后 READY。真实 ASI 和 Pinecone 写入/fetch/query/清理探针全部通过。
 - Terry 已在生产网页发布临时邀请、加入、开始并完成 Pinecone 名单准备；Pre / During / Post 均真实调用 ASI 工具并收到私人回复。临时活动只有本人，因此预期推荐数为零；没有扩大真实账号或定位的操作范围。
 - 线上出现一次 ASI HTTP 500，相同 requestId 重试成功。补充一次模型 HTTP 5xx 自动重试，工具执行位于重试外；新增回归先失败再通过，最终后端 42/42，相关页面 3/3 与生产构建通过。阶段切换同步 URL，刷新保持所选阶段。
+- 最终运行代码 `4d6de65` 已与远端核对并发布两端；Vercel `dpl_48vFwtS9iiCM47aDtzdP2RYrfb53` 为 READY，两个公开域名可访问。最终 Maincloud provider 探针全部通过；最终网页再次收到 During API 回复。390 px 布局无横向溢出，浏览器尺寸已恢复。
+- 临时邀请、测试会话与唯一活动 namespace 清理确认成功，5 个现有账号保留。正式交付与验证范围写入 `reports/活动与助手上线验收.md`。全部任务完成；GPS 真人现场试验与网页关闭后的 push 没有被冒充为本次已验收能力。
