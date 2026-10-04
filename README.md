@@ -7,6 +7,8 @@ companion that tells you when someone is nearby, and when you've actually found 
 Upload your resume, join an event, find your best matches and chat with your assistants on the website.
 Discoverable participants show their names and areas; accepting a request establishes a connection.
 
+**Live site: [mutuals.tech](https://mutuals.tech)** · [Events & assistants](https://mutuals.tech/events) · [My profile](https://mutuals.tech/chat) · [Badge app download](https://github.com/maiaPaperTowns/mutuals/releases/tag/mutuals-badge-v1)
+
 ![SpacetimeDB](https://img.shields.io/badge/live%20map-SpacetimeDB-6b4fbb)
 ![FREE-WILi](https://img.shields.io/badge/badge-FREE--WILi%20OG-e5484d)
 ![Clerk](https://img.shields.io/badge/accounts-Clerk-6c47ff)
@@ -17,7 +19,7 @@ Discoverable participants show their names and areas; accepting a request establ
 
 ## Current cloud deployment
 
-The [profile page](https://mhacks-live-map.vercel.app/chat) and [events and assistants](https://mhacks-live-map.vercel.app/events) use Clerk login and native SpacetimeDB procedures/reducers. Terry's provisioned administrator account can publish invitations and lock the participant roster by starting an event. Pre compares the frozen members using Pinecone and stores complete personal interest lists, initially displayed five or ten at a time. During manages favorites, voluntary event GPS, nearby notifications and connection requests. Post prepares private follow-up drafts. Each assistant has its own policy, permitted tools and personal stage history; all chat calls the ASI:One API from SpacetimeDB.
+The [profile page](https://mutuals.tech/chat) and [events and assistants](https://mutuals.tech/events) use Clerk login and native SpacetimeDB procedures/reducers. Terry's provisioned administrator account can publish invitations and lock the participant roster by starting an event. Pre compares the frozen members using Pinecone and stores complete personal interest lists, initially displayed five or ten at a time. During manages favorites, voluntary event GPS, nearby notifications and connection requests. Post prepares private follow-up drafts. Each assistant has its own policy, permitted tools and personal stage history; all chat calls the ASI:One API from SpacetimeDB.
 
 The retained Photon/iMessage prototype is a separate integration path. Photon/Agentverse transport, recording and automatic outbound delivery remain unconnected to the website. Browser notifications require permission and an open page; durable notifications stay in the private website inbox. Follow-up drafts are copied and sent manually. See the [Chinese implementation and acceptance guide](docs/活动与站内助手实施说明.md) for the current data contracts, operating steps and verification scope. Older reports describe their original release only.
 

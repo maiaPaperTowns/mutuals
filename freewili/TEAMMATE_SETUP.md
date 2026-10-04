@@ -54,8 +54,7 @@ retry.
 
 ## 3. Open the mutuals map
 
-**Option A: the shared link.** Open the link Maia sends (it looks like `https://….trycloudflare.com`) in
-**Chrome**. Skip to step 4.
+**Option A: the live site.** Open **[mutuals.tech](https://mutuals.tech)** in **Chrome**. Skip to step 4.
 
 **Option B: run it on your laptop.** Only if the shared link isn't available. Needs [Node.js 20.19+](https://nodejs.org)
 and git (on Windows, run these in **PowerShell**).

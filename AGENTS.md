@@ -17,7 +17,7 @@ After completing a requested change, commit and push it to the current branch an
 
 - Git remote: `origin`, `https://github.com/maiaPaperTowns/mutuals.git`. Preserve the current branch; `feat/live-map-spacetimedb` was current when these instructions were added.
 - Vercel: project `mhacks-live-map`, linked by ignored `.vercel/project.json`; project root `map`. Deploy from repository root: `npx.cmd --yes vercel --prod --yes --scope terryzhu2024-8185`. Explicit scope avoids a default-scope authorization failure observed with CLI 62.2.0. Verify READY status.
-- Verified public entry: `https://mhacks-live-map.vercel.app/chat`. Custom domain `mutuals.tech` is also assigned; verify DNS/login before claiming it works on a user's network.
+- Verified public entry: `https://mutuals.tech/chat`. Custom domain `mutuals.tech` is also assigned; verify DNS/login before claiming it works on a user's network.
 - SpacetimeDB: database `mhacks-live-map`, server `maincloud`; Windows CLI `C:\Users\TerryZhu\AppData\Local\SpacetimeDB\spacetime.exe`.
 - Module source `map/spacetimedb`. Generate: `spacetime generate --lang typescript --out-dir map/src/module_bindings --module-path map/spacetimedb --yes`. Publish: `spacetime publish mhacks-live-map --server maincloud --module-path map/spacetimedb --delete-data=never --yes`.
 - Cloud check: `spacetime call mhacks-live-map verify_cloud_providers --server maincloud --yes`. Private state/vector counts: `agents/.venv/Scripts/python.exe agents/check_cloud_state.py`. These use existing admin credentials; never print credentials or raw private profiles.
