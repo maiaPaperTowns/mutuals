@@ -1,0 +1,9 @@
+uagents>=0.26
+openai>=1.40
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+python-dotenv>=1.0
+pypdf>=4.0
+PyJWT[crypto]>=2.9
+pinecone>=7.0,<8.0

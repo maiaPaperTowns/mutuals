@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { ClerkProvider, useAuth, useUser } from '@clerk/react';
 import { DbConnection } from './module_bindings';
@@ -34,6 +34,7 @@ function ClerkMap() {
   const [tokenReady, setTokenReady] = useState(false);
   const [connectionToken, setConnectionToken] = useState<string | null>(null);
   const [providerReady, setProviderReady] = useState(true);
+  const getApiToken = useCallback(() => getToken({ template: 'spacetimedb' }), [getToken]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -70,7 +71,7 @@ function ClerkMap() {
   const builder = useMemo(() => makeConnection(connectionToken), [connectionToken]);
   if (!providerReady) return <div className="map-loading">Reconnecting live map…</div>;
   return <SpacetimeDBProvider key={connectionToken ?? 'anonymous'} connectionBuilder={builder}>
-    <App live authEnabled signedIn={Boolean(connectionToken)} accountName={user?.username ?? user?.firstName ?? 'Your account'} />
+    <App live authEnabled signedIn={Boolean(connectionToken)} accountName={user?.username ?? user?.firstName ?? 'Your account'} getApiToken={getApiToken} />
   </SpacetimeDBProvider>;
 }
 

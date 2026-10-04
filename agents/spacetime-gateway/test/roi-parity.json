@@ -1,0 +1,535 @@
+[
+  {
+    "name": "recruiter",
+    "user": {
+      "id": "u1",
+      "role": "student",
+      "goals": [
+        "ML internship"
+      ],
+      "skills": [
+        "python",
+        "pytorch"
+      ],
+      "interests": [
+        "computer vision"
+      ],
+      "offerings": [],
+      "seniority": 1,
+      "position": {
+        "zone": "atrium",
+        "x": 0,
+        "y": 0
+      },
+      "windows": [],
+      "open_to_chat": true,
+      "in_session": false,
+      "embedding": null
+    },
+    "target": {
+      "id": "t1",
+      "role": "recruiter",
+      "goals": [],
+      "skills": [
+        "python",
+        "computer vision"
+      ],
+      "interests": [],
+      "offerings": [
+        "ML internship referrals"
+      ],
+      "seniority": 4,
+      "position": {
+        "zone": "atrium",
+        "x": 30,
+        "y": 40
+      },
+      "windows": [],
+      "open_to_chat": true,
+      "in_session": false,
+      "embedding": null
+    },
+    "context": {
+      "now": "2026-10-03T18:00:00+00:00",
+      "travel_minutes": null,
+      "interaction_minutes": null
+    },
+    "expected": {
+      "score": 63.1,
+      "breakdown": {
+        "goal_alignment": 1.0,
+        "skill_overlap_or_complementarity": 0.8,
+        "reachability": 0.875,
+        "availability": 1.0,
+        "seniority_or_influence_fit": 0.85,
+        "effort_cost": 0.266
+      },
+      "details": {
+        "travel_minutes": 0.625,
+        "overlap_minutes": 720.0,
+        "skill_overlap": 0.5,
+        "skill_complementarity": 1.0,
+        "in_session": 0.0,
+        "open_to_chat": 1.0,
+        "distance_m": 50.0
+      },
+      "reason": "Strong goal match, complementary skills, well placed to help, reachable now, 1 min walk"
+    }
+  },
+  {
+    "name": "peer",
+    "user": {
+      "id": "u1",
+      "role": "student",
+      "goals": [
+        "ML internship"
+      ],
+      "skills": [
+        "python",
+        "pytorch"
+      ],
+      "interests": [
+        "computer vision"
+      ],
+      "offerings": [],
+      "seniority": 1,
+      "position": {
+        "zone": "atrium",
+        "x": 0,
+        "y": 0
+      },
+      "windows": [],
+      "open_to_chat": true,
+      "in_session": false,
+      "embedding": null
+    },
+    "target": {
+      "id": "t1",
+      "role": "student",
+      "goals": [],
+      "skills": [
+        "history"
+      ],
+      "interests": [],
+      "offerings": [
+        "study group"
+      ],
+      "seniority": 1,
+      "position": {
+        "zone": "atrium",
+        "x": 30,
+        "y": 40
+      },
+      "windows": [],
+      "open_to_chat": true,
+      "in_session": false,
+      "embedding": null
+    },
+    "context": {
+      "now": "2026-10-03T18:00:00+00:00",
+      "travel_minutes": null,
+      "interaction_minutes": null
+    },
+    "expected": {
+      "score": 7.8,
+      "breakdown": {
+        "goal_alignment": 0.0,
+        "skill_overlap_or_complementarity": 0.0,
+        "reachability": 0.875,
+        "availability": 1.0,
+        "seniority_or_influence_fit": 0.45,
+        "effort_cost": 0.266
+      },
+      "details": {
+        "travel_minutes": 0.625,
+        "overlap_minutes": 720.0,
+        "skill_overlap": 0.0,
+        "skill_complementarity": 0.0,
+        "in_session": 0.0,
+        "open_to_chat": 1.0,
+        "distance_m": 50.0
+      },
+      "reason": "Weak goal match, reachable now, 1 min walk"
+    }
+  },
+  {
+    "name": "far",
+    "user": {
+      "id": "u1",
+      "role": "student",
+      "goals": [
+        "ML internship"
+      ],
+      "skills": [
+        "python",
+        "pytorch"
+      ],
+      "interests": [
+        "computer vision"
+      ],
+      "offerings": [],
+      "seniority": 1,
+      "position": {
+        "zone": "atrium",
+        "x": 0,
+        "y": 0
+      },
+      "windows": [],
+      "open_to_chat": true,
+      "in_session": false,
+      "embedding": null
+    },
+    "target": {
+      "id": "t1",
+      "role": "recruiter",
+      "goals": [],
+      "skills": [
+        "python",
+        "computer vision"
+      ],
+      "interests": [],
+      "offerings": [
+        "ML internship referrals"
+      ],
+      "seniority": 4,
+      "position": {
+        "zone": "hall-b",
+        "x": 900,
+        "y": 900
+      },
+      "windows": [],
+      "open_to_chat": true,
+      "in_session": false,
+      "embedding": null
+    },
+    "context": {
+      "now": "2026-10-03T18:00:00+00:00",
+      "travel_minutes": null,
+      "interaction_minutes": null
+    },
+    "expected": {
+      "score": 30.6,
+      "breakdown": {
+        "goal_alignment": 1.0,
+        "skill_overlap_or_complementarity": 0.8,
+        "reachability": 0.553,
+        "availability": 1.0,
+        "seniority_or_influence_fit": 0.85,
+        "effort_cost": 0.648
+      },
+      "details": {
+        "travel_minutes": 15.90990257669732,
+        "overlap_minutes": 720.0,
+        "skill_overlap": 0.5,
+        "skill_complementarity": 1.0,
+        "in_session": 0.0,
+        "open_to_chat": 1.0,
+        "distance_m": 1272.7922061357856
+      },
+      "reason": "Strong goal match, complementary skills, well placed to help, 16 min walk"
+    }
+  },
+  {
+    "name": "busy",
+    "user": {
+      "id": "u1",
+      "role": "student",
+      "goals": [
+        "ML internship"
+      ],
+      "skills": [
+        "python",
+        "pytorch"
+      ],
+      "interests": [
+        "computer vision"
+      ],
+      "offerings": [],
+      "seniority": 1,
+      "position": {
+        "zone": "atrium",
+        "x": 0,
+        "y": 0
+      },
+      "windows": [],
+      "open_to_chat": true,
+      "in_session": false,
+      "embedding": null
+    },
+    "target": {
+      "id": "t1",
+      "role": "recruiter",
+      "goals": [],
+      "skills": [
+        "python",
+        "computer vision"
+      ],
+      "interests": [],
+      "offerings": [
+        "ML internship referrals"
+      ],
+      "seniority": 4,
+      "position": {
+        "zone": "atrium",
+        "x": 30,
+        "y": 40
+      },
+      "windows": [],
+      "open_to_chat": true,
+      "in_session": true,
+      "embedding": null
+    },
+    "context": {
+      "now": "2026-10-03T18:00:00+00:00",
+      "travel_minutes": null,
+      "interaction_minutes": null
+    },
+    "expected": {
+      "score": 18.9,
+      "breakdown": {
+        "goal_alignment": 1.0,
+        "skill_overlap_or_complementarity": 0.8,
+        "reachability": 0.263,
+        "availability": 1.0,
+        "seniority_or_influence_fit": 0.85,
+        "effort_cost": 0.266
+      },
+      "details": {
+        "travel_minutes": 0.625,
+        "overlap_minutes": 720.0,
+        "skill_overlap": 0.5,
+        "skill_complementarity": 1.0,
+        "in_session": 1.0,
+        "open_to_chat": 1.0,
+        "distance_m": 50.0
+      },
+      "reason": "Strong goal match, complementary skills, well placed to help, currently in a session, 1 min walk"
+    }
+  },
+  {
+    "name": "closed",
+    "user": {
+      "id": "u1",
+      "role": "student",
+      "goals": [
+        "ML internship"
+      ],
+      "skills": [
+        "python",
+        "pytorch"
+      ],
+      "interests": [
+        "computer vision"
+      ],
+      "offerings": [],
+      "seniority": 1,
+      "position": {
+        "zone": "atrium",
+        "x": 0,
+        "y": 0
+      },
+      "windows": [],
+      "open_to_chat": true,
+      "in_session": false,
+      "embedding": null
+    },
+    "target": {
+      "id": "t1",
+      "role": "recruiter",
+      "goals": [],
+      "skills": [
+        "python",
+        "computer vision"
+      ],
+      "interests": [],
+      "offerings": [
+        "ML internship referrals"
+      ],
+      "seniority": 4,
+      "position": {
+        "zone": "atrium",
+        "x": 30,
+        "y": 40
+      },
+      "windows": [],
+      "open_to_chat": false,
+      "in_session": false,
+      "embedding": null
+    },
+    "context": {
+      "now": "2026-10-03T18:00:00+00:00",
+      "travel_minutes": null,
+      "interaction_minutes": null
+    },
+    "expected": {
+      "score": 9.5,
+      "breakdown": {
+        "goal_alignment": 1.0,
+        "skill_overlap_or_complementarity": 0.8,
+        "reachability": 0.131,
+        "availability": 1.0,
+        "seniority_or_influence_fit": 0.85,
+        "effort_cost": 0.266
+      },
+      "details": {
+        "travel_minutes": 0.625,
+        "overlap_minutes": 720.0,
+        "skill_overlap": 0.5,
+        "skill_complementarity": 1.0,
+        "in_session": 0.0,
+        "open_to_chat": 0.0,
+        "distance_m": 50.0
+      },
+      "reason": "Strong goal match, complementary skills, well placed to help, may not be open to chat, 1 min walk"
+    }
+  },
+  {
+    "name": "past",
+    "user": {
+      "id": "u1",
+      "role": "student",
+      "goals": [
+        "ML internship"
+      ],
+      "skills": [
+        "python",
+        "pytorch"
+      ],
+      "interests": [
+        "computer vision"
+      ],
+      "offerings": [],
+      "seniority": 1,
+      "position": {
+        "zone": "atrium",
+        "x": 0,
+        "y": 0
+      },
+      "windows": [],
+      "open_to_chat": true,
+      "in_session": false,
+      "embedding": null
+    },
+    "target": {
+      "id": "t1",
+      "role": "recruiter",
+      "goals": [],
+      "skills": [
+        "python",
+        "computer vision"
+      ],
+      "interests": [],
+      "offerings": [
+        "ML internship referrals"
+      ],
+      "seniority": 4,
+      "position": {
+        "zone": "atrium",
+        "x": 30,
+        "y": 40
+      },
+      "windows": [
+        [
+          "2026-10-03T16:00:00+00:00",
+          "2026-10-03T17:00:00+00:00"
+        ]
+      ],
+      "open_to_chat": true,
+      "in_session": false,
+      "embedding": null
+    },
+    "context": {
+      "now": "2026-10-03T18:00:00+00:00",
+      "travel_minutes": null,
+      "interaction_minutes": null
+    },
+    "expected": {
+      "score": 0.0,
+      "breakdown": {
+        "goal_alignment": 1.0,
+        "skill_overlap_or_complementarity": 0.8,
+        "reachability": 0.875,
+        "availability": 0.0,
+        "seniority_or_influence_fit": 0.85,
+        "effort_cost": 0.266
+      },
+      "details": {
+        "travel_minutes": 0.625,
+        "overlap_minutes": 0.0,
+        "skill_overlap": 0.5,
+        "skill_complementarity": 1.0,
+        "in_session": 0.0,
+        "open_to_chat": 1.0,
+        "distance_m": 50.0
+      },
+      "reason": "Strong goal match, complementary skills, well placed to help, reachable now, limited time overlap, 1 min walk"
+    }
+  },
+  {
+    "name": "empty",
+    "user": {
+      "id": "u1",
+      "role": "student",
+      "goals": [
+        "ML internship"
+      ],
+      "skills": [
+        "python",
+        "pytorch"
+      ],
+      "interests": [
+        "computer vision"
+      ],
+      "offerings": [],
+      "seniority": 1,
+      "position": {
+        "zone": "atrium",
+        "x": 0,
+        "y": 0
+      },
+      "windows": [],
+      "open_to_chat": true,
+      "in_session": false,
+      "embedding": null
+    },
+    "target": {
+      "id": "empty",
+      "role": "student",
+      "goals": [],
+      "skills": [],
+      "interests": [],
+      "offerings": [],
+      "seniority": 1,
+      "position": null,
+      "windows": [],
+      "open_to_chat": true,
+      "in_session": false,
+      "embedding": null
+    },
+    "context": {
+      "now": "2026-10-03T18:00:00+00:00",
+      "travel_minutes": null,
+      "interaction_minutes": null
+    },
+    "expected": {
+      "score": 13.0,
+      "breakdown": {
+        "goal_alignment": 0.0,
+        "skill_overlap_or_complementarity": 0.5,
+        "reachability": 0.75,
+        "availability": 1.0,
+        "seniority_or_influence_fit": 0.45,
+        "effort_cost": 0.375
+      },
+      "details": {
+        "travel_minutes": 5.0,
+        "overlap_minutes": 720.0,
+        "skill_overlap": 0.0,
+        "skill_complementarity": 0.0,
+        "in_session": 0.0,
+        "open_to_chat": 1.0
+      },
+      "reason": "Weak goal match, complementary skills, reachable now, ~5 min away"
+    }
+  }
+]

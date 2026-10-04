@@ -4,8 +4,15 @@ import { Circle, MapContainer, Marker, TileLayer, Tooltip, ZoomControl } from 'r
 import L from 'leaflet';
 import { reducers, tables } from './module_bindings';
 import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
+import ProfileChat from './ProfileChat';
+import LiveProfileChat from './LiveProfileChat';
+import NetworkingWorkspace from './NetworkingWorkspace';
+import { createProfileApi } from './profileApi';
 import { badgeStatus, badgeSupported, useBadge, type BadgeStatus } from './badge';
 import { LEVEL_AT, LEVEL_NAME, TIER_NAME, usePoints, type Connection, type Gain } from './points';
+
+const noToken = async () => null;
+const previewProfileApi = createProfileApi('', noToken, async () => {});
 
 const DUDERSTADT: [number, number] = [42.2912, -83.7157];
 type LocationPin = { participantId: string; latitude: number; longitude: number; accuracyMeters: number };
@@ -105,26 +112,14 @@ function LiveMapContent({ authEnabled, accountName }: { authEnabled: boolean; ac
         }
         if (!navigator.geolocation) throw new Error("This browser doesn't support location. Try a modern browser on your phone.");
         lastSentRef.current = null;
-        // A quick, coarse fix (cached up to 5 min, Wi-Fi accuracy is fine) so sharing starts in about a second instead
-        // of waiting on a high-accuracy GPS fix; watchPosition refines it right after.
-        const first = await new Promise<GeolocationPosition>((resolve, reject) => navigator.geolocation.getCurrentPosition(
-          resolve,
+        await new Promise<void>((resolve, reject) => navigator.geolocation.getCurrentPosition(
+          () => resolve(),
           error => reject(new Error(error.code === error.PERMISSION_DENIED
             ? 'Location permission was denied. Allow location in your browser settings, then try again.'
             : error.code === error.POSITION_UNAVAILABLE ? 'Your device cannot determine a location right now.' : 'Location timed out. Move outdoors or try again.')),
-          { enableHighAccuracy: false, maximumAge: 300000, timeout: 10000 },
+          { enableHighAccuracy: true, maximumAge: 4000, timeout: 20000 },
         ));
         await setPresence({ participantId: id, zoneId: 'main-hall' });
-        // Publish that first fix right away so your dot (and the badge) update now, not after the next GPS reading.
-        if (first.coords.accuracy <= 10000) {
-          lastSentRef.current = { lat: first.coords.latitude, lng: first.coords.longitude, time: Date.now() };
-          void updateLocation({
-            participantId: id,
-            latitude: first.coords.latitude,
-            longitude: first.coords.longitude,
-            accuracyMeters: first.coords.accuracy,
-          }).catch(() => setLocationError('Location sync failed. Check your connection and try again.'));
-        }
         sharingRef.current = true;
         setSharing(true);
       }
@@ -270,7 +265,7 @@ function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, s
       </Fragment>)}
     </MapContainer>
 
-    <header className="map-topbar"><a className="brand" href="/" aria-label="mutuals">{formal ? <b className="brand-text">mutuals</b> : <img className="brand-word" src="/mutuals/mutuals_word.png" alt="mutuals" />}<small>{formal ? 'PROFESSIONAL NETWORKING · MHACKS 2026' : 'PEOPLE FIND PEOPLE · MHACKS 2026'}</small></a><div className="topbar-actions"><StyleToggle /><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div><AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={onRequestSignIn} /></div></header>
+    <header className="map-topbar"><a className="brand" href="/" aria-label="mutuals">{formal ? <b className="brand-text">mutuals</b> : <img className="brand-word" src="/mutuals/mutuals_word.png" alt="mutuals" />}<small>{formal ? 'PROFESSIONAL NETWORKING · MHACKS 2026' : 'PEOPLE FIND PEOPLE · MHACKS 2026'}</small></a><div className="topbar-actions"><a className="nav-link" href="/events">Events & assistants</a><a className="nav-link" href="/chat">My profile</a><StyleToggle /><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div><AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={onRequestSignIn} /></div></header>
 
     <section className="map-card" aria-label="Live location sharing controls">
       <span className="eyebrow">DUDERSTADT CENTER · ANN ARBOR</span>
@@ -427,7 +422,7 @@ function useDemoWalkers(me: LocationPin | null) {
   return { pins, profiles };
 }
 
-export default function App({ live, authEnabled, signedIn, accountName = 'Your account' }: { live: boolean; authEnabled: boolean; signedIn: boolean; accountName?: string }) {
+export default function App({ live, authEnabled, signedIn, accountName = 'Your account', getApiToken = noToken }: { live: boolean; authEnabled: boolean; signedIn: boolean; accountName?: string; getApiToken?: () => Promise<string | null> }) {
   const [authOpen, setAuthOpen] = useState(false);
   const [style, setStyleState] = useState<Style>(loadStyle);
   const setStyle = (next: Style) => {
@@ -440,7 +435,12 @@ export default function App({ live, authEnabled, signedIn, accountName = 'Your a
   }, [signedIn]);
   return <StyleContext.Provider value={{ style, setStyle }}><AuthDialogContext.Provider value={requestSignIn}>
     <SignedInContext.Provider value={signedIn}>
-      {live ? <LiveMapContent authEnabled={authEnabled} accountName={accountName} /> : <PreviewMap />}
+      {['/events', '/assistant'].includes(window.location.pathname.replace(/\/$/, '')) && live
+        ? <NetworkingWorkspace signedIn={signedIn} accountName={accountName} onSignIn={requestSignIn} accountControl={<AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={requestSignIn} />} />
+        : window.location.pathname.replace(/\/$/, '') === '/chat'
+        ? live ? <LiveProfileChat signedIn={signedIn} accountName={accountName} getToken={getApiToken} onSignIn={requestSignIn} accountControl={<AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={requestSignIn} />} />
+          : <ProfileChat signedIn={false} accountName={accountName} api={previewProfileApi} onSignIn={requestSignIn} />
+        : live ? <LiveMapContent authEnabled={authEnabled} accountName={accountName} /> : <PreviewMap />}
       {authOpen && <AuthDialog authEnabled={authEnabled} onClose={() => setAuthOpen(false)} />}
     </SignedInContext.Provider>
   </AuthDialogContext.Provider></StyleContext.Provider>;

@@ -5,6 +5,18 @@ explicitly share their device's current GPS position; opted-in positions are syn
 It also connects to the **mutuals FREE-WILi badge**, keeps **points and levels**, and has a **Cute / Formal**
 switch.
 
+## Event demo at `/events`
+
+An administrator selects an event and uses Pre, During or Post to set its persisted phase. Pre freezes the joined roster and prepares every participant's complete private list, storing Fit, ROI and reasons in SpacetimeDB. During reads those saved scores without recomputing ROI.
+
+Opening During requests browser location permission automatically. With fresh accurate positions, eligible free participants within 100 m receive a website popup containing the saved match reason and conversation topics. No area, status or check-in selection is required. Accepting a request makes both participants busy; either can tap **End chat** to restore free status and resume nearby notifications. Location can be stopped, and expires after two minutes without updates. GPS, event membership, profile snapshots and saved scores use the same authenticated participant ID.
+
+Administrator controls include editing metadata and deleting the selected event. During/Post require prepared lists. Leaving During removes its shared positions; the server also enforces phase restrictions for assistant tools. Event deletion clears its event namespace and related records while preserving personal profiles and other events. Post can draft a follow-up for a completed chat.
+
+Tests cover duplicate requests, overlapping acceptance with three participants, ending and renewed notifications, location expiry/disconnection, phase changes during model calls, admin authorization and deletion isolation. `agents/spacetime-gateway` also provides `npm run test:networking`, which runs four SDK clients against an isolated actual SpacetimeDB with synthetic external providers. The demo uses one active pair per person; group chat and notifications after closing the website are outside this implementation.
+
+The public map at `/` has the separate location behavior described below.
+
 ## mutuals features
 
 ### FREE-WILi badge (`src/badge.ts`)
@@ -81,8 +93,8 @@ Clerk handles username/password authentication and recovery. SpacetimeDB validat
 
 ```powershell
 npm run stdb:build
-npm run stdb:publish
 npm run stdb:generate
+npm run stdb:publish
 npm run build
 ```
 
@@ -91,6 +103,16 @@ The issuer is configured (`https://novel-griffon-9073.clerk.accounts.dev`) and t
 `pk_test_bm92ZWwtZ3JpZmZvbi05MDczLmNsZXJrLmFjY291bnRzLmRldiQ=`.
 
 ## Local preview
+
+### Profile intake page
+
+Open `/chat`, or choose `My profile` on the map. Signed-in participants can submit an introduction, a PDF/UTF-8 text resume (up to 10 MiB), or both. Saved profile facts appear beside the conversation and restore on return. Failed requests keep the current draft and attachment. The page collects profile inputs for matching; it does not start a match or check anyone into an event.
+
+Set `VITE_ASI_API_URL` to the public HTTPS address of the existing pre-event Python API. For local development use `http://localhost:8101`. Configure that service's `WEB_ALLOWED_ORIGINS` with the exact frontend origins, including ports (for example `http://localhost:5173,http://127.0.0.1:5173`). Follow [`../agents/README.md`](../agents/README.md) for its ASI key, Clerk JWT validation, SpacetimeDB gateway and service identity configuration. Production needs the updated database module as well as the API and frontend deployments.
+
+The frontend requests a fresh Clerk `spacetimedb` JWT for each API request and creates a private default account profile for new users. The API resolves the account ID, extracts structured facts and saves through the existing SpacetimeDB adapter. Raw resume files are not retained. Intake does not change public map visibility; existing nonempty map names/headlines/interests take precedence. Empty map fields allow private extracted facts to survive without publishing them.
+
+`npm test` runs account bootstrap and intake/transport regressions. `/test/profile-chat-preview.html` is a Vite development-only visual fixture with synthetic data; it is outside the production entry point and does not persist to a server.
 
 ```powershell
 npm ci
@@ -110,6 +132,8 @@ npm run stdb:build
 npm run stdb:publish
 npm run stdb:generate
 ```
+
+The ASIone backend also uses this database module. Publish the updated schema and regenerate bindings before starting `agents/spacetime-gateway`; configure the gateway service identity in the private `agent_service` allowlist. Follow [`../agents/README.md`](../agents/README.md) for backend-only credentials and JSON migration. Do not put service tokens in `map/.env.local` or frontend deployment settings.
 
 The existing `presence` table and participant-owner bindings are retained. `live_location` is a separate public table. Its two reducers enforce the existing owner identity, validate coordinate ranges, and let a participant update or remove only their own row. `clientDisconnected` removes that participant's latest location on disconnect.
 

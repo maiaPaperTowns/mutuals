@@ -6,5 +6,50 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all procedure arg schemas
+import * as CloudBackendStatusProcedure from "../cloud_backend_status_procedure";
+import * as CreateNetworkingEventProcedure from "../create_networking_event_procedure";
+import * as DeleteCloudAccountProcedure from "../delete_cloud_account_procedure";
+import * as DeleteNetworkingEventProcedure from "../delete_networking_event_procedure";
+import * as DraftCloudFollowupProcedure from "../draft_cloud_followup_procedure";
+import * as GetCloudEventRecommendationsProcedure from "../get_cloud_event_recommendations_procedure";
+import * as GetCloudOpportunitiesProcedure from "../get_cloud_opportunities_procedure";
+import * as GetEventInterestListProcedure from "../get_event_interest_list_procedure";
+import * as LoadCloudProfileProcedure from "../load_cloud_profile_procedure";
+import * as NetworkingAccountStatusProcedure from "../networking_account_status_procedure";
+import * as PrepareNetworkingEventProcedure from "../prepare_networking_event_procedure";
+import * as SaveCloudEventProcedure from "../save_cloud_event_procedure";
+import * as SendAssistantMessageProcedure from "../send_assistant_message_procedure";
+import * as SubmitCloudIntroductionProcedure from "../submit_cloud_introduction_procedure";
+import * as VerifyCloudProvidersProcedure from "../verify_cloud_providers_procedure";
 
+export type CloudBackendStatusArgs = __Infer<typeof CloudBackendStatusProcedure.params>;
+export type CloudBackendStatusResult = __Infer<typeof CloudBackendStatusProcedure.returnType>;
+export type CreateNetworkingEventArgs = __Infer<typeof CreateNetworkingEventProcedure.params>;
+export type CreateNetworkingEventResult = __Infer<typeof CreateNetworkingEventProcedure.returnType>;
+export type DeleteCloudAccountArgs = __Infer<typeof DeleteCloudAccountProcedure.params>;
+export type DeleteCloudAccountResult = __Infer<typeof DeleteCloudAccountProcedure.returnType>;
+export type DeleteNetworkingEventArgs = __Infer<typeof DeleteNetworkingEventProcedure.params>;
+export type DeleteNetworkingEventResult = __Infer<typeof DeleteNetworkingEventProcedure.returnType>;
+export type DraftCloudFollowupArgs = __Infer<typeof DraftCloudFollowupProcedure.params>;
+export type DraftCloudFollowupResult = __Infer<typeof DraftCloudFollowupProcedure.returnType>;
+export type GetCloudEventRecommendationsArgs = __Infer<typeof GetCloudEventRecommendationsProcedure.params>;
+export type GetCloudEventRecommendationsResult = __Infer<typeof GetCloudEventRecommendationsProcedure.returnType>;
+export type GetCloudOpportunitiesArgs = __Infer<typeof GetCloudOpportunitiesProcedure.params>;
+export type GetCloudOpportunitiesResult = __Infer<typeof GetCloudOpportunitiesProcedure.returnType>;
+export type GetEventInterestListArgs = __Infer<typeof GetEventInterestListProcedure.params>;
+export type GetEventInterestListResult = __Infer<typeof GetEventInterestListProcedure.returnType>;
+export type LoadCloudProfileArgs = __Infer<typeof LoadCloudProfileProcedure.params>;
+export type LoadCloudProfileResult = __Infer<typeof LoadCloudProfileProcedure.returnType>;
+export type NetworkingAccountStatusArgs = __Infer<typeof NetworkingAccountStatusProcedure.params>;
+export type NetworkingAccountStatusResult = __Infer<typeof NetworkingAccountStatusProcedure.returnType>;
+export type PrepareNetworkingEventArgs = __Infer<typeof PrepareNetworkingEventProcedure.params>;
+export type PrepareNetworkingEventResult = __Infer<typeof PrepareNetworkingEventProcedure.returnType>;
+export type SaveCloudEventArgs = __Infer<typeof SaveCloudEventProcedure.params>;
+export type SaveCloudEventResult = __Infer<typeof SaveCloudEventProcedure.returnType>;
+export type SendAssistantMessageArgs = __Infer<typeof SendAssistantMessageProcedure.params>;
+export type SendAssistantMessageResult = __Infer<typeof SendAssistantMessageProcedure.returnType>;
+export type SubmitCloudIntroductionArgs = __Infer<typeof SubmitCloudIntroductionProcedure.params>;
+export type SubmitCloudIntroductionResult = __Infer<typeof SubmitCloudIntroductionProcedure.returnType>;
+export type VerifyCloudProvidersArgs = __Infer<typeof VerifyCloudProvidersProcedure.params>;
+export type VerifyCloudProvidersResult = __Infer<typeof VerifyCloudProvidersProcedure.returnType>;
 

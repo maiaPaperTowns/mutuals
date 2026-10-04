@@ -3,11 +3,23 @@
 **People find people.** A live map of who's open to meet at an event, plus a pocket-sized FREE-WILi badge
 companion that tells you when someone is nearby, and when you've actually found them.
 
+**Personal networking assistants before, during and after an event.**
+Upload your resume, join an event, find your best matches and chat with your assistants on the website.
+Discoverable participants show their names and areas; accepting a request establishes a connection.
+
 ![SpacetimeDB](https://img.shields.io/badge/live%20map-SpacetimeDB-6b4fbb)
 ![FREE-WILi](https://img.shields.io/badge/badge-FREE--WILi%20OG-e5484d)
 ![Clerk](https://img.shields.io/badge/accounts-Clerk-6c47ff)
 
 > Built at MHacks 2026.
+
+## Current cloud deployment
+
+The [profile page](https://mhacks-live-map.vercel.app/chat) and [events and assistants](https://mhacks-live-map.vercel.app/events) use Clerk login and native SpacetimeDB procedures/reducers. Terry's provisioned administrator account can publish invitations and lock the participant roster by starting an event. Pre compares the frozen members using Pinecone and stores complete personal interest lists, initially displayed five or ten at a time. During manages favorites, voluntary event GPS, nearby notifications and connection requests. Post prepares private follow-up drafts. Each assistant has its own policy, permitted tools and personal stage history; all chat calls the ASI:One API from SpacetimeDB.
+
+The retained Photon/iMessage prototype is a separate integration path. Photon/Agentverse transport, recording and automatic outbound delivery remain unconnected to the website. Browser notifications require permission and an open page; durable notifications stay in the private website inbox. Follow-up drafts are copied and sent manually. See the [Chinese implementation and acceptance guide](docs/活动与站内助手实施说明.md) for the current data contracts, operating steps and verification scope. Older reports describe their original release only.
+
+Completed changes must be committed, pushed and deployed to affected cloud targets under the standing instructions in [AGENTS.md](AGENTS.md).
 
 ## The problem
 
@@ -53,6 +65,7 @@ shows who's actually around and open to meet right now, and nudges you to go say
 |---|---|---|
 | [`map/`](map/) | The mutuals website: live OpenStreetMap of the Duderstadt Center on SpacetimeDB, Clerk accounts and profiles, badge connection, points and levels, Cute/Formal switch | Terry · Maia |
 | [`freewili/`](freewili/) | The mutuals badge app for the FREE-WILi OG (native C, wiliOGbsp): screens, sounds, radio proximity, plus the setup guide for teammates | Maia · Elena |
+| [`agents/`](agents/) | Python agents, private SpacetimeDB gateway and backend verification; the deployed website uses native SpacetimeDB procedures for profiles, events and assistants | Ziquan · Terry |
 | `photon/` | Earlier iMessage-agent prototype (Photon Spectrum). Paused: not part of mutuals | Maia |
 
 ## Quick start
@@ -97,6 +110,8 @@ native/setup_toolchain.sh      # once
 native/build.sh                # → native/out/photon_main.uf2
 ```
 
+The ASIone backend stores its six private data collections and matching presence in the same SpacetimeDB module as the map. Python services connect through a server-only TypeScript gateway. See [`agents/README.md`](agents/README.md) for schema-first deployment, environment setup, account linking, and JSON migration.
+
 ## Privacy, by design
 
 - **Opt-in only.** Location sharing is off until you turn it on (YES on the badge or the website switch) and allow
@@ -118,4 +133,3 @@ Web Serial
 ## Team
 
 Maia · Ziquan · Terry · Elena
-
