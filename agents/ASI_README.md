@@ -5,7 +5,11 @@
 
 Turn event connections into useful next steps with mutuals.
 
-**Agent address:** `agent1qt6xhqsn53g4fj4w35d45avhlzns79t6qujx2cupyqxjncyp96prc60nfsn`
+**Agent address:** `agent1q0jxrkgqv7qw75w0z3taze7dl05cpe0s6xcl0ddw0l0vkhvgxr8eccl74h2`
+
+**Handle:** `@mutuals-mhacks2026`
+
+**Profile:** https://agentverse.ai/agents/details/agent1q0jxrkgqv7qw75w0z3taze7dl05cpe0s6xcl0ddw0l0vkhvgxr8eccl74h2/profile
 
 **Source and setup:** [maiaPaperTowns/mutuals](https://github.com/maiaPaperTowns/mutuals), [run/test and submission guide](https://github.com/maiaPaperTowns/mutuals/blob/main/docs/FETCH_SUBMISSION.md).
 
@@ -21,4 +25,4 @@ Sign in on the website, save your profile and join an event. In **Use mutuals in
 
 Send `events` to list your own events and `event <id>` to choose one. Then ask `Who should I meet and why?` in Pre, or `recap` and `Prepare and save a follow-up draft for <completed connection>` in Post. All results use your existing mutuals account.
 
-This is one ACP Agent with native internal assistant roles. Mailbox provides delivery; our running host executes requests. Private access is disabled until live ASI routing and session isolation are verified. No successful link/draft is claimed while that gate is pending.
+This is one ACP Agent with native internal assistant roles. Agentverse Hosted executes requests in its cloud; your computer does not need to stay online. Private access is disabled until live ASI routing and session isolation are verified. No successful link/draft is claimed while that gate is pending.

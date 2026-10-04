@@ -8,7 +8,6 @@ import { createServer } from 'node:http';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DbConnection } from '../../../map/src/module_bindings/index.ts';
-import { dispatchChat } from '../src/asi-chat.ts';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const cli = process.env.SPACETIME_CLI ?? 'spacetime';
@@ -117,17 +116,23 @@ try {
   await admin.reducers.joinNetworkingEvent({ eventId }); await peer.reducers.joinNetworkingEvent({ eventId }); await third.reducers.joinNetworkingEvent({ eventId });
   const asi = await connect(`ws://127.0.0.1:${dbPort}`, token('asi-service'));
   sql(`INSERT INTO asi_chat_service (identity) VALUES (0x${asi.identity.toHexString()})`, server);
-  const api = { ...asi.procedures, ...asi.reducers }, sessionKey = 'a'.repeat(64), peerSession = 'b'.repeat(64);
+  const sessionKey = 'a'.repeat(64), peerSession = 'b'.repeat(64);
+  const callHosted = async (name: string, args: unknown[]) => {
+    const response = await fetch(`${server}/v1/database/${dbName}/call/${name}`, { method: 'POST', headers: { Authorization: `Bearer ${token('asi-service')}`, 'Content-Type': 'application/json' }, body: JSON.stringify(args) });
+    assert.equal(response.ok, true, `Hosted ${name} failed: ${response.status}`);
+    return JSON.parse(await response.json());
+  };
   const code = JSON.parse(await admin.procedures.createAsiLinkCode()).code;
   await assert.rejects(outsider.procedures.redeemAsiLinkCode({ code, sessionKey, requestId: 'link1' }), /dedicated ACP/);
-  assert.match((await dispatchChat(api, { sessionKey, requestId: 'link1', message: `link ${code}` })).reply, /linked/);
-  assert.match((await dispatchChat(api, { sessionKey, requestId: 'link1', message: `link ${code}` })).reply, /linked/);
+  assert.equal((await callHosted('redeem_asi_link_code', [code, sessionKey, 'link1'])).linked, true);
+  assert.equal((await callHosted('redeem_asi_link_code', [code, sessionKey, 'link1'])).linked, true);
   assert.equal(JSON.parse(await admin.procedures.getAsiLinkStatus()).connected, true);
   assert.equal(JSON.parse(await peer.procedures.getAsiLinkStatus()).connected, false);
   assert.equal(JSON.parse(await asi.procedures.getAsiChatContext({ sessionKey })).profile.name, 'Admin');
-  assert.match((await dispatchChat(api, { sessionKey: peerSession, requestId: 'unlinked', message: 'events' })).reply, /Link your account first/);
-  const preTurn = await dispatchChat(api, { sessionKey, requestId: 'asi_pre1', message: 'Explain your role.' }); assert.ok(preTurn.reply);
-  assert.equal((await dispatchChat(api, { sessionKey, requestId: 'asi_pre1', message: 'Explain your role.' })).reply, preTurn.reply);
+  assert.equal((await callHosted('get_asi_chat_context', [sessionKey])).profile.name, 'Admin');
+  await assert.rejects(asi.procedures.getAsiChatContext({ sessionKey: peerSession }), /authorization/);
+  const preTurn = await callHosted('send_asi_assistant_message', [sessionKey, eventId, 'Explain your role.', 'asi_pre1']); assert.ok(preTurn.reply);
+  assert.equal((await callHosted('send_asi_assistant_message', [sessionKey, eventId, 'Explain your role.', 'asi_pre1'])).reply, preTurn.reply);
   await assert.rejects(outsider.reducers.startNetworkingEvent({ eventId }), /administrator/);
   await admin.reducers.startNetworkingEvent({ eventId });
   await assert.rejects(outsider.reducers.joinNetworkingEvent({ eventId }), /closed|started/);
@@ -136,7 +141,7 @@ try {
   await assert.rejects(outsider.procedures.getEventInterestList({ eventId, offset: 0, limit: 5 }), /member|join/);
   await assert.rejects(outsider.reducers.setNetworkingEventPhase({ eventId, phase: 'during' }), /administrator/);
   await admin.reducers.setNetworkingEventPhase({ eventId, phase: 'during' });
-  assert.match((await dispatchChat(api, { sessionKey, requestId: 'asi_during1', message: 'Find people here.' })).reply, /website|GPS/i);
+  assert.match((await callHosted('send_asi_assistant_message', [sessionKey, eventId, 'Find people here.', 'asi_during1'])).reply, /website|GPS/i);
   await admin.reducers.updateEventLocation({ eventId, latitude: 42.29, longitude: -83.71, accuracyMeters: 5 });
   await peer.reducers.updateEventLocation({ eventId, latitude: 42.2902, longitude: -83.71, accuracyMeters: 5 });
   await third.reducers.updateEventLocation({ eventId, latitude: 42.2903, longitude: -83.71, accuracyMeters: 5 });
@@ -173,8 +178,8 @@ try {
   assert.deepEqual(Array.from(admin.db.myAgentExchanges.iter()).map(row => row.toAgent).sort(), ['during','pre']);
   assert.equal(Array.from(peer.db.myAgentExchanges.iter()).length, 0); assert.equal(Array.from(outsider.db.myAgentExchanges.iter()).length, 0);
   assert.equal(JSON.parse(await admin.procedures.generateEventRecap({ eventId })).reply, recap.reply);
-  const asiRecap = await dispatchChat(api, { sessionKey, requestId: 'asi_recap1', message: 'recap' }); assert.ok(asiRecap.reply);
-  assert.equal((await dispatchChat(api, { sessionKey, requestId: 'asi_recap1', message: 'recap' })).reply, asiRecap.reply);
+  const asiRecap = await callHosted('generate_asi_event_recap', [sessionKey, eventId, 'asi_recap1']); assert.ok(asiRecap.reply);
+  assert.equal((await callHosted('generate_asi_event_recap', [sessionKey, eventId, 'asi_recap1'])).reply, asiRecap.reply);
   await admin.reducers.revokeAsiChatGrant();
   await assert.rejects(asi.procedures.getAsiChatContext({ sessionKey }), /authorization/);
   const replacementCode = JSON.parse(await admin.procedures.createAsiLinkCode()).code;

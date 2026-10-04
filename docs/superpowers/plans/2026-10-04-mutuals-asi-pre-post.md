@@ -4,16 +4,16 @@ Approved in the task conversation on 2026-10-04. Execute inline with executing-p
 
 ## Goal and constraints
 
-One ACP-compatible `mutuals Networking` Agent registered on Agentverse using Mailbox. Existing website users authorize their own account with a five-minute one-time code. ASI:One provides Pre recommendations/favorites and Post recap/private drafts, using existing Maincloud business logic. During remains on the GPS-enabled website. No chat registration, fake Clerk identity, new location mode, or automatic outbound delivery.
+One ACP-compatible `mutuals Networking` Agent running on Agentverse Hosted, as selected by the user during execution. Existing website users authorize their own account with a five-minute one-time code. ASI:One provides Pre recommendations/favorites and Post recap/private drafts, using existing Maincloud business logic. During remains on the GPS-enabled website. No chat registration, fake Clerk identity, new location mode, or automatic outbound delivery.
 
 Grant: sender/session scoped, 24-hour maximum, one active grant per website account, revocable on the website and via unlink. New sessions rebind. Each transaction rechecks access, including after external model calls. Stable ACP message IDs drive retry-safe turns. Transport identity is never a Clerk ID.
 
 ## Tasks
 
-- [ ] 1. ACP Mailbox runtime: stable secret seed, manifest, acknowledgements, request/session hashes, two-account live routing verification before private activation.
-- [ ] 2. Private code/grant tables and dedicated service allowlist; website create/status/revoke procedures and binding panel. Verify expiry, replay, replacement, deletion and cross-account isolation.
-- [ ] 3. Shared account-resolver-based Pre/Post execution; restricted loopback TypeScript bridge at port 8111; Python ACP entrypoint. Preserve website contracts, member/phase checks and During GPS guards.
-- [ ] 4. Offline suites, real local module/SDK integration, generated bindings, Maincloud publication with --delete-data=never, existing Vercel deployment, actual browser verification. Commit/push current main and verify remote SHA.
+- [ ] 1. Hosted ACP runtime: published manifest, acknowledgements, request/session hashes. Cloud deployment complete; two-account live routing verification required before private activation.
+- [x] 2. Private code/grant tables and dedicated service allowlist; website create/status/revoke procedures and binding panel. Verify expiry, replay, replacement, deletion and cross-account isolation.
+- [x] 3. Shared account-resolver-based Pre/Post execution; Hosted Python entrypoint calls native HTTPS procedures. Preserve website contracts, member/phase checks and During GPS guards.
+- [x] 4. Offline suites, real local module/SDK/HTTP integration, generated bindings, Maincloud publication with --delete-data=never, existing Vercel deployment, actual website verification. Commit/push current main and verify remote SHA.
 - [ ] 5. Agent profile/discoverability, consenting demo accounts, successful Pre/Post shared chats, 3-5 minute video, public corresponding source and README, Devpost plus MHacks submission. Teammates join themselves; verify Submitted.
 
 ## Interfaces
@@ -31,4 +31,8 @@ Primary Fetch demonstration: authorized account -> connection review -> prioriti
 
 ## External completion
 
-Registration/live routing requires usable Agentverse/ASI accounts. Shared chats/video require actual successful demonstrations; submission requires real lead details and teammates joining. Record concrete blockers rather than inventing evidence. Current Windows host is the first transport host; Mailbox does not provide compute or guarantee continuous uptime.
+Registration/live routing requires usable Agentverse/ASI accounts. Hosted registration and publication are complete; ASI login and live routing are pending. Shared chats/video require actual successful demonstrations; submission requires real lead details and teammates joining. Record concrete blockers rather than inventing evidence. Agentverse Hosted provides compute; the Windows computer need not remain online.
+
+## Approved hosting change
+
+User explicitly chose Agentverse Hosted during execution. Replace the local Mailbox/loopback runtime in Tasks 1 and 3 with Hosted ACP -> HTTPS native procedures. Account binding, native Pre/Post business logic, During website GPS and live isolation gate remain. Remove obsolete local runtime files; no local-network permission is required.

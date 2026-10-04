@@ -5,7 +5,7 @@
 
 Agent name: **mutuals Networking**
 
-Agent address: `agent1qt6xhqsn53g4fj4w35d45avhlzns79t6qujx2cupyqxjncyp96prc60nfsn`
+Agent address: `agent1q0jxrkgqv7qw75w0z3taze7dl05cpe0s6xcl0ddw0l0vkhvgxr8eccl74h2`
 
 Website: https://mhacks-live-map.vercel.app/events
 
@@ -13,9 +13,9 @@ Public project source: https://github.com/maiaPaperTowns/mutuals
 
 ## What this agent actually does
 
-ASI:One -> signed Agent Chat Protocol (ACP) messages -> Python/uAgents Mailbox transport -> authenticated loopback TypeScript bridge -> native SpacetimeDB procedures -> ASI model API and saved event data.
+ASI:One -> signed Agent Chat Protocol (ACP) -> Python Agent on Agentverse Hosted -> authenticated HTTPS native SpacetimeDB procedures -> ASI model API and saved event data.
 
-The Agent runs on our machine/server. Agentverse provides registration, discovery and Mailbox delivery; it does not host this process or our model. The model is accessed through the existing ASI API in SpacetimeDB. The existing Pre, During and Post assistants are internal roles with distinct policies and tools. They are not three separately published Agentverse agents. Post consults Pre/During through the existing native role Q&A; only the single ACP entry point is counted publicly.
+Agentverse Hosted runs the Python Agent. No Agent process or listener runs on the user's computer; no local-network permission or tunnel is required. The model and business data stay in the existing cloud backend. The model is accessed through the existing ASI API in SpacetimeDB. The existing Pre, During and Post assistants are internal roles with distinct policies and tools. They are not three separately published Agentverse agents. Post consults Pre/During through the existing native role Q&A; only the single ACP entry point is counted publicly.
 
 Scope: **Pre and Post** in ASI:One. Pre can review an existing event interest list, explain matches, and save favorites without GPS. Post can review completed connections, consult other roles, prepare permitted private follow-up drafts and save them to the same website account. Drafts are not delivered automatically. During asks the user to open the existing website GPS flow; this is outside the primary Fetch demo workflow.
 
@@ -31,42 +31,33 @@ An ASI account is not a Clerk account. We never treat an Agent address, supplied
 
 The code expires after five minutes and is single use. A grant lasts at most 24 hours and is scoped to a hash of the Agent's address, signed sender and transport session. A new chat needs a new code; relinking replaces the previous grant. Website **Disconnect ASI:One**, chat `unlink`, account deletion, or expiry removes access. Authorization and phase checks run again after external model calls, before writes. Duplicate ACP message IDs reuse the same backend request ID and saved turn/action results.
 
-Codes, raw chats, private drafts and service credentials are excluded from transport logs. The bridge only listens on `127.0.0.1:8111`, requires its own bearer token, and receives no caller-supplied user IDs. Its dedicated SpacetimeDB identity is allowlisted in `asi_chat_service` and cannot use the existing legacy service profile view. Do not expose this bridge through a tunnel.
+Codes, raw chats, private drafts and service credentials are excluded from transport logs. The Hosted adapter calls only native scoped procedures over HTTPS, using a dedicated token stored in Agentverse Agent Secrets. Its SpacetimeDB identity is allowlisted in `asi_chat_service` and cannot use the existing legacy service profile view. It receives no caller-supplied user IDs.
 
-## Install and run
+## Deploy on Agentverse Hosted
 
-Required: Python environment from `agents/requirements.txt`, Node dependencies in `map/`, `map/spacetimedb/` and `agents/spacetime-gateway/`, the configured Clerk website, an existing SpacetimeDB database with ASI/Pinecone provider settings, and Agentverse/ASI:One accounts. Development dependencies and provider keys are not included in the public source.
+The active Hosted Agent is **mutuals Networking**, handle `@mutuals-mhacks2026`.
 
-Copy `agents/.env.example` to server-only `agents/.env`. Generate a distinct random `ASI_NETWORKING_AGENT_SEED`; keeping it unchanged preserves the Agent address. Generate another independent `ASI_CHAT_BRIDGE_TOKEN`. Set `SPACETIMEDB_URI` and `SPACETIMEDB_DATABASE` for the intended deployment. Do not reuse an administrator token as `ASI_CHAT_SERVICE_TOKEN`.
+Profile: https://agentverse.ai/agents/details/agent1q0jxrkgqv7qw75w0z3taze7dl05cpe0s6xcl0ddw0l0vkhvgxr8eccl74h2/profile
 
-First run in probe mode, without private access:
+Build the single-file artifact from the tested source:
 
 ```powershell
-cd agents
-.venv/Scripts/python.exe -u asi_networking_agent.py
-# ASI_CHAT_ENABLED=false in .env
+agents/.venv/Scripts/python.exe agents/build_asi_hosted.py
 ```
 
-Open the printed Agent Inspector URL, sign in to Agentverse, and connect the Agent using Mailbox. Inspector requires browser permission to access the local listener on port 8007. Configure the profile name, description, README and public repository link. Verify ACP is present and the Agent is discoverable in ASI:One.
+Paste `agents/hosted/agent.py` into this Hosted Agent's Build editor as `agent.py`. Confirm the entire saved editor content matches the artifact, then Start Agent. Agentverse supplies the Agent instance and identity; do not upload `.env`, create a local Agent, or start a listener. The code defaults to a public probe until private access is enabled. Hosted globals reset between invocations; event selection, grants and retry state therefore live in SpacetimeDB.
 
-**Private activation gate:** using two consenting ASI accounts and two chats, verify different sender/session hashes, stable hashes across turns in one chat, and stable request IDs on transport retries. An unrelated user's chat must not reuse another user's session key. No real binding codes or private data may be sent while this is unverified. A new session is deliberately unbound.
+**Private activation gate:** with two consenting ASI accounts and two chats, verify distinct session hashes, stable hashes across turns within one chat, and stable request IDs on retries. No real binding codes/private data should be sent until this is verified. New sessions are deliberately unbound.
 
-After this passes, obtain a fresh service token from the intended SpacetimeDB server's `POST /v1/identity` endpoint. Keep the returned token in `ASI_CHAT_SERVICE_TOKEN`; using the database owner's CLI, insert only that returned identity into private `asi_chat_service`:
+After this passes, obtain a fresh service token from the intended SpacetimeDB server's `POST /v1/identity`. Using the database owner's CLI, allowlist only its returned identity:
 
 ```sql
 INSERT INTO asi_chat_service (identity) VALUES (0x<dedicated-service-identity>);
 ```
 
-Set `ASI_CHAT_ENABLED=true` and run these two processes (or `agents/start_asi_networking.ps1`):
+Store that token in **Agent Secrets** as `ASI_CHAT_SERVICE_TOKEN`, and set `ASI_CHAT_ENABLED=true`. Do not reuse an administrator or legacy gateway token. Restart the Hosted Agent and verify website authorization -> Pre/Post actions -> same-account persistence. Removing the allowlisted identity immediately disables access.
 
-```powershell
-cd agents/spacetime-gateway
-npm.cmd run start:asi
-# In another terminal, from agents:
-.venv/Scripts/python.exe -u asi_networking_agent.py
-```
-
-The PowerShell launcher hides both process windows and prints owned PIDs. Logs are under ignored `agents/data/asi-runtime/`. It does not install a background service or guarantee uptime; check startup logs, keep the host awake during judging, and stop only the returned PIDs. Changing a seed requires a new registration. Removing the dedicated service identity disables all bridge access. Mailbox alone does not execute code while the host is offline.
+Required resources: the existing Clerk website, native SpacetimeDB module/provider settings, Agentverse Hosted and ASI:One accounts. The backend still calls ASI/Pinecone; these keys stay in its current cloud configuration. Hosted imports use supported `httpx`, `uagents` and `uagents_core` plus Python standard modules. There is no local bridge process to run.
 
 ## Verification
 
@@ -114,7 +105,7 @@ Official requirements: https://www.fetch.ai/events/hackathons/mhacks-2026/hackpa
 ## Final submission checklist
 
 - [ ] Agentverse profile connected, published and discoverable; copy the actual `/agents/details/agent1.../profile` link.
-- [ ] Live routing isolation gate passed; enable the private bridge and verify two accounts cannot read each other's data.
+- [ ] Live routing isolation gate passed; enable Hosted private access and verify two accounts cannot read each other's data.
 - [ ] Successful ASI:One Pre/Post conversations; share actual chats and copy `https://asi1.ai/shared-chat/...` links.
 - [ ] Public GitHub contains corresponding code, agent name/address, setup instructions and both badges.
 - [ ] Record/upload a 3-5 minute video showing actual actions and account persistence. The Submission Agent form marks its video field optional; the Hackpack requests a video.
