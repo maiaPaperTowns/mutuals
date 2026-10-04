@@ -102,7 +102,7 @@ function fixture() {
     networkingEvent: table('eventId'), networkingEventPhase: table('eventId'), networkingEventArea: table('eventId'), networkingMember: table('memberId'), eventInterestList: table('listId'),
     eventStar: table('starId'), eventLocation: table('locationId'), assistantMessage: table('messageId'),
     eventLocationExpiry: table('scheduledId'),
-    assistantNotification: table('notificationId'), assistantTurn: table('turnId'),
+    assistantNotification: table('notificationId'), assistantTurn: table('turnId'), agentExchange: table('exchangeId'), eventContact: table('contactId'),
     cloudProviderConfig: table('name'), cloudAdmin: table('identity'), cloudOperation: table('userId'),
     agentService: table('identity'), agentAuthSubject: table('subject', ['ownerIdentity']),
     agentUserLink: table('userId', ['authSubject', 'ownerIdentity']), agentProfile: table('userId'),
@@ -176,6 +176,127 @@ function automaticDuringFixture(count = 3) {
   });
   return f;
 }
+
+test('Post recap asks Pre and During separately, uses only this user and event history, and retries without repeating exchanges', () => {
+  assert.equal(typeof module.generateEventRecap, 'function');
+  const f = automaticDuringFixture(3), targetId = f.users[1].toHexString();
+  module.requestEventConnection(f.tx, { eventId: f.eventId, targetId });
+  const pair = [...f.db.agentInteraction.iter()][0];
+  module.respondEventConnection(f.forUser(f.users[1]), { eventId: f.eventId, interactionId: pair.interactionId, accept: true });
+  module.finishEventConnection(f.tx, { eventId: f.eventId, interactionId: pair.interactionId });
+  module.requestEventConnection(f.tx, { eventId: f.eventId, targetId: f.users[2].toHexString() });
+  for (const [messageId, userId, eventId, stage, content] of [
+    ['own-pre', f.owner.toHexString(), f.eventId, 'pre', 'Focus on mapping partners'],
+    ['other-user', targetId, f.eventId, 'pre', 'OTHER_USER_PRIVATE'],
+    ['other-event', f.owner.toHexString(), 'other-event', 'during', 'OTHER_EVENT_PRIVATE'],
+  ]) f.db.assistantMessage.insert({ messageId, userId, eventId, stage, role: 'user', content, createdAt: f.tx.timestamp });
+  module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'post' });
+  f.calls.length = 0;
+  let rejectPost = true;
+  const fetch = f.ctx.http.fetch;
+  f.ctx.http.fetch = (url: string, options: any) => {
+    if (!url.includes('chat/completions')) return fetch(url, options);
+    const body = JSON.parse(options.body); f.calls.push({ url, body });
+    if (body.messages[0].content.includes('You are the Post agent') && rejectPost) return { ok: false, status: 503 };
+    const content = body.messages[0].content.includes('consulted Pre agent') ? 'Pre: shared Python and mapping interests.'
+      : body.messages[0].content.includes('consulted During agent') ? 'During: Peer 1 completed a chat; Peer 2 only has a pending request.'
+      : 'Recap: your completed connection shares Python interests.';
+    return { ok: true, status: 200, json: () => ({ choices: [{ message: { content } }] }) };
+  };
+  assert.throws(() => module.generateEventRecap(f.ctx, { eventId: f.eventId }), /503/);
+  const exchanges = module.myAgentExchanges(f.tx);
+  assert.equal(exchanges.length, 2);
+  assert.deepEqual(exchanges.map(row => [row.fromAgent, row.toAgent]), [['post', 'pre'], ['post', 'during']]);
+  assert.equal(module.myAgentExchanges(f.forUser(f.users[1])).length, 0);
+  const requestBodies = JSON.stringify(f.calls);
+  assert.ok(requestBodies.includes('Focus on mapping partners'));
+  assert.equal(requestBodies.includes('OTHER_USER_PRIVATE'), false);
+  assert.equal(requestBodies.includes('OTHER_EVENT_PRIVATE'), false);
+  assert.ok(requestBodies.includes('completed'));
+  assert.ok(requestBodies.includes('requested'));
+  rejectPost = false;
+  const previousCalls = f.calls.length;
+  assert.ok(JSON.parse(module.generateEventRecap(f.ctx, { eventId: f.eventId })).reply.includes('Recap'));
+  assert.equal(f.calls.length, previousCalls + 1);
+  module.generateEventRecap(f.ctx, { eventId: f.eventId });
+  assert.equal(f.calls.length, previousCalls + 1);
+  assert.equal(module.myAgentExchanges(f.tx).length, 2);
+  assert.ok(module.myAssistantMessages(f.tx).some(row => row.stage === 'during' && row.content.includes('Peer 1') && row.content.includes('finished')));
+  module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'during' });
+  for (const id of f.users) module.updateEventLocation(f.forUser(id), { eventId: f.eventId, latitude: 42.29, longitude: -83.71, accuracyMeters: 5 });
+  const pending = [...f.db.agentInteraction.iter()].find(row => row.status === 'requested');
+  module.respondEventConnection(f.forUser(f.users[2]), { eventId: f.eventId, interactionId: pending.interactionId, accept: true });
+  module.finishEventConnection(f.tx, { eventId: f.eventId, interactionId: pending.interactionId });
+  module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'post' });
+  const beforeRefresh = f.calls.length;
+  module.generateEventRecap(f.ctx, { eventId: f.eventId });
+  assert.equal(f.calls.length, beforeRefresh + 3, 'changed connection history needs a fresh recap');
+  assert.equal(module.myAgentExchanges(f.tx).length, 4);
+  module.deleteNetworkingEvent(f.ctx, { eventId: f.eventId });
+  assert.equal(module.myAgentExchanges(f.tx).length, 0);
+});
+
+test('event LinkedIn contacts require membership, explicit sharing and an accepted connection, and withdrawal is immediate', () => {
+  assert.equal(typeof module.setEventContact, 'function');
+  const f = automaticDuringFixture(3), peer = f.forUser(f.users[1]), targetId = f.users[1].toHexString();
+  assert.throws(() => module.setEventContact(f.tx, { eventId: f.eventId, linkedinUrl: 'https://evil.example/in/peer', share: true }), /LinkedIn/);
+  assert.throws(() => module.setEventContact({ ...f.tx, sender: f.peer }, { eventId: f.eventId, linkedinUrl: '', share: false }), /member|join|profile/i);
+  module.setEventContact(peer, { eventId: f.eventId, linkedinUrl: 'https://www.linkedin.com/in/peer-one', share: true });
+  assert.equal(module.myEventContacts(f.tx).length, 0);
+  module.requestEventConnection(f.tx, { eventId: f.eventId, targetId });
+  assert.equal(module.myEventContacts(f.tx).length, 0);
+  const pair = [...f.db.agentInteraction.iter()][0];
+  module.respondEventConnection(peer, { eventId: f.eventId, interactionId: pair.interactionId, accept: true });
+  assert.equal(module.myEventContacts(f.tx)[0].linkedinUrl, 'https://www.linkedin.com/in/peer-one');
+  assert.equal(module.myEventContacts(f.forUser(f.users[2])).length, 0);
+  module.setEventContact(peer, { eventId: f.eventId, linkedinUrl: 'https://www.linkedin.com/in/peer-one', share: false });
+  assert.equal(module.myEventContacts(f.tx).length, 0);
+  assert.equal(module.myEventContacts(peer)[0].shared, false);
+  module.deleteNetworkingEvent(f.ctx, { eventId: f.eventId });
+  assert.equal([...f.db.eventContact.iter()].length, 0);
+});
+
+test('automatic recap cannot execute a mutating tool even if the model requests one', () => {
+  const f = automaticDuringFixture(2);
+  module.requestEventConnection(f.tx, { eventId: f.eventId, targetId: f.users[1].toHexString() });
+  const pair = [...f.db.agentInteraction.iter()][0];
+  module.respondEventConnection(f.forUser(f.users[1]), { eventId: f.eventId, interactionId: pair.interactionId, accept: true });
+  module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'post' });
+  f.ctx.http.fetch = (_url: string, options: any) => {
+    const body = JSON.parse(options.body);
+    const message = !body.tools ? { content: body.messages[0].content.includes('Write two short') ? '{"draft_a":"Unrequested draft","draft_b":"Other draft"}' : 'Evidence only.' }
+      : body.messages.some((row: any) => row.role === 'tool') ? { content: 'Your connection is accepted.' }
+      : { tool_calls: [{ id: 'unauthorized-draft', function: { name: 'prepare_followup', arguments: JSON.stringify({ interaction_id: pair.interactionId }) } }] };
+    return { ok: true, status: 200, json: () => ({ choices: [{ message }] }) };
+  };
+  module.generateEventRecap(f.ctx, { eventId: f.eventId });
+  assert.equal([...f.db.agentFollowUpPlan.iter()].length, 0);
+});
+
+test('Pre can ask During for read-only evidence and an event phase change prevents saving a colleague reply', () => {
+  const f = networkingFixture(2);
+  let changePhase = false, consultation = false;
+  f.ctx.http.fetch = (_url: string, options: any) => {
+    const body = JSON.parse(options.body);
+    if (!body.tools) {
+      consultation = true;
+      if (changePhase) module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'during' });
+    }
+    const message = !body.tools ? { content: 'No connections have been established yet.' }
+      : body.messages.some((row: any) => row.role === 'tool') ? { content: 'During confirms there are no connections.' }
+      : { tool_calls: [{ id: 'ask-during', function: { name: 'ask_event_agent', arguments: '{"agent":"during","question":"What connections do I have?"}' } }] };
+    return { ok: true, status: 200, json: () => ({ choices: [{ message }] }) };
+  };
+  module.sendAssistantMessage(f.ctx, { eventId: f.eventId, stage: 'pre', message: 'Ask During what it knows.', requestId: 'ask-colleague' });
+  assert.equal(consultation, true);
+  assert.equal(module.myAgentExchanges(f.tx)[0].toAgent, 'during');
+  assert.equal([...f.db.agentInteraction.iter()].length, 0);
+  module.startNetworkingEvent(f.tx, { eventId: f.eventId });
+  module.prepareNetworkingEvent(f.ctx, { eventId: f.eventId });
+  changePhase = true;
+  assert.throws(() => module.sendAssistantMessage(f.ctx, { eventId: f.eventId, stage: 'pre', message: 'Ask During again.', requestId: 'phase-changed-consult' }), /phase/);
+  assert.equal(module.myAgentExchanges(f.tx).length, 1);
+});
 
 test('GPS automatically joins During and requests reuse the exact saved Pre ROI and reason', () => {
   const f = automaticDuringFixture(2), targetId = f.users[1].toHexString();
@@ -282,8 +403,9 @@ test('assistant and follow-up writes honor persisted phase even when it changes 
   assert.throws(() => module.draftCloudFollowup(f.ctx, { interactionId: pair.interactionId }), /phase/);
   assert.equal([...f.db.agentFollowUpPlan.iter()].length, 0);
   module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'during' });
+  const savedAssistantMessages = [...f.db.assistantMessage.iter()].filter(row => row.role === 'assistant').length;
   assert.throws(() => module.sendAssistantMessage(f.ctx, { eventId: f.eventId, stage: 'during', message: 'Hello', requestId: 'changed-phase' }), /phase/);
-  assert.equal([...f.db.assistantMessage.iter()].filter(row => row.role === 'assistant').length, 0);
+  assert.equal([...f.db.assistantMessage.iter()].filter(row => row.role === 'assistant').length, savedAssistantMessages);
 });
 
 test('event creation requires provisioned admin identity, never a display name', () => {

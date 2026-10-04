@@ -19,6 +19,18 @@ export type AgentAuthSubject = __Infer<typeof AgentAuthSubject>;
 export const AgentEvents = __t.object("AgentEvents", {});
 export type AgentEvents = __Infer<typeof AgentEvents>;
 
+export const AgentExchange = __t.object("AgentExchange", {
+  exchangeId: __t.string(),
+  userId: __t.string(),
+  eventId: __t.string(),
+  fromAgent: __t.string(),
+  toAgent: __t.string(),
+  question: __t.string(),
+  response: __t.string(),
+  createdAt: __t.timestamp(),
+});
+export type AgentExchange = __Infer<typeof AgentExchange>;
+
 export const AgentFollowUpPlans = __t.object("AgentFollowUpPlans", {});
 export type AgentFollowUpPlans = __Infer<typeof AgentFollowUpPlans>;
 
@@ -157,6 +169,15 @@ export const Event = __t.object("Event", {
 });
 export type Event = __Infer<typeof Event>;
 
+export const EventContact = __t.object("EventContact", {
+  contactId: __t.string(),
+  userId: __t.string(),
+  eventId: __t.string(),
+  linkedinUrl: __t.string(),
+  shared: __t.bool(),
+});
+export type EventContact = __Infer<typeof EventContact>;
+
 export const EventInterestList = __t.object("EventInterestList", {
   listId: __t.string(),
   eventId: __t.string(),
@@ -250,6 +271,9 @@ export const MapAccountProfile = __t.object("MapAccountProfile", {
 });
 export type MapAccountProfile = __Infer<typeof MapAccountProfile>;
 
+export const MyAgentExchanges = __t.object("MyAgentExchanges", {});
+export type MyAgentExchanges = __Infer<typeof MyAgentExchanges>;
+
 export const MyAgentFollowUpPlans = __t.object("MyAgentFollowUpPlans", {});
 export type MyAgentFollowUpPlans = __Infer<typeof MyAgentFollowUpPlans>;
 
@@ -267,6 +291,9 @@ export type MyAssistantMessages = __Infer<typeof MyAssistantMessages>;
 
 export const MyAssistantNotifications = __t.object("MyAssistantNotifications", {});
 export type MyAssistantNotifications = __Infer<typeof MyAssistantNotifications>;
+
+export const MyEventContacts = __t.object("MyEventContacts", {});
+export type MyEventContacts = __Infer<typeof MyEventContacts>;
 
 export const MyEventMapPins = __t.object("MyEventMapPins", {});
 export type MyEventMapPins = __Infer<typeof MyEventMapPins>;

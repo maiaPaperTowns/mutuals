@@ -6,24 +6,25 @@ import NetworkingWorkspace from '../src/NetworkingWorkspace';
 import { tables } from '../src/module_bindings';
 
 const state = vi.hoisted(() => ({
-  invites: [] as any[], members: [] as any[], messages: [] as any[], notifications: [] as any[], interactions: [] as any[],
+  invites: [] as any[], members: [] as any[], messages: [] as any[], notifications: [] as any[], interactions: [] as any[], exchanges: [] as any[], contacts: [] as any[],
   status: vi.fn(), list: vi.fn(), create: vi.fn(), prepare: vi.fn(), send: vi.fn(), join: vi.fn(), start: vi.fn(), star: vi.fn(),
   noop: vi.fn().mockResolvedValue(undefined),
-  phase: vi.fn(), edit: vi.fn(), remove: vi.fn(), finish: vi.fn(), request: vi.fn(), respond: vi.fn(),
+  phase: vi.fn(), edit: vi.fn(), remove: vi.fn(), finish: vi.fn(), request: vi.fn(), respond: vi.fn(), recap: vi.fn(), contact: vi.fn(),
 }));
 vi.mock('spacetimedb/react', () => ({
   useSpacetimeDB: () => ({ isActive: true }),
-  useProcedure: (d: { accessorName: string }) => ({ networkingAccountStatus: state.status, getEventInterestList: state.list, createNetworkingEvent: state.create, prepareNetworkingEvent: state.prepare, sendAssistantMessage: state.send, deleteNetworkingEvent: state.remove }[d.accessorName] ?? vi.fn()),
-  useReducer: (d: { accessorName: string }) => ({ joinNetworkingEvent: state.join, startNetworkingEvent: state.start, setEventStar: state.star, setNetworkingEventPhase: state.phase, editNetworkingEvent: state.edit, finishEventConnection: state.finish, requestEventConnection: state.request, respondEventConnection: state.respond }[d.accessorName] ?? state.noop),
-  useTable: (d: unknown) => [d === tables.networkingInvitations ? state.invites : d === tables.myNetworkingMemberships ? state.members : d === tables.myAssistantMessages ? state.messages : d === tables.myAssistantNotifications ? state.notifications : d === tables.myAgentInteractions ? state.interactions : d === tables.myProfile ? [{ displayName: 'Terry' }] : [], true],
+  useProcedure: (d: { accessorName: string }) => ({ networkingAccountStatus: state.status, getEventInterestList: state.list, createNetworkingEvent: state.create, prepareNetworkingEvent: state.prepare, sendAssistantMessage: state.send, deleteNetworkingEvent: state.remove, generateEventRecap: state.recap }[d.accessorName] ?? vi.fn()),
+  useReducer: (d: { accessorName: string }) => ({ joinNetworkingEvent: state.join, startNetworkingEvent: state.start, setEventStar: state.star, setNetworkingEventPhase: state.phase, editNetworkingEvent: state.edit, finishEventConnection: state.finish, requestEventConnection: state.request, respondEventConnection: state.respond, setEventContact: state.contact }[d.accessorName] ?? state.noop),
+  useTable: (d: unknown) => [d === tables.networkingInvitations ? state.invites : d === tables.myNetworkingMemberships ? state.members : d === tables.myAssistantMessages ? state.messages : d === tables.myAssistantNotifications ? state.notifications : d === tables.myAgentInteractions ? state.interactions : d === tables.myAgentExchanges ? state.exchanges : d === tables.myEventContacts ? state.contacts : d === tables.myProfile ? [{ displayName: 'Terry' }] : [], true],
 }));
 const props = { signedIn: true, accountName: 'Terry', onSignIn: vi.fn(), accountControl: null };
 beforeEach(() => {
   window.history.replaceState({}, '', '/events?event=e1');
   for (const fn of [state.status, state.list, state.create, state.prepare, state.send, state.join, state.start, state.star]) fn.mockReset();
   state.invites = [{ eventId: 'e1', title: 'Builders meetup', description: 'Meet engineers', venue: 'Duderstadt', startAtMs: 1790000000000n, status: 'open', matchingStatus: 'waiting', memberCount: 2, preparedCount: 0 }];
-  state.members = []; state.messages = []; state.notifications = []; state.interactions = [];
-  for (const fn of [state.phase, state.edit, state.remove, state.finish, state.request, state.respond]) fn.mockReset().mockResolvedValue(undefined);
+  state.members = []; state.messages = []; state.notifications = []; state.interactions = []; state.exchanges = []; state.contacts = [];
+  for (const fn of [state.phase, state.edit, state.remove, state.finish, state.request, state.respond, state.contact]) fn.mockReset().mockResolvedValue(undefined);
+  state.recap.mockReset().mockResolvedValue('{"reply":"You connected with Alex over shared Python interests."}');
   state.status.mockResolvedValue('{"user_id":"me","is_admin":false,"profile_ready":true}');
   state.join.mockResolvedValue(undefined); state.start.mockResolvedValue(undefined); state.star.mockResolvedValue(undefined);
   state.list.mockResolvedValue('{"ready":true,"total":0,"items":[]}');
@@ -31,6 +32,28 @@ beforeEach(() => {
   state.send.mockResolvedValue('{"reply":"Start with Alex.","actions":[]}');
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+it('automatically recaps Post once, shows agent exchanges and shared LinkedIn, and saves explicit contact consent', async () => {
+  state.invites[0] = { ...state.invites[0], phase: 'post', status: 'started', matchingStatus: 'ready' };
+  state.members = [{ eventId: 'e1', userId: 'me', memberId: 'e1__me' }];
+  state.interactions = [{ interactionId: 'i1', userId: 'me', targetId: 'alex', status: 'completed', payloadJson: '{"event_id":"e1","target_name":"Alex"}' }];
+  state.contacts = [{ contactId: 'e1__alex', eventId: 'e1', userId: 'alex', linkedinUrl: 'https://www.linkedin.com/in/alex', shared: true }];
+  state.exchanges = [{ exchangeId: 'x1', eventId: 'e1', fromAgent: 'post', toAgent: 'pre', question: 'Why this connection?', response: 'Both build Python maps.' }];
+  const { rerender } = render(<React.StrictMode><NetworkingWorkspace {...props} /></React.StrictMode>);
+  expect(await screen.findByRole('region', { name: 'Event recap' })).toBeTruthy();
+  await screen.findByText('You connected with Alex over shared Python interests.');
+  expect(state.recap).toHaveBeenCalledOnce();
+  expect(state.recap).toHaveBeenCalledWith({ eventId: 'e1' });
+  expect(screen.getByRole('link', { name: "Alex's LinkedIn" }).getAttribute('href')).toBe('https://www.linkedin.com/in/alex');
+  expect(screen.getByText('Post → Pre')).toBeTruthy();
+  fireEvent.change(screen.getByRole('textbox', { name: 'LinkedIn profile URL' }), { target: { value: 'https://www.linkedin.com/in/terry' } });
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Share with my accepted connections in this event' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save contact sharing' }));
+  await waitFor(() => expect(state.contact).toHaveBeenCalledWith({ eventId: 'e1', linkedinUrl: 'https://www.linkedin.com/in/terry', share: true }));
+  state.contacts = []; rerender(<React.StrictMode><NetworkingWorkspace {...props} /></React.StrictMode>);
+  expect(screen.queryByRole('link', { name: "Alex's LinkedIn" })).toBeNull();
+  expect(state.recap).toHaveBeenCalledOnce();
+});
 
 it('shows an event-area map and reset control before joining, with drawing restricted to admins', async () => {
   const { rerender } = render(<NetworkingWorkspace {...props} signedIn={false} />);
