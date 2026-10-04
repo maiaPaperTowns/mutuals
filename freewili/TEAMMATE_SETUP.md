@@ -95,24 +95,30 @@ Open **http://localhost:5173** in **Chrome**. The top right should say **Live sy
 2. In the white card on the left, find the 🐶 **mutuals FREE-WILi badge** box and click **Connect**.
 3. Chrome lists **FWOG display photon 001** (on Windows it may add a port like *COM5*). Select it, then click
    **Connect**. If you see two FWOG entries, pick the one that says **display**.
-4. The box says **mutuals badge connected**. The badge shows a sleeping pup: **not discoverable**.
+4. The box says **mutuals badge connected**. The badge shows a sleeping pup: **not discoverable** (Formal style:
+   a lock, **Private mode**). That just means you're not sharing yet.
 
 ## 6. Use it
 
 | Button (labels are on the screen, above each button) | What it does |
 |---|---|
-| **YES** (green) | Share your location: you appear on the map. Chrome asks for location: click **Allow**. |
-| **NO** (red) | Stop sharing: you disappear from the map (tap it; holding NO for 6 s turns the badge off). |
-| **MENU** (gray) | Your stats: people met, matches caught, points, level. |
+| **YES** (green) | Share your location: you appear on the map. **You must be signed in** (step 4), or YES just opens the sign-in box. Chrome asks for location: click **Allow**. |
+| **NO** (red) | Stop sharing: you disappear from the map and your badge stops broadcasting on radio (tap it; holding NO for 6 s turns the badge off). |
+| **MENU** (gray) | Your stats: people met, matches caught, points, level, radio status. |
 | **BACK** (yellow) | Close stats. |
 | **NEXT** (blue) | On the stats screen: flip to **your connections** (names of the people you've met). In practice mode: call the next practice match. |
 
-What the badge shows:
+The badge reacts as soon as you press (for example "turning on sharing..."), and the website's badge box shows a
+blue **"YES pressed on the badge → …"** line saying what happened. If YES doesn't turn sharing on, read that line:
+it tells you whether you need to sign in or allow location.
 
-- **looking...**: you're on the map, nobody near yet.
-- **someone's nearby!**: someone is within 150 m on the map, with their name and distance. +10 pts the first time.
-- **you found them!**: they're within 25 m. +50 pts the first time.
-- **level up!**: Lv 1 → 2 → 3 → 4 → 5 at 50 / 100 / 200 / 400 pts. Your home-screen pup grows up.
+What the badge shows (Cute wording; Formal in brackets):
+
+- **looking...** [Searching nearby]: you're on the map, nobody near yet.
+- **someone's nearby!** [Contact nearby]: someone is within 150 m on the map, with their name and distance.
+  +10 pts the first time.
+- **you found them!** [Connection made]: they're within 25 m. +50 pts the first time.
+- **level up!** [Tier up]: Lv 1 → 2 → 3 → 4 → 5 at 50 / 100 / 200 / 400 pts. Your home-screen pup grows up.
 
 Your points show on the badge and on the website's points card. **Your connections** (everyone you found, on the map
 or by radio) are listed under the points card on the website, and on the badge under MENU → NEXT. Both are saved in

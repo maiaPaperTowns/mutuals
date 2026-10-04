@@ -26,8 +26,9 @@ shows who's actually around and open to meet right now, and nudges you to go say
      Its YES / NO buttons turn your sharing on and off.
    - Badges also **find each other directly by radio** (433 MHz, no internet or GPS needed): "someone's nearby!",
      then "you found them!" when you're within a couple of metres.
-3. **Points and levels.** +10 when someone new is nearby, +50 when you find them. Levels go Lv 1 → Lv 5 (at 50 /
-   100 / 200 / 400 pts), and your badge's pup grows up with you.
+3. **Points, levels and your connections.** +10 when someone new is nearby, +50 when you find them. Levels go
+   Lv 1 → Lv 5 (at 50 / 100 / 200 / 400 pts), and your badge's pup grows up with you. Everyone you've found is
+   listed by name on the website and on the badge (MENU → NEXT).
 4. **Cute or Formal.** One switch restyles the website and the badge:
    - **Cute** for clubs and university mixers: pastel pixel pup, puppy noises.
    - **Formal** for recruiting events: white/navy icons, "Contact nearby" / "Connection made", Tier 1–5, soft chimes.
@@ -105,7 +106,8 @@ native/build.sh                # → native/out/photon_main.uf2
   Email and passwords stay with Clerk, never in the database or on the map.
 - **Radio is quiet when you are.** While you're not discoverable, your badge broadcasts nothing. While you're
   sharing, it broadcasts a random per-boot id and your first name, nothing else.
-- **Points stay local.** Your points live in your browser and on your badge. Nothing is ranked publicly.
+- **Points stay local.** Your points and connections list live in your browser and on your badge. Nothing is
+  ranked or listed publicly.
 
 ## Built with
 

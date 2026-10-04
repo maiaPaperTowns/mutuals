@@ -64,13 +64,13 @@ static bool formal;
 #define MAX_SOCIAL 4
 #define PTS_CATCH 10
 #define IDLE_MISSES 2          /* missed prompts in a row before practice pauses */
-#define NEAR_SOUND_GAP_MS 45000u
+#define NEAR_SOUND_GAP_MS 45000u /* GPS drift can flicker someone in and out of range: chime at most this often */
 #define RADIO_CLOSE_DBM (-50)    /* stronger than this = "you found them!" (badges within a couple of metres) */
 #define RADIO_STALE_MS 800u      /* main reports every 0.25 s; older than this = nobody heard */
 #define PENDING_ON_MS 10000u     /* YES pressed: show "sharing" right away, until the website confirms (or not) */
 #define PENDING_OFF_MS 4000u
 #define PTS_NEARBY 10
-#define PTS_FOUND 50 /* GPS drift can flicker someone in and out of range: chime at most this often */
+#define PTS_FOUND 50
 
 /* ---- points & levels (same table as the website: map/src/points.ts) ---- */
 static const int LEVEL_AT[5] = {0, 50, 100, 200, 400};

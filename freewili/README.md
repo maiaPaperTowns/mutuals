@@ -18,7 +18,9 @@ OG firmware can't show images over USB, so this is a real display-CPU app built 
 - **Map mode:** the website (`map/`, Chrome or Edge) connects over USB with Web Serial.
   - The badge shows whether you're discoverable, who's near you on the map (name + distance) and "you found them!".
   - YES / NO turn location sharing on / off.
-  - Points: +10 when someone new is nearby, +50 when you find them. Levels at 50 / 100 / 200 / 400. MENU = stats.
+  - Points: +10 when someone new is nearby, +50 when you find them. Levels at 50 / 100 / 200 / 400. MENU = stats,
+    then NEXT = your connections (names, from the website's list or the badge's own radio finds).
+  - YES / NO change the screen at once (optimistic) and the website confirms; NO also silences the radio.
 - **Radio** (no website needed): badges beacon to each other on the main CPU's CC1101 (433.92 MHz). That gives
   "someone's nearby!" with their name, and "you found them!" when the signal is strong (> -50 dBm, tune
   `RADIO_CLOSE_DBM`). +10 / +50 pts per new badge. Not discoverable = no beacon. MENU shows the radio status.

@@ -1,3 +1,7 @@
+> **Historical plan.** This was the original MHacks plan for an iMessage recruiter agent (Photon). The team
+> pivoted to **mutuals**: the live map (`map/`) plus the FREE-WILi badge (`freewili/`). See [README.md](README.md)
+> for what was built.
+
 # MHacks 2026: plan & checkpoints
 
 > A recruiter agent for your networking: iMessage onboarding from a resume, opt-in live map,
@@ -86,7 +90,9 @@ One resume goes in → a profile comes out → one match is found → an iMessag
 names, addresses and the Innovation Lab badge. Demo video must show the ASI:One flow.
 
 **SpacetimeDB (Terry).** Live shared map state is the point: opted-in dots, zone changes, and opt-outs update
-without refresh. Show two screens updating at once. The current `map/spacetimedb` module is a standalone map+database for the MVP; when other modules need one shared database, merge its `presence` and private+`participant_owner` tables/reducers into the team's module rather than publishing a second module over it.
+without refresh. Show two screens updating at once. The current `map/spacetimedb` module is a standalone map
++database for the MVP; when other modules need one shared database, merge its `presence` and private
++`participant_owner` tables/reducers into the team's module rather than publishing a second module over it.
 
 **Overall / FREE-WILi (Elena).** Real-phone testing, a bug list, and an honest ROI measure
 (intros → meetings → % worth it). Never state a number we didn't measure.
