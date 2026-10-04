@@ -15,6 +15,11 @@
  *   badge stays calm. NEXT calls the next match now, YES on the home screen says hi. Points sync both ways: the
  *   website keeps the higher total, so practice points carry over.
  *
+ *   RADIO: badges also find each other directly, with no website or GPS needed (the OG has no Bluetooth, so this uses the
+ *   main CPU's CC1101 sub-GHz radios; see ../main/main.c). Another badge heard → "someone's nearby!" with its
+ *   wearer's name and signal; a strong signal → "you found them!". +10 / +50 pts the first time per badge.
+ *   Not discoverable (NO on the map) = this badge stops broadcasting.
+ *
  *   MENU = stats (people met, matches caught, points, level), MENU / BACK closes it.
  *   Holding the red button (NO) for 6 s still powers the board off (FWOG_POWER_DEFAULT), so NO is a short tap.
  *
@@ -27,6 +32,7 @@
 #include "pico/stdlib.h"
 #include "photon_assets.h"
 #include "photon_sounds.h"
+#include "mutuals_link.h"
 
 FWOG_POWER_DEFAULT();
 
@@ -45,7 +51,11 @@ FWOG_POWER_DEFAULT();
 #define MAX_SOCIAL 4
 #define PTS_CATCH 10
 #define IDLE_MISSES 2          /* missed prompts in a row before practice pauses */
-#define NEAR_SOUND_GAP_MS 45000u /* GPS drift can flicker someone in and out of range: chime at most this often */
+#define NEAR_SOUND_GAP_MS 45000u
+#define RADIO_CLOSE_DBM (-50)    /* stronger than this = "you found them!" (badges within a couple of metres) */
+#define RADIO_STALE_MS 1500u     /* main reports every 0.5 s; older than this = nobody heard */
+#define PTS_NEARBY 10
+#define PTS_FOUND 50 /* GPS drift can flicker someone in and out of range: chime at most this often */
 
 /* ---- points & levels (same table as the website: map/src/points.ts) ---- */
 static const int LEVEL_AT[5] = {0, 50, 100, 200, 400};
@@ -197,38 +207,33 @@ static void draw_info(const char *title, const char *detail) {  /* rows 124..201
     band_end();
 }
 
-static void draw_stats(void) {  /* the MENU screen, over the pup area too */
-    char v[40];
-    band_begin(BUF_Y0, BUF_ROWS);
-    band_text(&photon_font_large, CENTER, 0, 24, "stats", NAVY);
-    const char *rows[4] = {"People met", "Matches caught", "Total points", "Level"};
-    for (int i = 0; i < 4; ++i) {
-        const unsigned y = 56u + (unsigned)i * 21u;
-        band_text(&photon_font_small, LEFT, 56, y, rows[i], NAVY);
-        if (i == 0) snprintf(v, sizeof v, "%d", met);
-        else if (i == 1) snprintf(v, sizeof v, "%d", caught);
-        else if (i == 2) snprintf(v, sizeof v, "%d", points);
-        else snprintf(v, sizeof v, "Lv %d  %s", level_of(points), LEVEL_NAME[level_of(points) - 1]);
-        band_text(&photon_font_small, RIGHT, 264, y, v, MUTED);
-    }
-    band_text(&photon_font_small, CENTER, 0, 146, "press BACK to close", MUTED);
-    band_points();
-    band_end();
-}
+static void draw_stats(void);  /* below: it shows the radio too */
+
+/* Who this badge is on the radio: discoverable follows the map (not discoverable = radio silent). */
+static bool link_ok, discoverable = true, me_dirty = true;
+static char my_name[MUTUALS_NAME_MAX + 1];
 
 /* ---- map mode: the mutuals website talks to the badge over USB (Web Serial) ----
  * website → badge, about once a second:  "M <s> <nearby> <meters> <points> <met> <name>\n"
  *   s = H not discoverable · A sharing, nobody near · N someone near · C someone right here
- * badge → website:  "B gray|yellow|green|blue|red", "P <points> <caught>" when practice earns points,
- *                   "HI mutuals-badge 2" when asked with "?". */
+ *                   "N <my name>"  (the name this badge broadcasts to nearby badges while discoverable)
+ * badge → website:  "B gray|yellow|green|blue|red", "P <points> <caught> <met>" when the badge earns points
+ *                   (practice, radio finds), "R <count> <rssi> <name>" while other badges are heard,
+ *                   "HI mutuals-badge 3" when asked with "?". */
 static struct { bool on; char state; int nearby, meters, gained; char name[28]; uint32_t last; } map;
 static char rx[112];
 static unsigned rx_n;
 
-static void report_points(void) { printf("P %d %d\n", points, caught); }
+static void report_points(void) { printf("P %d %d %d\n", points, caught, met); }
 
 static void map_parse(const char *s, uint32_t now) {
-    if (s[0] == '?') { printf("HI mutuals-badge 2\n"); report_points(); return; }
+    if (s[0] == '?') { printf("HI mutuals-badge 3\n"); report_points(); return; }
+    if (s[0] == 'N' && s[1] == ' ') {  /* "N <my name>": broadcast it to nearby badges while discoverable */
+        char name[MUTUALS_NAME_MAX + 1] = "";
+        strncpy(name, s + 2, MUTUALS_NAME_MAX);
+        if (strcmp(name, my_name)) { strcpy(my_name, name); me_dirty = true; }
+        return;
+    }
     if (s[0] != 'M' || s[1] != ' ') return;
     char st = 0;
     int nearby = 0, meters = 0, web_points = 0, web_met = 0, used = 0;
@@ -238,7 +243,8 @@ static void map_parse(const char *s, uint32_t now) {
     map.state = st, map.nearby = nearby, map.meters = meters, map.last = now, map.on = true;
     strncpy(map.name, used ? s + 2 + used : "", sizeof map.name - 1);
     map.name[sizeof map.name - 1] = 0;
-    met = web_met;
+    if (web_met > met) met = web_met;
+    if (discoverable != (st != 'H')) { discoverable = st != 'H'; me_dirty = true; }
     if (web_points > points) { map.gained = web_points - points; points = web_points; }
     else if (web_points < points) report_points();  /* practice points the website hasn't seen yet */
 }
@@ -250,6 +256,70 @@ static void map_poll(uint32_t now) {
         else if (c >= 32 && c < 127 && rx_n < sizeof rx - 1) rx[rx_n++] = (char)c;
     }
     if (map.on && now - map.last > MAP_TIMEOUT_MS) map.on = false;
+}
+
+/* ---- radio: badges near this one, reported by the main CPU over the inter-CPU link ---- */
+static struct { uint8_t count; int rssi; uint8_t id[4]; char name[MUTUALS_NAME_MAX + 1]; uint32_t last; bool ok; } radio;
+static fwog_link_rx_t link_rx;
+static uint8_t seen_near[16][4], seen_found[16][4];
+static unsigned n_near, n_found;
+
+static bool seen(uint8_t list[][4], unsigned *n, const uint8_t id[4]) {  /* true if new (and remembers it) */
+    for (unsigned i = 0; i < *n; ++i) if (memcmp(list[i], id, 4) == 0) return false;
+    memcpy(list[*n % 16], id, 4);
+    if (*n < 16) (*n)++;
+    return true;
+}
+
+static void link_poll(uint32_t now) {
+    if (!link_ok) return;
+    uint8_t b;
+    size_t len;
+    while (fwog_link_uart_read(&b)) {
+        if (!fwog_link_rx_byte(&link_rx, b, &len)) continue;
+        const uint8_t *p = link_rx.buf;
+        if (len == sizeof(mutuals_msg_peers_t) && p[0] == MUTUALS_MSG_PEERS) {
+            const mutuals_msg_peers_t *m = (const mutuals_msg_peers_t *)p;
+            radio.count = m->count, radio.rssi = m->rssi, radio.ok = m->radio_ok, radio.last = now;
+            memcpy(radio.id, m->id, 4);
+            memcpy(radio.name, m->name, MUTUALS_NAME_MAX);
+            radio.name[MUTUALS_NAME_MAX] = 0;
+        } else {
+            (void)fwog_ioexp_link_handle(p, len);  /* the BSP's own I/O-direction messages */
+        }
+    }
+}
+
+static void link_send_me(void) {
+    if (!link_ok) return;
+    mutuals_msg_me_t m;
+    memset(&m, 0, sizeof m);
+    m.type = MUTUALS_MSG_ME;
+    m.discoverable = discoverable;
+    memcpy(m.name, my_name, strnlen(my_name, MUTUALS_NAME_MAX));
+    fwog_link_uart_send_frame(&m, sizeof m);
+}
+
+static void draw_stats(void) {  /* the MENU screen, over the pup area too */
+    char v[40];
+    band_begin(BUF_Y0, BUF_ROWS);
+    band_text(&photon_font_large, CENTER, 0, 22, "stats", NAVY);
+    const char *rows[5] = {"People met", "Matches caught", "Total points", "Level", "Radio"};
+    for (int i = 0; i < 5; ++i) {
+        const unsigned y = 50u + (unsigned)i * 18u;
+        band_text(&photon_font_small, LEFT, 56, y, rows[i], NAVY);
+        if (i == 0) snprintf(v, sizeof v, "%d", met);
+        else if (i == 1) snprintf(v, sizeof v, "%d", caught);
+        else if (i == 2) snprintf(v, sizeof v, "%d", points);
+        else if (i == 3) snprintf(v, sizeof v, "Lv %d  %s", level_of(points), LEVEL_NAME[level_of(points) - 1]);
+        else if (!link_ok || !radio.ok) snprintf(v, sizeof v, "off");
+        else if (!discoverable) snprintf(v, sizeof v, "silent (hidden)");
+        else snprintf(v, sizeof v, "on  %d badge%s near", radio.count, radio.count == 1 ? "" : "s");
+        band_text(&photon_font_small, RIGHT, 264, y, v, MUTED);
+    }
+    band_text(&photon_font_small, CENTER, 0, 144, "press BACK to close", MUTED);
+    band_points();
+    band_end();
 }
 
 /* ---- views ---- */
@@ -272,8 +342,10 @@ static photon_sprite_id_t view_sprite(view_t v) {
     }
 }
 
+static bool radio_src;  /* the current NEARBY / FOUND view comes from the radio, not the map */
+
 static void view_text(view_t v, char *title, char *detail, size_t n) {
-    const char *who = map.name[0] ? map.name : "someone";
+    const char *who = radio_src ? (radio.name[0] ? radio.name : "a mutuals badge") : (map.name[0] ? map.name : "someone");
     detail[0] = 0;
     switch (v) {
         case V_HOME:
@@ -288,12 +360,14 @@ static void view_text(view_t v, char *title, char *detail, size_t n) {
         case V_LOOKING: snprintf(title, n, "looking..."); snprintf(detail, n, "you're on the map"); break;
         case V_NEARBY:
             snprintf(title, n, "someone's nearby!");
-            if (map.nearby > 1) snprintf(detail, n, "%s - %d m  +%d more", who, map.meters, map.nearby - 1);
+            if (radio_src) snprintf(detail, n, "%s  signal %d dBm", who, radio.rssi);
+            else if (map.nearby > 1) snprintf(detail, n, "%s - %d m  +%d more", who, map.meters, map.nearby - 1);
             else snprintf(detail, n, "%s - %d m", who, map.meters);
             break;
         case V_FOUND:
             snprintf(title, n, "you found them!");
             if (map.gained > 0) snprintf(detail, n, "+%d pts  %s", map.gained, who);
+            else if (radio_src) snprintf(detail, n, "%s  right here!", who);
             else snprintf(detail, n, "%s - %d m", who, map.meters);
             break;
         case V_LEVELUP:
@@ -348,6 +422,8 @@ int main(void) {
         sleep_ms(1);
     }
     leds_ok = ws2812_init(pio0, 0u);
+    link_ok = fwog_link_uart_init(FWOG_LINK_BAUD);  /* radio reports from the main CPU */
+    fwog_link_rx_init(&link_rx);
     draw_background();   /* first picture before the backlight comes on */
     board_backlight(255);
 #ifndef PHOTON_NO_SOUND
@@ -368,6 +444,7 @@ int main(void) {
     unsigned frame = 0;
     char title[48], detail[48], drawn_title[48] = "", drawn_detail[48] = "";
     int drawn_points = -1;
+    uint32_t next_me = now, next_radio_line = now;
     led_progress();
     play(snd_yip, snd_yip_len);  /* hi! */
 
@@ -379,6 +456,8 @@ int main(void) {
         const int points_before = points;
         const bool was_map = map.on;
         map_poll(now);
+        link_poll(now);
+        if (me_dirty || (int32_t)(now - next_me) >= 0) { link_send_me(); me_dirty = false; next_me = now + 2000u; }
         if (was_map && !map.on) game = V_HOME, entered = now, next_prompt = now + NEXT_GAP();
 
         /* ---- buttons ---- */
@@ -425,11 +504,27 @@ int main(void) {
 
         /* ---- overlays ---- */
         if (overlay != V_NONE && (int32_t)(now - overlay_until) >= 0) overlay = V_NONE;
-        const view_t base = map.on ? map_view() : game;
+        view_t base = map.on ? map_view() : game;
+        radio_src = false;
+        const bool radio_near = discoverable && radio.count > 0 && now - radio.last < RADIO_STALE_MS;
+        if (radio_near && (base == V_HOME || base == V_LONELY || base == V_LOOKING || base == V_NEARBY)) {
+            base = radio.rssi >= RADIO_CLOSE_DBM ? V_FOUND : V_NEARBY;
+            radio_src = true;
+        }
+        if (radio_near) {  /* points the first time each badge is near / found, and tell the website */
+            int gain = 0;
+            if (seen(seen_near, &n_near, radio.id)) gain += PTS_NEARBY;
+            if (radio.rssi >= RADIO_CLOSE_DBM && seen(seen_found, &n_found, radio.id)) gain += PTS_FOUND, met++;
+            if (gain) { points += gain; map.gained = gain; report_points(); }
+            if (map.on && (int32_t)(now - next_radio_line) >= 0) {
+                printf("R %d %d %s\n", radio.count, radio.rssi, radio.name);
+                next_radio_line = now + 1000u;
+            }
+        }
         const bool leveled = level_of(points) > level_of(points_before);
         if (base != base_prev) {
             if (!leveled && !power.armed) on_enter(base_prev, base, now);
-            if (base != V_FOUND) map.gained = 0;
+            if (base != V_FOUND && !(radio_src && base == V_NEARBY)) map.gained = 0;
             base_prev = base;
         }
         if (leveled) {
@@ -453,7 +548,12 @@ int main(void) {
             if (view == V_HOME || view == V_LONELY || view == V_LOOKING) led_progress();
         }
         if (view == V_STATS) {
-            if (points != drawn_points) { draw_stats(); drawn_points = points; }
+            static int drawn_radio = -1;
+            const int radio_now = (radio.ok ? 100 : 0) + (discoverable ? 50 : 0) + radio.count;
+            if (points != drawn_points || radio_now != drawn_radio) {
+                draw_stats();
+                drawn_points = points, drawn_radio = radio_now;
+            }
         } else {
             view_text(view, title, detail, sizeof title);
             if (strcmp(title, drawn_title) || strcmp(detail, drawn_detail) || points != drawn_points) {

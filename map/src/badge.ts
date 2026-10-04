@@ -4,8 +4,10 @@
 // connected, the map sends it one line a second and the badge answers with button presses and its points:
 //   map → badge:  "M <s> <nearby> <meters> <points> <met> <name>"
 //                 s = H not discoverable · A sharing, nobody near · N someone near · C right here
+//                 "N <my name>"   the first name this badge broadcasts to nearby badges (radio) while discoverable
 //   badge → map:  "B yellow" | "B green" | "B blue" | "B red"   (MENU opens stats on the badge itself)
-//                 "P <points> <caught>"  practice points earned on the badge (the higher total wins)
+//                 "P <points> <caught> <met>"  points the badge earned itself: practice, radio finds (higher wins)
+//                 "R <count> <rssi> <name>"    other mutuals badges its radio hears right now (no GPS needed)
 // The badge falls back to its mini-game when the lines stop (5 s), so closing the tab is always safe.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
@@ -63,14 +65,16 @@ export function badgeStatus(pins: Pin[], myId: string, sharing: boolean, nameOf:
 const badgeText = (text: string) => text.normalize('NFKD').replace(/[^\x20-\x7e]/g, '').trim().slice(0, 22);
 
 export type BadgeScore = { points: number; met: number };
+export type RadioPeer = { count: number; rssi: number; name: string; at: number };
 
 export function badgeLine(status: BadgeStatus, score: BadgeScore): string {
   return `M ${status.state} ${status.nearby} ${status.meters} ${score.points} ${score.met} ${badgeText(status.name)}\n`;
 }
 
 /** Connect / disconnect the badge, send it a status every second, hear its buttons and its practice points. */
-export function useBadge(status: BadgeStatus, score: BadgeScore, onButton: (button: BadgeButton) => void,
-  onPoints: (points: number, caught: number) => void) {
+export function useBadge(status: BadgeStatus, score: BadgeScore, myName: string, onButton: (button: BadgeButton) => void,
+  onPoints: (points: number, caught: number, met: number) => void) {
+  const [radio, setRadio] = useState<RadioPeer | null>(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState('');
   const portRef = useRef<SerialPortLike | null>(null);
@@ -79,7 +83,8 @@ export function useBadge(status: BadgeStatus, score: BadgeScore, onButton: (butt
   const lineRef = useRef('');
   const buttonRef = useRef(onButton);
   const pointsRef = useRef(onPoints);
-  const line = badgeLine(status, score);
+  const firstName = badgeText(myName.split(/\s+/)[0] ?? '').slice(0, 12);
+  const line = badgeLine(status, score) + `N ${firstName}\n`;
   lineRef.current = line;
   buttonRef.current = onButton;
   pointsRef.current = onPoints;
@@ -133,8 +138,10 @@ export function useBadge(status: BadgeStatus, score: BadgeScore, onButton: (butt
               buffer = buffer.slice(newline + 1);
               const button = /^B (green|red|yellow|blue|gray)$/.exec(line);
               if (button) buttonRef.current(button[1] as BadgeButton);
-              const pts = /^P (\d+) (\d+)$/.exec(line);
-              if (pts) pointsRef.current(Number(pts[1]), Number(pts[2]));
+              const pts = /^P (\d+) (\d+)(?: (\d+))?$/.exec(line);
+              if (pts) pointsRef.current(Number(pts[1]), Number(pts[2]), Number(pts[3] ?? 0));
+              const heard = /^R (\d+) (-?\d+) ?(.*)$/.exec(line);
+              if (heard) setRadio({ count: Number(heard[1]), rssi: Number(heard[2]), name: heard[3] ?? '', at: Date.now() });
             }
           }
         } catch {
@@ -157,6 +164,12 @@ export function useBadge(status: BadgeStatus, score: BadgeScore, onButton: (butt
     return () => window.clearInterval(timer);
   }, [connected, send]);
   useEffect(() => () => { void disconnect(); }, [disconnect]);
+  // Radio reports arrive every second while someone's heard; drop the last one after 3 s of silence.
+  useEffect(() => {
+    if (!radio) return;
+    const timer = window.setTimeout(() => setRadio(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [radio]);
 
-  return { connected, connect, disconnect, error };
+  return { connected, connect, disconnect, error, radio };
 }

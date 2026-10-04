@@ -20,7 +20,7 @@ export function levelProgress(points: number): number {
   return (points - LEVEL_AT[level - 1]!) / (LEVEL_AT[level]! - LEVEL_AT[level - 1]!);
 }
 
-type Saved = { points: number; caught: number; nearby: string[]; met: string[] };
+type Saved = { points: number; caught: number; nearby: string[]; met: string[]; badgeMet?: number };
 const KEY = 'mutuals-points-v1';
 const EMPTY: Saved = { points: 0, caught: 0, nearby: [], met: [] };
 
@@ -69,11 +69,16 @@ export function usePoints() {
     }, reason);
   }, [update]);
 
-  /** The badge's own total (practice matches); keep whichever is higher. */
-  const adopt = useCallback((badgePoints: number, badgeCaught: number) => {
+  /** The badge's own total (practice matches, badges its radio found); keep whichever is higher. */
+  const adopt = useCallback((badgePoints: number, badgeCaught: number, badgeMet = 0) => {
     const cur = savedRef.current;
-    if (badgePoints <= cur.points && badgeCaught <= cur.caught) return;
-    update({ ...cur, points: Math.max(cur.points, badgePoints), caught: Math.max(cur.caught, badgeCaught) }, 'practice on your badge');
+    if (badgePoints <= cur.points && badgeCaught <= cur.caught && badgeMet <= (cur.badgeMet ?? 0)) return;
+    update({
+      ...cur,
+      points: Math.max(cur.points, badgePoints),
+      caught: Math.max(cur.caught, badgeCaught),
+      badgeMet: Math.max(cur.badgeMet ?? 0, badgeMet),
+    }, 'from your badge');
   }, [update]);
 
   // Gains fade out after a few seconds.
@@ -84,5 +89,5 @@ export function usePoints() {
   }, [gain]);
 
   const level = levelOf(saved.points);
-  return { points: saved.points, met: saved.met.length, caught: saved.caught, level, progress: levelProgress(saved.points), gain, award, adopt };
+  return { points: saved.points, met: Math.max(saved.met.length, saved.badgeMet ?? 0), caught: saved.caught, level, progress: levelProgress(saved.points), gain, award, adopt };
 }

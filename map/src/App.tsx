@@ -227,7 +227,7 @@ function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, s
     award(nearbyKey ? nearbyKey.split(',') : [], status.closestId, id => nameOf(id) ?? 'someone');
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-score only when who is near changes
   }, [nearbyKey, status.closestId, award]);
-  const badge = useBadge(status, { points: score.points, met: score.met }, button => {
+  const badge = useBadge(status, { points: score.points, met: score.met }, nameOf(myId) ?? '', button => {
     if (busy) return;
     if (button === 'green' && !sharing) onToggle();
     if (button === 'red' && sharing) onToggle();
@@ -289,12 +289,13 @@ function PointsCard({ points, level, progress, met }: ReturnType<typeof usePoint
   </div>;
 }
 
-function BadgeControl({ status, connected, connect, disconnect, error }: { status: BadgeStatus } & ReturnType<typeof useBadge>) {
+function BadgeControl({ status, connected, connect, disconnect, error, radio }: { status: BadgeStatus } & ReturnType<typeof useBadge>) {
   if (!badgeSupported()) return null; // Web Serial: Chrome / Edge on a computer
   return <div className={`badge-control${connected ? ' on' : ''}`}>
     <span className="badge-icon" aria-hidden="true">🐶</span>
     <div className="badge-copy">
       <b>{connected ? 'mutuals badge connected' : 'mutuals FREE-WILi badge'}</b>
+      {connected && radio && <small className="badge-radio">📡 Radio: {radio.name || 'a mutuals badge'} is {radio.rssi >= -50 ? 'right here' : 'nearby'} ({radio.rssi} dBm){radio.count > 1 ? ` · ${radio.count} badges` : ''}</small>}
       <small>{error || (connected ? `${BADGE_TEXT[status.state]}${status.state === 'N' || status.state === 'C' ? ` · ${status.name} · ${status.meters} m` : ''} · YES share · NO hide · MENU stats` : 'Plug in your badge: your pup, points and who is near you, on its screen')}</small>
     </div>
     <button type="button" onClick={() => void (connected ? disconnect() : connect())}>{connected ? 'Disconnect' : 'Connect'}</button>

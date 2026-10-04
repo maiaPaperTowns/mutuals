@@ -136,3 +136,4 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
 .points-body small { color: #6e6c8c; font-size: 9.5px; }
 .points-toast { position: absolute; left: 23px; right: 23px; bottom: -18px; padding: 9px 12px; border-radius: 10px; background: #24284a; color: #fff; font-size: 11px; font-weight: 700; text-align: center; box-shadow: 0 8px 24px #24284a40; animation: points-pop 3.5s ease forwards; }
 @keyframes points-pop { 0% { opacity: 0; transform: translateY(8px) scale(.96); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
+.badge-copy .badge-radio { color: #2d553e; font-weight: 700; }

@@ -85,6 +85,17 @@ What the badge shows:
 
 Your points show on the badge and on the website's points card. They're saved in this browser.
 
+## Badge-to-badge radio (no website needed)
+
+Badges also find each other **directly over radio** (433.92 MHz). The OG has no Bluetooth, so this uses its sub-GHz
+radio chip. It works without the website, GPS or Wi-Fi:
+
+- Another mutuals badge in range → **someone's nearby!** with their first name (if they're signed in on the website)
+  and the signal strength. **+10 pts** the first time.
+- Very strong signal (badges within a couple of metres) → **you found them!** **+50 pts** the first time.
+- Press **MENU** and look at **Radio**: *on · N badges near* means it's working.
+- **NO** (not discoverable) makes your badge **stop broadcasting** completely.
+
 ## Without the website
 
 Unplug the badge or close the tab: after 5 s it switches to **practice mode**. Quiet match prompts pop up; press
