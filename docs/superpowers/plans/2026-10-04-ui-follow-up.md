@@ -8,8 +8,9 @@
 
 **Spec:** docs/superpowers/specs/2026-10-04-ui-follow-up-design.md
 
-- [ ] Write and run failing page replacement/global Fit ordering and 50-message isolation tests.
-- [ ] Implement fixed five-person pages and server ordering; cap the private message view and trim all message writers.
-- [ ] Add one official MHacks image and introduction to the known demo only; verify Cute/Formal and page geometry.
-- [ ] Run website/module/gateway checks, actual local SDK integration and live cloud validation. Recheck Figma connection if school login succeeds.
-- [ ] Review, commit/push, publish without data deletion, deploy Preview and record results/remaining blockers.
+- [x] Write and run failing page replacement/global Fit ordering and 50-message isolation tests.
+- [x] Implement fixed five-person pages and server ordering; cap the private message view and trim all message writers.
+- [x] Add one official MHacks image and introduction to the known demo only; verify Cute/Formal and page geometry.
+- [x] Run website/module/gateway checks, actual local SDK integration and live cloud validation.
+- [x] Review, commit/push, publish without data deletion, deploy Preview and record results/remaining blockers.
+- [ ] Complete Figma school-account reauthorization and quota-blocked design comparison after manual login. Current connector still confirms Gmail Starter.
