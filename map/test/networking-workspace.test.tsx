@@ -264,3 +264,24 @@ it('returns to the first group when the remaining recommendations shrink below t
   expect(screen.getByText('Person 5')).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Reserve' })).toBeNull();
 });
+
+it('keeps the same GPS watcher and manual Stop state when navigating between Events and Assistance', async () => {
+  state.invites[0] = { ...state.invites[0], phase: 'during', status: 'started', matchingStatus: 'ready' };
+  state.members = [{ eventId: 'e1', userId: 'me', memberId: 'e1__me' }];
+  const watchPosition = vi.fn().mockReturnValue(1), clearWatch = vi.fn();
+  vi.stubGlobal('navigator', { ...navigator, geolocation: { watchPosition, clearWatch, getCurrentPosition: vi.fn() } });
+  try {
+    const { rerender } = render(<NetworkingWorkspace {...props} />);
+    await waitFor(() => expect(watchPosition).toHaveBeenCalledOnce());
+    window.history.pushState({}, '', '/assistant?event=e1');
+    rerender(<NetworkingWorkspace {...props} />);
+    expect(watchPosition).toHaveBeenCalledOnce();
+    expect(clearWatch).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Stop sharing GPS' }));
+    await waitFor(() => expect(clearWatch).toHaveBeenCalledWith(1));
+    window.history.pushState({}, '', '/events?event=e1');
+    rerender(<NetworkingWorkspace {...props} />);
+    expect(screen.getByRole('button', { name: 'Share event GPS' })).toBeTruthy();
+    expect(watchPosition).toHaveBeenCalledOnce();
+  } finally { cleanup(); vi.unstubAllGlobals(); }
+});

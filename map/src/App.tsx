@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from 'react';
 import { FavoritePeople, HomeNavigation, LiveFavoritePeople, LiveHomeNavigation } from './HomePanels';
 import { SignIn, SignUp, useClerk } from '@clerk/react';
 import { MapContainer, Marker, TileLayer, Tooltip, ZoomControl } from 'react-leaflet';
@@ -60,6 +60,9 @@ function LiveMapContent({ authEnabled, accountName }: { authEnabled: boolean; ac
   const [message, setMessage] = useState('');
   const [locationError, setLocationError] = useState('');
   const sharingRef = useRef(false);
+  useEffect(() => {
+    if (!signedIn) { sharingRef.current = false; setSharing(false); }
+  }, [signedIn]);
   const lastSentRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
   const pins: LocationPin[] = rows.map(row => ({
     participantId: row.participantId,
@@ -468,6 +471,31 @@ function useDemoWalkers(me: LocationPin | null) {
 }
 
 export default function App({ live, authEnabled, signedIn, accountName = 'Your account', getApiToken = noToken }: { live: boolean; authEnabled: boolean; signedIn: boolean; accountName?: string; getApiToken?: () => Promise<string | null> }) {
+  const [navigationUrl, setNavigationUrl] = useState(() => window.location.pathname + window.location.search);
+  const pathname = navigationUrl.split('?')[0].replace(/\/$/, '') || '/';
+  const workspaceActive = live && ['/events', '/assistant'].includes(pathname);
+  const [workspaceVisited, setWorkspaceVisited] = useState(workspaceActive);
+  useEffect(() => {
+    if (workspaceActive) setWorkspaceVisited(true);
+    const frame = window.requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+    return () => window.cancelAnimationFrame(frame);
+  }, [navigationUrl, workspaceActive]);
+  useEffect(() => {
+    const back = () => setNavigationUrl(window.location.pathname + window.location.search);
+    window.addEventListener('popstate', back);
+    return () => window.removeEventListener('popstate', back);
+  }, []);
+  const navigate = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const link = (event.target as Element).closest('a');
+    if (!link || link.hasAttribute('download') || (link.target && link.target !== '_self')) return;
+    const url = new URL(link.href);
+    if (url.origin !== window.location.origin || !['/', '/events', '/assistant', '/chat'].includes(url.pathname.replace(/\/$/, '') || '/') || url.hash) return;
+    event.preventDefault();
+    window.history.pushState({}, '', url.pathname + url.search);
+    setNavigationUrl(url.pathname + url.search);
+    window.scrollTo(0, 0);
+  };
   const [authOpen, setAuthOpen] = useState(false);
   const [style, setStyleState] = useState<Style>(loadStyle);
   const setStyle = (next: Style) => {
@@ -479,14 +507,18 @@ export default function App({ live, authEnabled, signedIn, accountName = 'Your a
     if (signedIn) setAuthOpen(false);
   }, [signedIn]);
   return <StyleContext.Provider value={{ style, setStyle }}><AuthDialogContext.Provider value={requestSignIn}>
-    <SignedInContext.Provider value={signedIn}>
-      {['/events', '/assistant'].includes(window.location.pathname.replace(/\/$/, '')) && live
-        ? <NetworkingWorkspace signedIn={signedIn} accountName={accountName} onSignIn={requestSignIn} accountControl={<AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={requestSignIn} />} />
-        : window.location.pathname.replace(/\/$/, '') === '/chat'
-        ? live ? <LiveProfileChat signedIn={signedIn} accountName={accountName} getToken={getApiToken} onSignIn={requestSignIn} accountControl={<AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={requestSignIn} />} />
+    <SignedInContext.Provider value={signedIn}><div onClick={navigate}>
+      {/* Keep location owners mounted so navigation never clears their GPS watches. */}
+      <div hidden={workspaceActive || pathname === '/chat'}>
+        {live ? <LiveMapContent authEnabled={authEnabled} accountName={accountName} /> : <PreviewMap />}
+      </div>
+      {(workspaceVisited || workspaceActive) && <div hidden={!workspaceActive}>
+        <NetworkingWorkspace navigationUrl={navigationUrl} signedIn={signedIn} accountName={accountName} onSignIn={requestSignIn} accountControl={<AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={requestSignIn} />} />
+      </div>}
+      {pathname === '/chat' && (live ? <LiveProfileChat signedIn={signedIn} accountName={accountName} getToken={getApiToken} onSignIn={requestSignIn} accountControl={<AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={requestSignIn} />} />
           : <ProfileChat signedIn={false} accountName={accountName} api={previewProfileApi} onSignIn={requestSignIn} />
-        : live ? <LiveMapContent authEnabled={authEnabled} accountName={accountName} /> : <PreviewMap />}
+      )}
       {authOpen && <AuthDialog authEnabled={authEnabled} onClose={() => setAuthOpen(false)} />}
-    </SignedInContext.Provider>
+    </div></SignedInContext.Provider>
   </AuthDialogContext.Provider></StyleContext.Provider>;
 }

@@ -21,8 +21,8 @@ const starters = {
 const initialStage = () => { const stage = new URLSearchParams(window.location.search).get('stage'); return stage === 'during' || stage === 'post' ? stage : 'pre'; };
 const zoneLabel = (zone: string) => ZONES.find(row => row.id === zone)?.label ?? zone;
 
-export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, accountControl }: {
-  signedIn: boolean; accountName: string; onSignIn: () => void; accountControl: ReactNode;
+export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, accountControl, navigationUrl }: {
+  signedIn: boolean; accountName: string; onSignIn: () => void; accountControl: ReactNode; navigationUrl?: string;
 }) {
   const assistantsOnly = window.location.pathname.replace(/\/$/, '') === '/assistant';
   const [events, eventsLoaded] = useTable(tables.networkingInvitations);
@@ -83,6 +83,14 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
   const [, setTick] = useState(0);
   const [localReplies, setLocalReplies] = useState<Array<{ key: string; userId: string; eventId: string; stage: Stage; content: string }>>([]);
   const pendingChat = useRef<{ eventId: string; stage: Stage; message: string; requestId: string } | null>(null);
+  useEffect(() => {
+    if (!navigationUrl || !['/events', '/assistant'].includes(window.location.pathname.replace(/\/$/, ''))) return;
+    const params = new URLSearchParams(navigationUrl.split('?')[1]);
+    const selected = params.get('event');
+    if (selected) setEventId(selected);
+    const selectedStage = params.get('stage');
+    if (selectedStage === 'pre' || selectedStage === 'during' || selectedStage === 'post') setStage(selectedStage);
+  }, [navigationUrl]);
   const refreshEpoch = useRef(0);
   const [dismissedAlerts, setDismissedAlerts] = useState(new Set<string>());
   const seenNotifications = useRef(new Set<string>());
@@ -134,7 +142,9 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
     if (!event) return;
     if (!assistantsOnly) setStage(eventPhase);
     if (!assistantsOnly) { setChatDraft(''); pendingChat.current = null; }
-    window.history.replaceState({}, '', `${window.location.pathname}?${new URLSearchParams({ event: eventId, stage: assistantsOnly ? stage : eventPhase })}`);
+    const path = window.location.pathname.replace(/\/$/, '');
+    const selected = new URLSearchParams(window.location.search).get('event');
+    if (['/events', '/assistant'].includes(path) && (!selected || selected === eventId)) window.history.replaceState({}, '', `${window.location.pathname}?${new URLSearchParams({ event: eventId, stage: assistantsOnly ? stage : eventPhase })}`);
   }, [eventId, eventPhase, assistantsOnly]);
   const refresh = useCallback(async (offset = pageOffsetRef.current) => {
     if (!eventId || !account || !member) return;
@@ -254,6 +264,7 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
       <div className="workspace-intro"><div><span className="eyebrow">YOUR EVENT / YOUR ASSISTANTS</span><h1>{assistantsOnly ? 'Your agent chats' : 'Find your next event.'}</h1><p>{assistantsOnly ? 'All your event assistants and saved conversations, before, during and after.' : 'Join an event and meet people with shared interests.'}</p></div>
         {account && <button className="workspace-button inbox-toggle" onClick={() => setInboxOpen(value => !value)} aria-expanded={inboxOpen}>Notifications <b>{unread}</b></button>}</div>
       {error && <p className="intake-error workspace-alert" role="alert">{error}</p>}{notice && <p className="workspace-alert success" role="status">{notice}</p>}
+      {member && eventPhase === 'during' && <details className="assistant-gps" open={!assistantsOnly}><summary>Event GPS · location controls</summary><EventGpsMap key={eventId} eventId={eventId} userId={account!.user_id} pins={pins} checkedIn={true} focusedId={focusedId} stars={stars} onError={setError} areaPoints={areaPoints} eventTitle={event!.title} onResetFocus={() => setFocusedId('')} /></details>}
       {nearbyAlert && <div className="nearby-popup" role="dialog" aria-label="Nearby connection" aria-live="polite"><span className="eyebrow">NEARBY & FREE TO TALK</span><h2>{nearbyAlert.title}</h2><p>{nearbyAlert.body}</p><div className="workspace-actions"><button className="intake-submit" aria-label="Connect with nearby person" disabled={busy || !checkedIn} onClick={() => { request(nearbyAlert.targetId, 'nearby person'); dismissAlert(); }}>Request connection</button><button className="workspace-button" onClick={dismissAlert}>Dismiss</button></div></div>}
       {!isActive && <p className="workspace-alert" role="status">Connecting to the event service…</p>}
       {inboxOpen && <section className="workspace-inbox" aria-label="Your notifications"><div className="section-heading"><h2>Your notifications</h2><button className="workspace-button" onClick={() => void act(async () => {
@@ -296,7 +307,7 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
           <div className="agent-workspace"><div className="agent-primary">
             {eventPhase === 'post' && <EventRecap key={`${eventId}__${account!.user_id}`} eventId={eventId} onBusy={setRecapBusy} />}
 
-            {eventPhase === 'during' && <><section className="event-checkin"><h3>{chatting ? 'Busy · chatting' : checkedIn ? 'Free · ready to meet' : 'Waiting for location'}</h3><p>Nearby alerts start when you allow location. Accepting a connection makes you busy. Tap End chat when you finish to become free again.</p></section><EventGpsMap key={eventId} eventId={eventId} userId={account!.user_id} pins={pins} checkedIn={eventPhase === 'during'} focusedId={focusedId} stars={stars} onError={setError} areaPoints={areaPoints} eventTitle={event.title} onResetFocus={() => setFocusedId('')} /></>}
+            {eventPhase === 'during' && <><section className="event-checkin"><h3>{chatting ? 'Busy · chatting' : checkedIn ? 'Free · ready to meet' : 'Waiting for location'}</h3><p>Nearby alerts start when you allow location. Accepting a connection makes you busy. Tap End chat when you finish to become free again.</p></section></>}
             {eventPhase !== 'pre' && <section className="event-connections"><h3>{eventPhase === 'post' ? 'Connections to follow up' : 'Your connections'}</h3>{eventInteractions.length ? eventInteractions.map(row => {
               const data = JSON.parse(row.payloadJson), incoming = row.targetId === account?.user_id, name = incoming ? data.user_name : data.target_name;
               const contact = eventContacts.find(contact => contact.userId === (incoming ? row.userId : row.targetId) && contact.shared);
@@ -317,7 +328,7 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
         </>}
         </div><aside className="event-people-panel">{member ? peoplePanel : <><h2>People</h2><p>Join this event to see your personal matches.</p></>}</aside></div>
       </section>}
-      {assistantsOnly && (signedIn ? <section className="unified-assistants" aria-label="Your agent chats"><nav className="agent-event-list" aria-label="Saved event conversations"><h2>Events</h2>{events.filter(row => members.some(member => member.eventId === row.eventId) || messages.some(message => message.eventId === row.eventId)).map(row => <button key={row.eventId} disabled={chatBusy} aria-pressed={eventId === row.eventId} onClick={() => selectEvent(row.eventId)}>{row.title}</button>)}</nav><div className="unified-thread">{event ? <><h2>{event.title}</h2><div className="agent-tabs" role="tablist" aria-label="Your event assistants">{(['pre','during','post'] as Stage[]).map(value => <button role="tab" aria-selected={stage === value} key={value} disabled={chatBusy} onClick={() => changeStage(value)}>{stageNames[value]} agent</button>)}</div>{member && eventPhase === 'during' && <details className="assistant-gps"><summary>Event GPS · location controls</summary><EventGpsMap key={eventId} eventId={eventId} userId={account!.user_id} pins={pins} checkedIn={true} focusedId={focusedId} stars={stars} onError={setError} areaPoints={areaPoints} eventTitle={event.title} /></details>}{assistantPanel}</> : <p>Your saved event conversations will appear here.</p>}</div></section> : <button className="intake-submit" onClick={onSignIn}>Sign in to open your agent chats</button>)}
+      {assistantsOnly && (signedIn ? <section className="unified-assistants" aria-label="Your agent chats"><nav className="agent-event-list" aria-label="Saved event conversations"><h2>Events</h2>{events.filter(row => members.some(member => member.eventId === row.eventId) || messages.some(message => message.eventId === row.eventId)).map(row => <button key={row.eventId} disabled={chatBusy} aria-pressed={eventId === row.eventId} onClick={() => selectEvent(row.eventId)}>{row.title}</button>)}</nav><div className="unified-thread">{event ? <><h2>{event.title}</h2><div className="agent-tabs" role="tablist" aria-label="Your event assistants">{(['pre','during','post'] as Stage[]).map(value => <button role="tab" aria-selected={stage === value} key={value} disabled={chatBusy} onClick={() => changeStage(value)}>{stageNames[value]} agent</button>)}</div>{assistantPanel}</> : <p>Your saved event conversations will appear here.</p>}</div></section> : <button className="intake-submit" onClick={onSignIn}>Sign in to open your agent chats</button>)}
     </main><footer className="chat-footer">MHACKS / MEET YOUR PEOPLE <span>Before, during, and after. All in one place.</span></footer>
   </div>;
 }
