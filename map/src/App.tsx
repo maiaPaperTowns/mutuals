@@ -287,6 +287,17 @@ const BADGE_TEXT: Record<BadgeStatus['state'], [cute: string, formal: string]> =
   C: ['You found them!', 'Connection made'],
 };
 
+const BUTTON_LABEL = { gray: 'MENU', yellow: 'BACK', green: 'YES', blue: 'NEXT', red: 'NO' } as const;
+
+function pressResult(button: keyof typeof BUTTON_LABEL, status: BadgeStatus, needsSignIn: boolean): string {
+  if (button === 'green') {
+    if (status.state !== 'H') return 'already sharing';
+    return needsSignIn ? 'sign in first (sign-in box opened)' : 'turning on location sharing…';
+  }
+  if (button === 'red') return status.state === 'H' ? 'already hidden' : 'stopping location sharing';
+  return 'no action on the website';
+}
+
 function gainText(gain: Gain, formal: boolean): string {
   if (gain.kind === 'badge') return formal ? 'synced from your badge' : 'from your badge';
   if (gain.kind === 'found') return formal ? `Connection made: ${gain.who}` : `you found ${gain.who}!`;
@@ -314,12 +325,13 @@ function PointsCard({ points, level, progress, met, formal }: ReturnType<typeof 
   </div>;
 }
 
-function BadgeControl({ status, formal, needsSignIn, problem, connected, connect, disconnect, error, radio }: { status: BadgeStatus; formal: boolean; needsSignIn: boolean; problem: string } & ReturnType<typeof useBadge>) {
+function BadgeControl({ status, formal, needsSignIn, problem, connected, connect, disconnect, error, radio, lastButton }: { status: BadgeStatus; formal: boolean; needsSignIn: boolean; problem: string } & ReturnType<typeof useBadge>) {
   if (!badgeSupported()) return null; // Web Serial: Chrome / Edge on a computer
   return <div className={`badge-control${connected ? ' on' : ''}`}>
     <span className="badge-icon" aria-hidden="true">{formal ? '◧' : '🐶'}</span>
     <div className="badge-copy">
       <b>{connected ? 'mutuals badge connected' : formal ? 'mutuals badge' : 'mutuals FREE-WILi badge'}</b>
+      {connected && lastButton && <small className="badge-press">{BUTTON_LABEL[lastButton.button]} pressed on the badge → {pressResult(lastButton.button, status, needsSignIn)}</small>}
       {connected && needsSignIn && <small className="badge-warn">Sign up or log in first (top right). Until then, YES on the badge opens the sign-in box instead of sharing.</small>}
       {connected && !needsSignIn && status.state === 'H' && problem && <small className="badge-warn">{problem}</small>}
       {connected && radio && <small className="badge-radio">📡 Radio: {radio.name || 'a mutuals badge'} is {radio.rssi >= -50 ? (formal ? 'in person' : 'right here') : 'nearby'} ({radio.rssi} dBm){radio.count > 1 ? ` · ${radio.count} badges` : ''}</small>}

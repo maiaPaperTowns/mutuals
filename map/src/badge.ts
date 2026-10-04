@@ -76,6 +76,7 @@ export function badgeLine(status: BadgeStatus, score: BadgeScore): string {
 export function useBadge(status: BadgeStatus, score: BadgeScore, myName: string, formal: boolean, onButton: (button: BadgeButton) => void,
   onPoints: (points: number, caught: number, met: number) => void) {
   const [radio, setRadio] = useState<RadioPeer | null>(null);
+  const [lastButton, setLastButton] = useState<{ button: BadgeButton; at: number } | null>(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState('');
   const portRef = useRef<SerialPortLike | null>(null);
@@ -138,7 +139,10 @@ export function useBadge(status: BadgeStatus, score: BadgeScore, myName: string,
               const line = buffer.slice(0, newline).trim();
               buffer = buffer.slice(newline + 1);
               const button = /^B (green|red|yellow|blue|gray)$/.exec(line);
-              if (button) buttonRef.current(button[1] as BadgeButton);
+              if (button) {
+                setLastButton({ button: button[1] as BadgeButton, at: Date.now() });
+                buttonRef.current(button[1] as BadgeButton);
+              }
               const pts = /^P (\d+) (\d+)(?: (\d+))?$/.exec(line);
               if (pts) pointsRef.current(Number(pts[1]), Number(pts[2]), Number(pts[3] ?? 0));
               const heard = /^R (\d+) (-?\d+) ?(.*)$/.exec(line);
@@ -172,5 +176,12 @@ export function useBadge(status: BadgeStatus, score: BadgeScore, myName: string,
     return () => window.clearTimeout(timer);
   }, [radio]);
 
-  return { connected, connect, disconnect, error, radio };
+  // Show the last badge button press for a few seconds, so it's visible that the press arrived.
+  useEffect(() => {
+    if (!lastButton) return;
+    const timer = window.setTimeout(() => setLastButton(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [lastButton]);
+
+  return { connected, connect, disconnect, error, radio, lastButton };
 }
