@@ -11,6 +11,17 @@ const profile = { user_id: 'server-derived', name: 'Terry', headline: 'Builder',
 const api = () => ({ load: vi.fn().mockResolvedValue({ profile: null }), submit: vi.fn().mockResolvedValue(profile) });
 
 describe('profile intake', () => {
+  it('places saved profile before its assistant and uses empty fields to focus the existing composer', async () => {
+    const client = api();
+    render(<ProfileChat signedIn accountName="Terry" api={client} onSignIn={() => {}} />);
+    await waitFor(() => expect(client.load).toHaveBeenCalledOnce());
+    const saved = screen.getByRole('complementary', { name: 'Saved profile' });
+    const assistant = screen.getByRole('textbox', { name: 'Your introduction' });
+    expect(saved.compareDocumentPosition(assistant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Add skills +' }));
+    expect((assistant as HTMLTextAreaElement).value).toBe('My skills include: ');
+    expect(document.activeElement).toBe(assistant);
+  });
   it('asks signed-out users to log in without sending data', async () => {
     const client = api(); const login = vi.fn();
     render(<ProfileChat signedIn={false} accountName="Terry" api={client} onSignIn={login} />);

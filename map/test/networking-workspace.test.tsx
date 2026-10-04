@@ -33,6 +33,51 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
+it('keeps historical agent threads usable across phases in the unified assistant route', async () => {
+  window.history.replaceState({}, '', '/assistant?event=e1&stage=pre');
+  state.invites[0] = { ...state.invites[0], phase: 'post', status: 'started', matchingStatus: 'ready' };
+  state.members = [{ eventId: 'e1', userId: 'me', memberId: 'e1__me' }];
+  state.messages = [{ messageId: 'old', eventId: 'e1', stage: 'pre', role: 'assistant', content: 'Your saved Pre advice', createdAt: { microsSinceUnixEpoch: 1n } }];
+  const { rerender } = render(<NetworkingWorkspace {...props} />);
+  expect(await screen.findByText('Your saved Pre advice')).toBeTruthy();
+  expect(screen.getByRole('tab', { name: /Post agent/ }).hasAttribute('disabled')).toBe(false);
+  const input = screen.getByRole('textbox', { name: 'Message your Pre agent' });
+  fireEvent.change(input, { target: { value: 'Explain my preparation again.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+  await waitFor(() => expect(state.send).toHaveBeenCalledWith(expect.objectContaining({ eventId: 'e1', stage: 'pre' })));
+  state.invites[0] = { ...state.invites[0], phase: 'during' };
+  rerender(<NetworkingWorkspace {...props} />);
+  expect(screen.getByRole('textbox', { name: 'Message your Pre agent' })).toBeTruthy();
+  expect(screen.queryByText('Waiting for location')).toBeNull();
+});
+
+it('ranks the event People panel by descending saved Fit', async () => {
+  state.members = [{ eventId: 'e1', userId: 'me', memberId: 'e1__me' }];
+  const match = (name: string, fit: number) => ({ target_id: name, target_name: name, role: 'Builder', fit_score: fit, location: { zone: '' }, reason_for_connection: 'Shared goals' });
+  state.list.mockResolvedValue(JSON.stringify({ ready: true, total: 2, items: [match('Lower', 60), match('Higher', 95)] }));
+  render(<NetworkingWorkspace {...props} />);
+  await screen.findByText('Higher');
+  const panel = screen.getByRole('region', { name: 'Your interest list' });
+  expect(panel.textContent!.indexOf('Higher')).toBeLessThan(panel.textContent!.indexOf('Lower'));
+});
+
+it('keeps event GPS publishing available in unified chats during an ongoing event', async () => {
+  window.history.replaceState({}, '', '/assistant?event=e1&stage=during');
+  state.invites[0] = { ...state.invites[0], phase: 'during', status: 'started', matchingStatus: 'ready' };
+  state.members = [{ eventId: 'e1', userId: 'me', memberId: 'e1__me' }];
+  const watchPosition = vi.fn().mockReturnValue(1), clearWatch = vi.fn();
+  vi.stubGlobal('navigator', { ...navigator, geolocation: { watchPosition, clearWatch, getCurrentPosition: vi.fn() } });
+  try {
+    const { unmount } = render(<NetworkingWorkspace {...props} />);
+    await waitFor(() => expect(watchPosition).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByText('Event GPS · location controls'));
+    expect(screen.getByRole('button', { name: 'Stop sharing GPS' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('tab', { name: 'Pre agent' }));
+    expect(watchPosition).toHaveBeenCalledOnce();
+    unmount(); expect(clearWatch).toHaveBeenCalledWith(1);
+  } finally { vi.unstubAllGlobals(); }
+});
+
 it('automatically recaps Post once, shows agent exchanges and shared LinkedIn, and saves explicit contact consent', async () => {
   state.invites[0] = { ...state.invites[0], phase: 'post', status: 'started', matchingStatus: 'ready' };
   state.members = [{ eventId: 'e1', userId: 'me', memberId: 'e1__me' }];
@@ -45,7 +90,7 @@ it('automatically recaps Post once, shows agent exchanges and shared LinkedIn, a
   expect(state.recap).toHaveBeenCalledOnce();
   expect(state.recap).toHaveBeenCalledWith({ eventId: 'e1' });
   expect(screen.getByRole('link', { name: "Alex's LinkedIn" }).getAttribute('href')).toBe('https://www.linkedin.com/in/alex');
-  expect(screen.getByText('Post → Pre')).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'Open your agent chats →' }).getAttribute('href')).toBe('/assistant?event=e1');
   fireEvent.change(screen.getByRole('textbox', { name: 'LinkedIn profile URL' }), { target: { value: 'https://www.linkedin.com/in/terry' } });
   fireEvent.click(screen.getByRole('checkbox', { name: 'Share with my accepted connections in this event' }));
   fireEvent.click(screen.getByRole('button', { name: 'Save contact sharing' }));
@@ -129,6 +174,7 @@ it('loads five recommendations then more without losing favorites', async () => 
 });
 
 it('an ASI failure preserves the typed message and retry uses the same request id', async () => {
+  window.history.replaceState({}, '', '/assistant?event=e1&stage=pre');
   state.members = [{ eventId: 'e1', userId: 'me', memberId: 'e1__me' }];
   state.send.mockRejectedValueOnce(new Error('ASI unavailable'));
   render(<NetworkingWorkspace {...props} />);

@@ -5,6 +5,7 @@ import { DbConnection } from './module_bindings';
 import { SpacetimeDBProvider } from 'spacetimedb/react';
 import App from './App';
 import './styles.css';
+import './redesign.css';
 
 const uri = import.meta.env.VITE_SPACETIMEDB_URI;
 const database = import.meta.env.VITE_SPACETIMEDB_DATABASE;

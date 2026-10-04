@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import ProfileChat from '../src/ProfileChat';
 import { createProfileApi, type IntakeProfile } from '../src/profileApi';
 import '../src/styles.css';
+import '../src/redesign.css';
 
 let profile: IntakeProfile | null = null;
 const api = {
