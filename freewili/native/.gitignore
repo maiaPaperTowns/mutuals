@@ -1,0 +1,4 @@
+.bsp/
+out/
+photon/display/photon_assets.c
+photon/display/photon_sounds.c

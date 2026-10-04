@@ -29,6 +29,25 @@ close!) → YOU FOUND TERRY! Zone B`. Without hardware: `python3 mock/demo_seque
 Catch match prompts with GREEN for a double yes (+1 social, score spoken), YELLOW = coffee, BLUE = nap,
 GRAY = quit. Social fades when you miss matches; LEDs show social (pink) and energy (green).
 
+**Photon Pup native app: the pixel puppy on the badge's own screen, with sounds and a voice.**
+OG firmware can't show images over USB, so this is a real display-CPU app built with FREE-WILi's
+[wiliOGbsp](https://github.com/freewili/wiliOGbsp) (`native/`). It runs on its own, with no laptop needed:
+
+```bash
+native/setup_toolchain.sh        # once: Arm GCC + Pico SDK 2.3.0 + ninja into ~/.pico-sdk
+native/build.sh                  # → native/out/photon_main.uf2 (pixel art + sounds generated on the way)
+```
+
+Flash it: FREE-WILi GUI → Setup → FreeWili OG updater → Apps → *photon_main* → Flash. (Copy the UF2 into
+`FreeWili GUI.app/Contents/MacOS/catalog/` so it shows up in the list.) Go back to the standard firmware
+(Firmware → Stable → *Update and verify*) to use `main.py` / `pet_game.py` again: the badge runs one or the other.
+
+- Same game as `pet_game.py`: GREEN catches a match, YELLOW = coffee, BLUE = nap, LEDs are the meters, score top-right.
+- Sounds (`native/make_sounds.py`, 8 kHz like the OG's I2S driver):
+  - Chiptune effects plus synthesized puppy noises (yips, "arf", whimper, panting, yawn).
+  - A short cute voice line ("double yes!", "coffee time!"), made with macOS `say` (Samantha) and pitched up.
+  - Previews go to `native/out/sounds/*.wav`.
+
 **With the real backend** (the Photon bridge in `photon/` running on this laptop):
 
 ```bash
@@ -147,14 +166,15 @@ with two badges; one badge alone can't hear itself.
   use the single `ow_call` import (OneWili), not the old drawing imports Wili Pass used, so the same image limits apply.
 - Built-in images (`gui.show_image_asset_by_id`, ids 0–39) do display, but they're FREE-WILi's own assets.
 
-So on the OG the badge shows text, LEDs and voice; the pixel UI lives on the laptop mirror. Our `.fwi` encoder is
-ready for a firmware or board (FREE-WILi 2) that can display files.
+So in companion mode (OG firmware + `main.py`) the badge shows text, LEDs and voice, and the pixel UI lives on
+the laptop mirror. To get the pixels onto the badge anyway, we wrote a **native display app** with wiliOGbsp
+(`native/`, see Run it). It draws straight to the ST7789 and plays audio through the I2S speaker.
 
 ## Status
 
-- ✅ Photon Pup mini-game (badge face + LED meters + voice, pixel mirror; tests).
+- ✅ Photon Pup mini-game: Python version (badge face + LED meters + voice, pixel mirror; tests).
 - ✅ State machine, event contract, privacy rules, buttons (short/long, stuck-button guard), LEDs, speech, pixel UI +
   mirror, .fwi export, bridge + mock transports, mock server, one-command demo: built and tested (34 tests).
 - ✅ On hardware: text, LEDs, speech, buttons, IR, radio calls.
 - ⏳ Radio proximity between **two** badges: implemented, calibration pending a second kit (the demo simulates it).
-- ⏳ Pixel UI on the badge screen itself: blocked by the OG not displaying images over USB (see above).
+- ✅ Pixel UI on the badge screen itself: native Photon Pup app (`native/`), with sounds, puppy noises and voice.
