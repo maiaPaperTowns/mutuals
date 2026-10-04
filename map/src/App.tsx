@@ -272,7 +272,7 @@ function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, s
       {sharing && <p className="sharing-status">{message || (preview ? 'Local preview: your location is not sent to anyone.' : "Waiting for your phone's location… The first fix may take a few seconds.")}</p>}
       {!sharing && message && <p className="error-message" role="alert">{message}</p>}
       {!signedIn && !preview && <button className="profile-link" type="button" onClick={onRequestSignIn}>Sign up or log in to share your location</button>}
-      <BadgeControl status={status} formal={formal} {...badge} />
+      <BadgeControl status={status} formal={formal} needsSignIn={!signedIn && !preview} problem={message} {...badge} />
       {score.gain && <div className="points-toast" key={score.gain.at}>+{score.gain.points} pts · {gainText(score.gain, formal)}</div>}
     </section>
 
@@ -314,12 +314,14 @@ function PointsCard({ points, level, progress, met, formal }: ReturnType<typeof 
   </div>;
 }
 
-function BadgeControl({ status, formal, connected, connect, disconnect, error, radio }: { status: BadgeStatus; formal: boolean } & ReturnType<typeof useBadge>) {
+function BadgeControl({ status, formal, needsSignIn, problem, connected, connect, disconnect, error, radio }: { status: BadgeStatus; formal: boolean; needsSignIn: boolean; problem: string } & ReturnType<typeof useBadge>) {
   if (!badgeSupported()) return null; // Web Serial: Chrome / Edge on a computer
   return <div className={`badge-control${connected ? ' on' : ''}`}>
     <span className="badge-icon" aria-hidden="true">{formal ? '◧' : '🐶'}</span>
     <div className="badge-copy">
       <b>{connected ? 'mutuals badge connected' : formal ? 'mutuals badge' : 'mutuals FREE-WILi badge'}</b>
+      {connected && needsSignIn && <small className="badge-warn">Sign up or log in first (top right). Until then, YES on the badge opens the sign-in box instead of sharing.</small>}
+      {connected && !needsSignIn && status.state === 'H' && problem && <small className="badge-warn">{problem}</small>}
       {connected && radio && <small className="badge-radio">📡 Radio: {radio.name || 'a mutuals badge'} is {radio.rssi >= -50 ? (formal ? 'in person' : 'right here') : 'nearby'} ({radio.rssi} dBm){radio.count > 1 ? ` · ${radio.count} badges` : ''}</small>}
       <small>{error || (connected ? `${BADGE_TEXT[status.state][formal ? 1 : 0]}${status.state === 'N' || status.state === 'C' ? ` · ${status.name} · ${status.meters} m` : ''} · YES share · NO hide · MENU stats` : (formal ? 'Plug in your badge: your score and nearby contacts on its screen' : 'Plug in your badge: your pup, points and who is near you, on its screen'))}</small>
     </div>

@@ -167,3 +167,4 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
 .style-formal .count-number { color: #1f3a68; }
 .style-formal .badge-control.on button { background: #e6ebf3; color: #1f3a68; }
 .style-formal .badge-control button { color: #fff; }
+.badge-copy .badge-warn { color: #b3543f; font-weight: 700; }
