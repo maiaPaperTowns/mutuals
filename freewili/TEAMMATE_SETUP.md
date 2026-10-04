@@ -1,21 +1,29 @@
 # mutuals badge: setup for a teammate
 
-You need: a **FREE-WILi OG** badge + its USB-C cable, a **laptop** (Mac or Windows) with **Google Chrome**, and access
-to the GitHub repo `maiaPaperTowns/mhacks-2026` (ask Maia to add you as a collaborator if links 404).
+You need: a **FREE-WILi OG** badge + its USB-C cable, a **laptop** (Windows or Mac) with **Google Chrome** (or
+Microsoft Edge), and access to the GitHub repo `maiaPaperTowns/mhacks-2026` (ask Maia to add you as a collaborator if
+links 404).
+
+**On Windows:** everything works the same. You don't need Node, git or any drivers: the website is a link, and
+Windows 10/11 recognises the badge's USB ports by itself.
 
 ## 1. Install the FREE-WILi GUI (once)
 
 Get **FreeWili GUI** from the FREE-WILi website or the MHacks kit instructions (it's the same app Maia uses; she can
-AirDrop it too). Unzip it and open it. On a Mac, if it says it can't be opened: right-click it → **Open** → **Open**.
+AirDrop it too). Unzip it and open it. On Windows, if SmartScreen warns about it: **More info** → **Run anyway**. On a Mac, if it says it can't be
+opened: right-click it → **Open** → **Open**.
 
 ## 2. Put the mutuals app on your badge
 
 1. Download **mutuals.uf2** from
    <https://github.com/maiaPaperTowns/mhacks-2026/releases/tag/mutuals-badge-v1>.
 2. Put it in the GUI's **catalog** folder:
+   - **Windows:** open the GUI → **Setup** → **FreeWili OG updater** → **Apps** tab and click the **folder button**
+     (📁, next to *Online Update*). It opens the catalog folder. Copy `mutuals.uf2` from your Downloads into it,
+     then close and reopen the updater so it shows up. If the folder button doesn't open it, look for a folder
+     named `catalog` next to the FreeWili GUI program (where you unzipped or installed it).
    - **Mac:** in Finder, right-click **FreeWili GUI.app** → **Show Package Contents** → open `Contents` → `MacOS` →
      `catalog`, and drop `mutuals.uf2` in there.
-   - **Windows:** the `catalog` folder inside the FREE-WILi GUI's install folder.
 3. Plug the badge into the laptop with USB-C and switch it on.
 4. In the GUI: **Setup** → **FreeWili OG updater** → wait until **Device** shows your FREE-WILi → **Apps** tab.
 5. Click **mutuals** in the list (it may say *[Unlisted]*, that's fine). **Scroll down in the right-hand panel**
@@ -30,7 +38,8 @@ If the GUI shows two "RPI-RP2" drives or the badge seems stuck: unplug it, wait 
 **Option A: the shared link.** Open the link Maia sends (it looks like `https://….trycloudflare.com`) in
 **Chrome**. Skip to step 4.
 
-**Option B: run it on your laptop.** Needs [Node.js 20.19+](https://nodejs.org) and git.
+**Option B: run it on your laptop.** Only if the shared link isn't available. Needs [Node.js 20.19+](https://nodejs.org)
+and git (on Windows, run these in **PowerShell**).
 
 ```bash
 git clone https://github.com/maiaPaperTowns/mhacks-2026.git
@@ -38,7 +47,8 @@ cd mhacks-2026/map
 npm ci
 ```
 
-Create a file `map/.env.local` with these three lines (the Clerk key is a public key):
+Create a file `map/.env.local` with these three lines (the Clerk key is a public key). On Windows, in Notepad
+choose *Save as type: All files* so it isn't saved as `.env.local.txt`.
 
 ```
 VITE_SPACETIMEDB_URI=wss://maincloud.spacetimedb.com
@@ -64,7 +74,8 @@ Open **http://localhost:5173** in **Chrome**. The top right should say **Live sy
 
 1. Close the FREE-WILi GUI first: only one app can use the badge at a time.
 2. In the white card on the left, find the 🐶 **mutuals FREE-WILi badge** box and click **Connect**.
-3. Chrome lists **FWOG display photon 001**. Select it, then click **Connect**.
+3. Chrome lists **FWOG display photon 001** (on Windows it may add a port like *COM5*). Select it, then click
+   **Connect**. If you see two FWOG entries, pick the one that says **display**.
 4. The box says **mutuals badge connected**. The badge shows a sleeping pup: **not discoverable**.
 
 ## 6. Use it
@@ -122,6 +133,8 @@ points sync to the website the next time you connect.
 
 ## Troubleshooting
 
+- **Windows: the badge doesn't show up anywhere:** try another USB-C cable (some only charge) and another USB
+  port. In Device Manager → *Ports (COM & LPT)* you should see two USB serial devices while the badge is on.
 - **Chrome says "No compatible devices found":** the badge is still restarting after a flash. Wait 30 s, or unplug
   and replug it, then click Connect again.
 - **"Couldn't open the badge":** the FREE-WILi GUI or another tab is using it. Close them and retry.
