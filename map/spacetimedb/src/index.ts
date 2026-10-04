@@ -2011,7 +2011,7 @@ function askEventAgent(ctx: CloudContext, fromAgent: keyof typeof ASSISTANT_AGEN
   const toAgent = target as keyof typeof ASSISTANT_AGENTS, question = rawQuestion.trim(), exchangeId = `${turnId}__${toAgent}__${question}`;
   const snapshot = ctx.withTx(tx => {
     const account = resolveAccount(tx);
-    requireEventMember(tx, eventId, account.userId); requireEventPhase(tx, eventId, fromAgent);
+    requireEventMember(tx, eventId, account.userId);
     const turn = tx.db.assistantTurn.turnId.find(turnId);
     if (!turn || turn.userId !== account.userId || turn.eventId !== eventId || turn.stage !== fromAgent) throw new SenderError('This agent exchange is unavailable to your account.');
     const existing = tx.db.agentExchange.exchangeId.find(exchangeId);
@@ -2028,7 +2028,7 @@ function askEventAgent(ctx: CloudContext, fromAgent: keyof typeof ASSISTANT_AGEN
   const response = asiComplete(ctx, cloudConfig(ctx), `${ASSISTANT_POLICY}\nYou are the consulted ${agent.name}. ${agent.purpose}\nAnswer the ${ASSISTANT_AGENTS[fromAgent].name}'s question using only supplied evidence for this user and event. This is a read-only historical consultation, even if your original stage has ended. Do not request another agent, perform actions, invent meeting contents or contact addresses. Separate requested, accepted and completed connection states.`, JSON.stringify({ question, evidence: snapshot.context }), 600).trim().slice(0, 6000);
   return ctx.withTx(tx => {
     const account = resolveAccount(tx);
-    requireEventMember(tx, eventId, account.userId); requireEventPhase(tx, eventId, fromAgent);
+    requireEventMember(tx, eventId, account.userId);
     const turn = tx.db.assistantTurn.turnId.find(turnId);
     if (account.userId !== snapshot.userId || !turn || turn.userId !== account.userId) throw new SenderError('Your conversation changed while processing.');
     const existing = tx.db.agentExchange.exchangeId.find(exchangeId);
@@ -2053,7 +2053,6 @@ function assistantTool(ctx: CloudContext, stage: keyof typeof ASSISTANT_AGENTS, 
   return ctx.withTx(tx => {
     const userId = resolveAccount(tx).userId;
     requireEventMember(tx, eventId, userId);
-    requireEventPhase(tx, eventId, stage);
     if (name === 'get_interest_list') return interestPage(tx, eventId, userId, 0, 50);
     if (name === 'get_connections') return eventConnections(tx, eventId, userId);
     if (name === 'set_star') {
@@ -2062,10 +2061,12 @@ function assistantTool(ctx: CloudContext, stage: keyof typeof ASSISTANT_AGENTS, 
       return { starred: args.starred, target_id: args.target_id };
     }
     if (name === 'request_connection') {
+      requireEventPhase(tx, eventId, stage);
       requestEventConnection(tx, { eventId, targetId: String(args.target_id) });
       return eventConnections(tx, eventId, userId).find(row => row.target_id === args.target_id);
     }
     if (name === 'respond_connection') {
+      requireEventPhase(tx, eventId, stage);
       if (typeof args.accept !== 'boolean') throw new SenderError('Specify accept or decline.');
       respondEventConnection(tx, { eventId, interactionId: String(args.interaction_id), accept: args.accept });
       return { interaction_id: args.interaction_id, status: args.accept ? 'accepted' : 'declined' };
@@ -2081,7 +2082,6 @@ function runAssistantMessage(ctx: CloudContext, args: { eventId: string; stage: 
     if (!input || input.length > 4000 || !/^[a-zA-Z0-9_-]{1,100}$/.test(args.requestId)) throw new SenderError('Add a message of at most 4000 characters and a valid request ID.');
     const snapshot = ctx.withTx(tx => {
       const account = resolveAccount(tx), member = requireEventMember(tx, args.eventId, account.userId), event = requireNetworkingEvent(tx, args.eventId);
-      requireEventPhase(tx, args.eventId, stage);
       const turnId = `${account.userId}__${args.requestId}`, existing = tx.db.assistantTurn.turnId.find(turnId);
       if (existing && (existing.input !== input || existing.stage !== stage || existing.eventId !== args.eventId)) throw new SenderError('This request ID has already been used for another message.');
       if (existing?.status === 'completed') return { completed: existing.resultJson };
@@ -2098,7 +2098,7 @@ function runAssistantMessage(ctx: CloudContext, args: { eventId: string; stage: 
         .slice(-12).map(row => ({ role: row.role, content: row.content }));
       return { turnId, account, history, tools: JSON.parse(row.resultJson).tools || {}, context: {
         available_agents: Object.keys(ASSISTANT_AGENTS),
-        event: { title: event.title, venue: event.venue, status: event.status, matching_status: event.matchingStatus },
+        event: { title: event.title, venue: event.venue, status: event.status, phase: networkingPhase(tx, args.eventId), matching_status: event.matchingStatus },
         own_profile: { ...account.profile, embedding: undefined }, membership: { area: member.zoneId, availability: member.availabilityStatus, discoverable: member.discoverable },
         interest_list: interestPage(tx, args.eventId, account.userId, 0, 10), connections: eventConnections(tx, args.eventId, account.userId),
       } };
@@ -2148,7 +2148,6 @@ function runAssistantMessage(ctx: CloudContext, args: { eventId: string; stage: 
               snapshot.tools[key] = result;
               ctx.withTx(tx => {
                 resolveAccount(tx); requireEventMember(tx, args.eventId, userId);
-                requireEventPhase(tx, args.eventId, stage);
                 const row = tx.db.assistantTurn.turnId.find(turnId);
                 if (!row) throw new SenderError('Your conversation changed while processing.');
                 tx.db.assistantTurn.turnId.update({ ...row, resultJson: JSON.stringify({ tools: snapshot.tools }) });
@@ -2164,7 +2163,6 @@ function runAssistantMessage(ctx: CloudContext, args: { eventId: string; stage: 
       const resultJson = JSON.stringify({ reply: answer.content.trim().slice(0, 12000), actions, agent: agent.name, stage, event_id: args.eventId });
       return ctx.withTx(tx => {
         const account = resolveAccount(tx); requireEventMember(tx, args.eventId, account.userId);
-        requireEventPhase(tx, args.eventId, stage);
         const row = tx.db.assistantTurn.turnId.find(turnId);
         if (!row) throw new SenderError('Your conversation changed while processing.');
         tx.db.assistantMessage.insert({ messageId: `${turnId}__assistant`, userId, eventId: args.eventId, stage, role: 'assistant', content: JSON.parse(resultJson).reply, createdAt: tx.timestamp });

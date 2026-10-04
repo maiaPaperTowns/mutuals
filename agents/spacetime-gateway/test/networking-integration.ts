@@ -90,7 +90,7 @@ try {
     ctx.db.eventLocationExpiry.scheduledId.update({ ...expiry, scheduledAt: ScheduleAt.time(ctx.timestamp.microsSinceUnixEpoch + 50000n) });
   });\n`;
   await writeFile(join(moduleDir, 'src/index.ts'), source);
-  for (const name of ['networking.ts','assistantAgents.ts']) await writeFile(join(moduleDir, 'src', name), await readFile(join(repo, 'map/spacetimedb/src', name)));
+  for (const name of ['networking.ts','assistantAgents.ts','mapProfile.ts']) await writeFile(join(moduleDir, 'src', name), await readFile(join(repo, 'map/spacetimedb/src', name)));
   for (const name of ['package.json','tsconfig.json']) await writeFile(join(moduleDir, name), await readFile(join(repo, 'map/spacetimedb', name)));
   await symlink(join(repo, 'map/spacetimedb/node_modules'), join(moduleDir, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
   execFileSync(cli, [...cliArgs, 'publish', dbName, '--server', server, '--module-path', moduleDir, '--yes'], { windowsHide: true, stdio: ['ignore','pipe','pipe'] });
@@ -173,6 +173,13 @@ try {
   }
   await until(() => Array.from(admin.db.myAssistantMessages.iter()).filter(row => manualRequests.some(id => row.messageId.includes(id))).length === 6, 'private chat history');
   assert.equal(Array.from(peer.db.myAssistantMessages.iter()).some(row => manualRequests.some(id => row.messageId.includes(id))), false);
+  const historicalRequest = { eventId, stage: 'pre', message: 'Explain my saved Pre preparation again.', requestId: randomUUID() };
+  const historicalReply = JSON.parse(await admin.procedures.sendAssistantMessage(historicalRequest));
+  assert.ok(historicalReply.reply);
+  assert.equal(JSON.parse(await admin.procedures.sendAssistantMessage(historicalRequest)).reply, historicalReply.reply);
+  await until(() => Array.from(admin.db.myAssistantMessages.iter()).filter(row => row.messageId.includes(historicalRequest.requestId)).length === 2, 'historical Pre chat during Post');
+  assert.equal(Array.from(peer.db.myAssistantMessages.iter()).some(row => row.messageId.includes(historicalRequest.requestId)), false);
+  await assert.rejects(outsider.procedures.sendAssistantMessage({ ...historicalRequest, requestId: randomUUID() }), /member|join/);
   const recap = JSON.parse(await admin.procedures.generateEventRecap({ eventId })); assert.ok(recap.reply);
   await until(() => Array.from(admin.db.myAgentExchanges.iter()).length === 2, 'Post asks Pre and During');
   assert.deepEqual(Array.from(admin.db.myAgentExchanges.iter()).map(row => row.toAgent).sort(), ['during','pre']);
@@ -212,10 +219,12 @@ try {
   await until(() => Array.from(admin.db.networkingInvitations.iter()).length === 0 && Array.from(admin.db.myAgentInteractions.iter()).length === 0, 'event deletion cascade');
   const countsResponse = await fetch(`${server}/v1/database/${dbName}/sql`, { method: 'POST', headers: { Authorization: `Bearer ${localToken}`, 'Content-Type': 'text/plain' }, body: "SELECT value FROM cloud_provider_config WHERE name = 'test_provider_counts'" });
   const counts = JSON.parse((await countsResponse.json())[0].rows[0][0]);
-  assert.equal(counts.query, 3); assert.equal(counts.vectors, 3); assert.equal(counts.asi, 11);
+  assert.equal(counts.query, 3); assert.equal(counts.vectors, 3); assert.equal(counts.asi, 12);
   console.log(JSON.stringify({ result: 'PASS', runtime: 'actual local SpacetimeDB + SDK', participants: 3, outsider: 1, providers: 'synthetic test adapter', checks: ['admin identity and event phases','frozen roster','cached ROI unchanged in During','member privacy','automatic GPS presence and topics','reverse duplicate request','busy acceptance blocks third person','End chat restores free and notifications','three private agent histories','Post consultations and cached recap','accepted contact sharing and withdrawal','completed follow-up','GPS stop/expiry/disconnect','admin edit/delete cascade'], provider_counts: counts }));
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
+  if (error && typeof error === 'object' && 'stderr' in error) console.error(String(error.stderr).slice(-5000));
+  if (error && typeof error === 'object' && 'stdout' in error) console.error(String(error.stdout).slice(-5000));
   console.error(dbLogs.slice(-5).join('').slice(-3000)); process.exitCode = 1;
 } finally {
   for (const conn of connections) conn.disconnect();

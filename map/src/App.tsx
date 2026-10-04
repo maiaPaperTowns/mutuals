@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useRef, useState, type FormEvent } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { FavoritePeople, HomeNavigation, LiveFavoritePeople, LiveHomeNavigation } from './HomePanels';
 import { SignIn, SignUp, useClerk } from '@clerk/react';
 import { MapContainer, Marker, TileLayer, Tooltip, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
@@ -163,7 +164,7 @@ function LiveMapContent({ authEnabled, accountName }: { authEnabled: boolean; ac
   };
 
   const connected = isActive;
-  return <MapExperience myName={myProfile?.displayName || accountName} pins={pins} profileById={profileById} myId={id} loaded={loaded} connected={connected} signedIn={signedIn} sharing={sharing} busy={busy} message={message || locationError} onToggle={toggleSharing} onRequestSignIn={requestSignIn} authEnabled={authEnabled} accountName={accountName} areas={areas} />;
+  return <MapExperience myName={myProfile?.displayName || accountName} pins={pins} profileById={profileById} myId={id} loaded={loaded} connected={connected} signedIn={signedIn} sharing={sharing} busy={busy} message={message || locationError} onToggle={toggleSharing} onRequestSignIn={requestSignIn} authEnabled={authEnabled} accountName={accountName} areas={areas} navigation={<LiveHomeNavigation signedIn={signedIn} />} people={<LiveFavoritePeople signedIn={signedIn} />} />;
 }
 
 function AccountControl({ authEnabled, signedIn, accountName, onRequestSignIn }: {
@@ -181,12 +182,15 @@ function SignedInAccount({ accountName }: { accountName: string }) {
   const { signOut } = useClerk();
   const [profileRows, profileLoaded] = useTable(tables.myProfile);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [profileEditing, setProfileEditing] = useState(false);
   const profile = profileRows[0];
   const name = profile?.displayName || accountName;
-  return <>
-    <div className="account-chip"><span className="account-avatar">{name.slice(0, 1).toUpperCase()}</span><span className="account-name"><b>{name}</b><small>ACCOUNT</small></span><button className="profile-button" type="button" onClick={() => setProfileOpen(true)}>{profileLoaded && !profile ? 'Set up profile' : 'Profile'}</button><button className="sign-out" type="button" onClick={() => void signOut()}>Sign out</button></div>
-    {profileOpen && <ProfileDialog initialProfile={profile} onClose={() => setProfileOpen(false)} />}
-  </>;
+  return <div className="account-banner">
+    <div className="account-identity"><span className="account-avatar" aria-hidden="true"><img src="/redesign/avatar-bg.svg" alt="" /><img src="/redesign/avatar-head.svg" alt="" /><img src="/redesign/avatar-shoulders.svg" alt="" /></span><b>{name}</b></div>
+    <div className="account-actions"><button className="profile-button" type="button" aria-expanded={profileOpen} aria-controls="account-profile-dropdown" onClick={() => setProfileOpen(value => !value)}>{profileLoaded && !profile ? 'Set up profile' : 'Profile'}</button><button className="sign-out" type="button" onClick={() => void signOut()}>Sign out</button></div>
+    {profileOpen && <section className="account-dropdown" id="account-profile-dropdown" aria-label="Your profile"><h2>{name}</h2><p>{profile?.headline || 'Add your introduction to build your profile.'}</p>{profile?.interests && <p>{profile.interests}</p>}<a className="nav-link" href="/chat">Build my profile →</a><button className="profile-button" onClick={() => { setProfileOpen(false); setProfileEditing(true); }}>Edit map profile</button></section>}
+    {profileEditing && <ProfileDialog initialProfile={profile} onClose={() => setProfileEditing(false)} />}
+  </div>;
 }
 
 function ProfileDialog({ initialProfile, onClose }: { initialProfile?: UserProfile; onClose: () => void }) {
@@ -259,8 +263,8 @@ function AuthDialog({ onClose, authEnabled }: { onClose: () => void; authEnabled
   </div>;
 }
 
-function MapExperience({ myName = '', pins, profileById, myId, loaded, connected, signedIn, sharing, busy, message, onToggle, onRequestSignIn, authEnabled, accountName, preview = false, areas = [] }: {
-  myName?: string; pins: LocationPin[]; profileById: Map<string, PublicMapProfile>; myId: string; loaded: boolean; connected: boolean; signedIn: boolean; sharing: boolean; busy: boolean; message: string; onToggle: () => void; onRequestSignIn: () => void; authEnabled: boolean; accountName: string; preview?: boolean; areas?: EventArea[];
+function MapExperience({ myName = '', pins, profileById, myId, loaded, connected, signedIn, sharing, busy, message, onToggle, onRequestSignIn, authEnabled, accountName, preview = false, areas = [], navigation, people }: {
+  myName?: string; pins: LocationPin[]; profileById: Map<string, PublicMapProfile>; myId: string; loaded: boolean; connected: boolean; signedIn: boolean; sharing: boolean; busy: boolean; message: string; onToggle: () => void; onRequestSignIn: () => void; authEnabled: boolean; accountName: string; preview?: boolean; areas?: EventArea[]; navigation?: ReactNode; people?: ReactNode;
 }) {
   // mutuals: who's near you earns points (+10 nearby, +50 found) and levels; the FREE-WILi badge mirrors it all
   // and its YES / NO buttons work the share switch.
@@ -302,26 +306,29 @@ function MapExperience({ myName = '', pins, profileById, myId, loaded, connected
       })}
     </MapContainer>
 
-    <header className="map-topbar"><a className="brand" href="/" aria-label="mutuals">{formal ? <b className="brand-text">mutuals</b> : <img className="brand-word" src="/mutuals/mutuals_word.png" alt="mutuals" />}<small>{formal ? 'PROFESSIONAL NETWORKING · MHACKS 2026' : 'PEOPLE FIND PEOPLE · MHACKS 2026'}</small></a><div className="topbar-actions"><a className="nav-link" href="/events">Events & assistants</a><a className="nav-link" href="/chat">My profile</a><StyleToggle /><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div><AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={onRequestSignIn} /></div></header>
+    <header className="map-topbar"><div className="map-brand-controls"><a className="brand" href="/" aria-label="mutuals">{formal ? <b className="brand-text">mutuals</b> : <img className="brand-word" src="/mutuals/mutuals_word.png" alt="mutuals" />}<small>{formal ? 'PROFESSIONAL NETWORKING · MHACKS 2026' : 'PEOPLE FIND PEOPLE · MHACKS 2026'}</small></a><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div><StyleToggle /></div><AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={onRequestSignIn} /></header>
 
+    <div className="map-left-stack">
     <section className="map-card" aria-label="Live location sharing controls">
       <span className="eyebrow">DUDERSTADT CENTER · ANN ARBOR</span>
       <h1>Find people nearby.</h1>
       <p className="subhead">Find people nearby. Hover over a dot to see the name and short profile they've chosen to share.</p>
       <PointsCard {...score} formal={formal} />
-      <ConnectionsList connections={score.connections.map(c => ({ ...c, name: nameOf(c.id) || c.name }))} formal={formal} />
-      <div className="count-line"><span className="count-number">{loaded ? pins.length : '—'}</span><span>people sharing location</span><i className="count-live" /></div>
+      <details className="found-connections"><summary>{formal ? 'Your connections' : 'People you find show up here 🐾'}</summary><ConnectionsList connections={score.connections.map(c => ({ ...c, name: nameOf(c.id) || c.name }))} formal={formal} /></details>
+      <div className="map-share-row"><div className="count-line"><span className="count-number">{loaded ? pins.length : '—'}</span><span>people sharing location</span><i className="count-live" /></div>
       <button className={`share-button${sharing ? ' sharing' : ''}`} type="button" role={signedIn || preview ? 'switch' : undefined} aria-checked={signedIn || preview ? sharing : undefined} disabled={busy || (!connected && !preview)} onClick={onToggle}>
         <span className="switch-dot" />{busy ? 'Updating…' : sharing ? 'Stop sharing my location' : preview ? 'Preview my location' : signedIn ? 'Share my live location' : 'Sign in to share your location'}
-      </button>
+      </button></div>
       <div className="consent"><span aria-hidden="true">◉</span><p>{preview ? <>In local preview, your <strong>GPS location</strong> appears only in this browser and isn't synced to the cloud.</> : signedIn ? <>When enabled, your <strong>exact GPS location</strong> and your <strong>profile name</strong> are visible to everyone viewing this map, so people (and their mutuals badges) know who's nearby.</> : <>Anyone can view this map. <strong>Sign in</strong> before sharing your own live location or saving a profile.</>}</p></div>
       {sharing && <p className="sharing-status">{message || (preview ? 'Local preview: your location is not sent to anyone.' : "Waiting for your phone's location… The first fix may take a few seconds.")}</p>}
       {!sharing && message && <p className="error-message" role="alert">{message}</p>}
       {!signedIn && !preview && <button className="profile-link" type="button" onClick={onRequestSignIn}>Sign up or log in to share your location</button>}
-      <BadgeControl status={status} formal={formal} needsSignIn={!signedIn && !preview} problem={message} {...badge} />
+      <details className="home-badge"><summary>mutuals badge</summary><BadgeControl status={status} formal={formal} needsSignIn={!signedIn && !preview} problem={message} {...badge} /></details>
       {score.gain && <div className="points-toast" key={score.gain.at}>+{score.gain.points} pts · {gainText(score.gain, formal)}</div>}
     </section>
-
+    {navigation || <HomeNavigation events={[]} memberEventIds={[]} signedIn={false} />}
+    </div>
+    {people || <FavoritePeople events={[]} stars={[]} names={{}} signedIn={false} />}
     <div className="map-bottom"><span>Hover over a dot for a profile · Indoor GPS may drift</span><span>Map data &copy; OpenStreetMap</span></div>
   </main>;
 }

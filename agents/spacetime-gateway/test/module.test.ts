@@ -355,7 +355,7 @@ test('automatic recap cannot execute a mutating tool even if the model requests 
   assert.equal([...f.db.agentFollowUpPlan.iter()].length, 0);
 });
 
-test('Pre can ask During for read-only evidence and an event phase change prevents saving a colleague reply', () => {
+test('Pre can ask During for read-only evidence even when the event phase changes', () => {
   const f = networkingFixture(2);
   let changePhase = false, consultation = false;
   f.ctx.http.fetch = (_url: string, options: any) => {
@@ -376,8 +376,9 @@ test('Pre can ask During for read-only evidence and an event phase change preven
   module.startNetworkingEvent(f.tx, { eventId: f.eventId });
   module.prepareNetworkingEvent(f.ctx, { eventId: f.eventId });
   changePhase = true;
-  assert.throws(() => module.sendAssistantMessage(f.ctx, { eventId: f.eventId, stage: 'pre', message: 'Ask During again.', requestId: 'phase-changed-consult' }), /phase/);
-  assert.equal(module.myAgentExchanges(f.tx).length, 1);
+  assert.ok(JSON.parse(module.sendAssistantMessage(f.ctx, { eventId: f.eventId, stage: 'pre', message: 'Ask During again.', requestId: 'phase-changed-consult' })).reply);
+  assert.equal(module.myAgentExchanges(f.tx).length, 2);
+  assert.equal(module.myAgentExchanges(f.forUser(f.users[1])).length, 0);
 });
 
 test('GPS automatically joins During and requests reuse the exact saved Pre ROI and reason', () => {
@@ -470,9 +471,13 @@ test('expired or disconnected GPS clears free presence and blocks connections', 
   assert.equal(f.db.networkingMember.memberId.find(`${f.eventId}__${peer.toHexString()}`).availabilityStatus, 'offline');
 });
 
-test('assistant and follow-up writes honor persisted phase even when it changes during a model call', () => {
+test('historical assistant chats survive phase changes while follow-up writes honor the real phase', () => {
   const f = automaticDuringFixture(2);
-  assert.throws(() => module.sendAssistantMessage(f.ctx, { eventId: f.eventId, stage: 'post', message: 'Follow up', requestId: 'wrong-phase' }), /phase/);
+  const historical = { eventId: f.eventId, stage: 'pre', message: 'Explain my saved preparation', requestId: 'historical-pre' };
+  assert.ok(JSON.parse(module.sendAssistantMessage(f.ctx, historical)).reply);
+  module.sendAssistantMessage(f.ctx, historical);
+  assert.equal(module.myAssistantMessages(f.tx).length, 2);
+  assert.equal(module.myAssistantMessages(f.forUser(f.users[1])).length, 0);
   module.requestEventConnection(f.tx, { eventId: f.eventId, targetId: f.users[1].toHexString() });
   const pair = [...f.db.agentInteraction.iter()][0];
   module.respondEventConnection(f.forUser(f.users[1]), { eventId: f.eventId, interactionId: pair.interactionId, accept: true });
@@ -486,8 +491,9 @@ test('assistant and follow-up writes honor persisted phase even when it changes 
   assert.equal([...f.db.agentFollowUpPlan.iter()].length, 0);
   module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'during' });
   const savedAssistantMessages = [...f.db.assistantMessage.iter()].filter(row => row.role === 'assistant').length;
-  assert.throws(() => module.sendAssistantMessage(f.ctx, { eventId: f.eventId, stage: 'during', message: 'Hello', requestId: 'changed-phase' }), /phase/);
-  assert.equal([...f.db.assistantMessage.iter()].filter(row => row.role === 'assistant').length, savedAssistantMessages);
+  assert.ok(JSON.parse(module.sendAssistantMessage(f.ctx, { eventId: f.eventId, stage: 'during', message: 'Hello', requestId: 'changed-phase' })).reply);
+  assert.equal([...f.db.assistantMessage.iter()].filter(row => row.role === 'assistant').length, savedAssistantMessages + 1);
+  assert.throws(() => module.requestEventConnection(f.tx, { eventId: f.eventId, targetId: f.users[1].toHexString() }), /During/);
 });
 
 test('event creation requires provisioned admin identity, never a display name', () => {

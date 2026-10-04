@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import Brand from './Brand';
 import type { IntakeProfile, ProfileApi } from './profileApi';
 
 type Entry = { text: string; filename?: string };
@@ -55,12 +56,21 @@ export default function ProfileChat({ signedIn, accountName, api, onSignIn, acco
 
   return <main className="profile-chat">
     <header className="chat-topbar">
-      <a className="brand" href="/" aria-label="MHacks live map"><span className="brand-mark">mh<span>+</span></span><span><b>MHACKS</b><small>PEOPLE & POSSIBILITIES</small></span></a>
-      <div className="chat-nav"><a className="nav-link" href="/events">Events & assistants</a><a className="nav-link" href="/">↗ Live map</a>{accountControl}</div>
+      <div className="shared-brand"><Brand /><a className="nav-link" href="/">↗ Live map</a></div>
+      <div className="chat-nav">{accountControl}</div>
     </header>
+    <div className="profile-intro"><h1 id="intake-title">Good connections start with <em>you.</em></h1></div>
     <div className="chat-layout">
+      <aside className={`profile-summary${summaryOpen ? ' summary-open' : ''}`} aria-label="Saved profile">
+        <button className="summary-toggle" type="button" aria-expanded={summaryOpen} aria-controls="saved-profile-details" onClick={() => setSummaryOpen(value => !value)}>Your saved profile <span>{summaryOpen ? '−' : '+'}</span></button>
+        <div id="saved-profile-details" className="summary-details"><h2 className="profile-title">Profile</h2><div className="summary-identity"><div className="summary-avatar">{(profile?.name || accountName).slice(0, 1).toUpperCase()}</div><div><h2>{profile?.name || (signedIn ? accountName : 'Your name')}</h2><p className="summary-headline">{profile?.headline || 'Add a short introduction about yourself.'}</p><span className="profile-save-state">{profile ? '✓ Saved to your account' : 'No changes yet'}</span></div></div>
+          {(['skills', 'interests', 'goals', 'offerings'] as const).map(key => <section className="summary-section" key={key}><h3>{key === 'goals' ? 'Looking for' : key === 'offerings' ? 'Can offer' : key}</h3>{profile?.[key]?.length ? <ul>{profile[key].map(value => <li key={value}>{value}</li>)}</ul> : <button className="profile-add-context" type="button" onClick={() => { setDraft(previous => previous ? `${previous}\n${key === 'skills' ? 'My skills include: ' : key === 'interests' ? 'My interests include: ' : key === 'goals' ? 'I want to meet people who: ' : 'I can offer: '}` : key === 'skills' ? 'My skills include: ' : key === 'interests' ? 'My interests include: ' : key === 'goals' ? 'I want to meet people who: ' : 'I can offer: '); composer.current?.focus(); }}>{key === 'skills' ? 'Add skills +' : key === 'interests' ? 'Add interests +' : key === 'goals' ? 'Who would you like to meet?' : 'What can you share or help with?'}</button>}</section>)}
+          {profile?.resume_filename && <p className="summary-resume">↳ {profile.resume_filename}</p>}
+          <p className="summary-footnote">This is your saved profile, ready for matching. Saving here does not check you into an event or start a match.</p>
+        </div>
+      </aside>
       <section className="intake-panel" aria-labelledby="intake-title">
-        <div className="intake-heading"><span className="eyebrow">01 / YOUR INTRODUCTION</span><h1 id="intake-title">Good connections<br />start with <em>you.</em></h1><p>Bring your experience, your ideas, and what you are looking for. Build a profile for future connections.</p></div>
+        <div className="profile-agent-heading"><span className="intake-avatar" aria-hidden="true">mh+</span><div><h2>AI Agent</h2><small>Your profile assistant</small></div></div>
         <div className="intake-thread" role="log" aria-label="Profile conversation" aria-live="polite">
           <article className="intake-note"><span className="intake-avatar" aria-hidden="true">mh+</span><div><b>Let's get to know you.</b><p>Attach your resume or tell us a little about yourself. What do you enjoy building? Who would you like to meet?</p><small>You can add more later. Your resume and introduction stay off the public map.</small></div></article>
           {loading && <p className="intake-status" role="status">Loading your saved profile…</p>}
@@ -77,14 +87,7 @@ export default function ProfileChat({ signedIn, accountName, api, onSignIn, acco
         </form>}
         {error && <p className="intake-error" role="alert">{error}</p>}
       </section>
-      <aside className={`profile-summary${summaryOpen ? ' summary-open' : ''}`} aria-label="Saved profile">
-        <button className="summary-toggle" type="button" aria-expanded={summaryOpen} aria-controls="saved-profile-details" onClick={() => setSummaryOpen(value => !value)}>Your saved profile <span>{summaryOpen ? '−' : '+'}</span></button>
-        <div id="saved-profile-details" className="summary-details"><span className="eyebrow">02 / YOUR PROFILE</span><div className="summary-avatar">{(profile?.name || accountName).slice(0, 1).toUpperCase()}</div><h2>{profile?.name || (signedIn ? accountName : 'Your next chapter')}</h2><p className="summary-headline">{profile?.headline || 'A little context goes a long way.'}</p><span className="profile-save-state">{profile ? '✓ Saved to your account' : 'Ready when you are'}</span>
-          {(['skills', 'interests', 'goals', 'offerings'] as const).map(key => <section className="summary-section" key={key}><h3>{key === 'goals' ? 'Looking for' : key === 'offerings' ? 'Can offer' : key}</h3>{profile?.[key]?.length ? <ul>{profile[key].map(value => <li key={value}>{value}</li>)}</ul> : <p>Add a little about this in your introduction.</p>}</section>)}
-          {profile?.resume_filename && <p className="summary-resume">↳ {profile.resume_filename}</p>}
-          <p className="summary-footnote">This is your saved profile, ready for matching. Saving here does not check you into an event or start a match.</p>
-        </div>
-      </aside>
+
     </div>
     {networking}
     <footer className="chat-footer"><span>MHACKS / MEET YOUR PEOPLE</span><span>A resume is a start. The rest is you.</span></footer>
