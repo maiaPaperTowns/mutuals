@@ -31,3 +31,13 @@ Branch: `feat/figma-ui-migration`, initially based on `main` at `10f350a`. The w
 - Figma education reauthorization and the previously quota-blocked expanded design comparison remain incomplete pending manual school-account login. No credentials, private screenshots or temporary runtime files were committed.
 
 The Event match-card click item is resolved and removed from the clarification list. Only the Figma account/design comparison blocker described above remains pending for this follow-up.
+
+## Authorized production deployment
+
+On October 4, 2026, the user explicitly requested deploying the new branch to `mutuals.tech`, superseding the earlier Preview-only website target.
+
+- Source: `feat/figma-ui-migration` at `1ddea26a3cef029c27025fc6d87a6c90b376fe8e`; remote branch SHA verified equal to local HEAD before deployment. No main merge was performed.
+- Production deployment: `dpl_DnCYAkVz1ZiKqhodbM5pV2dFiBsr`, independently inspected as READY with target production.
+- [Production website](https://mutuals.tech/) now aliases this deployment. The former production deployment recorded above has been replaced.
+- Home, demo event route and demo image returned HTTP 200. The custom domain serves the new production JS bundle `index-B51Zhmbc.js` and stylesheet `index-CAZ3xE6q.css`.
+- The Vercel production TypeScript/Vite build passed. Backend code was already synchronized; this action only deployed the website.
