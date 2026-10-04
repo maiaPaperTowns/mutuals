@@ -3,6 +3,7 @@ import type { InferSchema, ReducerCtx } from 'spacetimedb/server';
 import type { ProcedureCtx } from 'spacetimedb/server';
 import { TimeDuration, ScheduleAt } from 'spacetimedb';
 import { profileSubject, scoreNetworking } from './networking';
+import { mapHeadline } from './mapProfile';
 import { ASSISTANT_AGENTS, ASSISTANT_POLICY } from './assistantAgents';
 
 // Issuer and audience from the MHacks Clerk SpacetimeDB JWT template.
@@ -647,7 +648,7 @@ export const publicProfiles = spacetimedb.anonymousView(
     .map((profile) => ({
       participantId: profile.identity.toHexString(),
       displayName: profile.displayName,
-      headline: profile.headline,
+      headline: profile.headline || mapHeadline(JSON.parse(profile.agentProfileJson || '{}')),
       interests: profile.interests,
     })),
 );
@@ -1542,7 +1543,7 @@ export const myEventContacts = spacetimedb.view({ name: 'my_event_contacts', pub
     && (row.userId === userId || (row.shared && accepted.some(connection => JSON.parse(connection.payloadJson).event_id === row.eventId && [connection.userId, connection.targetId].includes(row.userId)))));
 });
 const eventMapPin = t.row('EventMapPin', {
-  locationId: t.string().primaryKey(), eventId: t.string(), userId: t.string(), name: t.string(), zoneId: t.string(),
+  locationId: t.string().primaryKey(), eventId: t.string(), userId: t.string(), name: t.string(), headline: t.string(), zoneId: t.string(),
   latitude: t.f64(), longitude: t.f64(), accuracyMeters: t.f64(), updatedAt: t.timestamp(),
 });
 export const myEventMapPins = spacetimedb.view({ name: 'my_event_map_pins', public: true }, t.array(eventMapPin), ctx => {
@@ -1552,7 +1553,7 @@ export const myEventMapPins = spacetimedb.view({ name: 'my_event_map_pins', publ
       const member = ctx.db.networkingMember.memberId.find(eventKey(row.eventId, row.userId));
       if (!member?.discoverable || !ctx.db.networkingEvent.eventId.find(row.eventId) || networkingPhase(ctx, row.eventId) !== 'during') return [];
       const profile = JSON.parse(member.profileSnapshotJson || '{}');
-      return [{ ...row, name: profile.name || 'Participant', zoneId: member.zoneId }];
+      return [{ ...row, name: profile.name || 'Participant', headline: mapHeadline(profile), zoneId: member.zoneId }];
     });
 });
 

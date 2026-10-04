@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { Circle, MapContainer, Marker, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { MapContainer, Marker, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useReducer } from 'spacetimedb/react';
 import { reducers } from './module_bindings';
 import { EventAreaLayer, type AreaPoint } from './EventAreaMap';
 
-export type EventPin = { locationId: string; eventId: string; userId: string; name: string; latitude: number; longitude: number; accuracyMeters: number; updatedAt: { microsSinceUnixEpoch: bigint } };
-const marker = (mine: boolean, favorite: boolean) => L.divIcon({ className: `live-pin${mine ? ' live-pin-mine' : ''}${favorite ? ' event-star-pin' : ''}`, html: `<span>${favorite ? '★' : ''}</span>`, iconSize: [22,22], iconAnchor: [11,11] });
+export type EventPin = { locationId: string; eventId: string; userId: string; name: string; headline?: string; latitude: number; longitude: number; accuracyMeters: number; updatedAt: { microsSinceUnixEpoch: bigint } };
+const marker = (mine: boolean, favorite: boolean) => L.divIcon({ className: `live-pin${mine ? ' live-pin-mine' : ''}${favorite ? ' event-star-pin' : ''}`, html: '<span></span>', iconSize: [20,20], iconAnchor: [10,10] });
 function FocusPin({ pin }: { pin?: EventPin }) {
   const map = useMap();
-  useEffect(() => { if (pin) map.flyTo([pin.latitude, pin.longitude], 18); }, [map, pin?.latitude, pin?.longitude]);
+  useEffect(() => { if (pin) map.flyTo([pin.latitude, pin.longitude], 21); }, [map, pin?.latitude, pin?.longitude]);
   return null;
 }
 
@@ -67,13 +67,12 @@ export default function EventGpsMap({ eventId, userId, pins, checkedIn, focusedI
       <button className={sharing && checkedIn ? 'workspace-button active' : 'workspace-button'} disabled={!checkedIn} onClick={() => void toggle()}>{sharing && checkedIn ? 'Stop sharing GPS' : 'Share event GPS'}</button></div>
     <p className="workspace-muted">Allow location to find free people within 100 m using your saved Pre matches. Your location is shared with event members while this page is open. You can stop sharing at any time.</p>
     {gpsStatus && <p role="status" className="gps-status">{gpsStatus}</p>}
-    <div className="event-map"><MapContainer center={mine ? [mine.latitude, mine.longitude] : [42.2912, -83.7157]} zoom={17} scrollWheelZoom={false}>
-      <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+    <div className="event-map"><MapContainer center={mine ? [mine.latitude, mine.longitude] : [42.2912, -83.7157]} zoom={17} maxZoom={23} zoomSnap={.1} zoomDelta={.5} scrollWheelZoom={false}>
+      <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" maxNativeZoom={19} maxZoom={23} />
       <EventAreaLayer areas={[{ eventId, title: eventTitle, points: areaPoints }]} onReset={onResetFocus} />
       <FocusPin pin={focused || (areaPoints.length < 3 ? mine : undefined)} />
-      {visible.map(pin => <Marker key={pin.locationId} position={[pin.latitude, pin.longitude]} icon={marker(pin.userId === userId, stars.has(pin.userId))}><Tooltip><b>{pin.userId === userId ? 'You' : pin.name}</b>{stars.has(pin.userId) ? ' · ★ Favorite' : ''}</Tooltip></Marker>)}
-      {mine && <Circle center={[mine.latitude, mine.longitude]} radius={100} pathOptions={{ color: '#729f48', fillOpacity: .08, weight: 1 }} />}
+      {visible.map(pin => <Marker key={pin.locationId} position={[pin.latitude, pin.longitude]} icon={marker(pin.userId === userId, stars.has(pin.userId))} title={pin.name}><Tooltip direction="top" offset={[0, -6]}><span className="profile-tooltip"><b>{pin.name}{pin.userId === userId ? ' · You' : ''}{stars.has(pin.userId) ? ' · ★ Favorite' : ''}</b>{pin.headline && <small>{pin.headline}</small>}</span></Tooltip></Marker>)}
     </MapContainer></div>
-    <p className="workspace-muted">{visible.length} current GPS pin{visible.length === 1 ? '' : 's'} · Starred people show ★. Indoor GPS may be imprecise.</p>
+    <p className="workspace-muted">{visible.length} current GPS pin{visible.length === 1 ? '' : 's'} · Favorites are gold. Hover for a profile. Indoor GPS may be imprecise.</p>
   </section>;
 }

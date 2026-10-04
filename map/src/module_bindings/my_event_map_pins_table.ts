@@ -15,6 +15,7 @@ export default __t.row({
   eventId: __t.string().name("event_id"),
   userId: __t.string().name("user_id"),
   name: __t.string(),
+  headline: __t.string(),
   zoneId: __t.string().name("zone_id"),
   latitude: __t.f64(),
   longitude: __t.f64(),

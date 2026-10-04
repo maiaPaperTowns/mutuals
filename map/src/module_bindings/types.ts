@@ -234,6 +234,7 @@ export const EventMapPin = __t.object("EventMapPin", {
   eventId: __t.string(),
   userId: __t.string(),
   name: __t.string(),
+  headline: __t.string(),
   zoneId: __t.string(),
   latitude: __t.f64(),
   longitude: __t.f64(),

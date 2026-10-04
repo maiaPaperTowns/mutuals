@@ -17,13 +17,23 @@ export function EventAreaLayer({ areas, autoFit = true, homeLayout = false, onRe
   const map = useMap();
   const points = areas.flatMap(area => area.points.length >= 3 ? area.points : []);
   const boundary = JSON.stringify(points);
-  const fit = () => {
+  const fit = (centered = false) => {
     if (points.length) {
+      const size = map.getSize();
+      let left = 24, top = 24, right = 24, bottom = 24;
       if (homeLayout) {
-        const mobile = map.getSize().x <= 600;
-        const cardHeight = map.getContainer().closest('.map-app')?.querySelector('.map-card')?.getBoundingClientRect().height || 300;
-        map.fitBounds(points, { paddingTopLeft: mobile ? [24, 110] : [420, 110], paddingBottomRight: mobile ? [24, Math.min(cardHeight + 55, map.getSize().y - 174)] : [36, 36], maxZoom: 17 });
-      } else map.fitBounds(points, { padding: [36, 36], maxZoom: 17 });
+        const container = map.getContainer(), app = container.closest('.map-app');
+        const mapRect = container.getBoundingClientRect();
+        const card = app?.querySelector('.map-card')?.getBoundingClientRect();
+        const header = app?.querySelector('.map-topbar')?.getBoundingClientRect();
+        top = header?.height ? header.bottom - mapRect.top + 24 : 110;
+        if (size.x <= 600) bottom = card?.height ? mapRect.bottom - card.top + 24 : 355;
+        else left = card?.width ? card.right - mapRect.left + 24 : 420;
+      }
+      const margin = centered ? .1 : .22;
+      const x = Math.round(Math.max(0, size.x - left - right) * margin);
+      const y = Math.round(Math.max(0, size.y - top - bottom) * margin);
+      map.fitBounds(points, { paddingTopLeft: [left + x, top + y], paddingBottomRight: [right + x, bottom + y], maxZoom: 23 });
     }
     else map.setView(NORTH_CAMPUS, 17);
   };
@@ -31,7 +41,7 @@ export function EventAreaLayer({ areas, autoFit = true, homeLayout = false, onRe
   return <>
     {areas.filter(area => area.points.length >= 3).map(area => <Polygon key={area.eventId} positions={area.points} pathOptions={{ color: '#64833e', fillColor: '#9ab967', fillOpacity: .13, weight: 2 }}><Tooltip sticky>{area.title} · Event area</Tooltip></Polygon>)}
     <button type="button" className="workspace-button event-area-reset" aria-label="Reset to event area"
-      ref={element => { if (element) L.DomEvent.disableClickPropagation(element); }} onClick={event => { event.stopPropagation(); onReset?.(); fit(); }}>⌖ Reset view</button>
+      ref={element => { if (element) L.DomEvent.disableClickPropagation(element); }} onClick={event => { event.stopPropagation(); onReset?.(); fit(true); }}>⌖ Center</button>
   </>;
 }
 
@@ -60,11 +70,11 @@ export default function EventAreaMap({ eventId, title, points, canEdit = false, 
       {canEdit && !drawing && <div className="workspace-actions"><button className="workspace-button" disabled={blocked} onClick={() => { setDraft([]); setError(''); setDrawing(true); }}>Draw event area</button>
         {points.length >= 3 && <button className="workspace-button" disabled={blocked} onClick={() => void save([])}>Clear event area</button>}</div>}
     </div>
-    <p className="workspace-muted">{drawing ? `Click at least 3 boundary points in order around the area, then save. ${draft.length} / 50 points.` : points.length >= 3 ? "The shaded boundary shows this activity's area. Reset view fits the whole area on screen." : 'The organizer has not marked an area yet. Reset view returns to North Campus.'}</p>
+    <p className="workspace-muted">{drawing ? `Click at least 3 boundary points in order around the area, then save. ${draft.length} / 50 points.` : points.length >= 3 ? "The shaded boundary shows this activity's area. Center zooms in to fit the area on screen." : 'The organizer has not marked an area yet. Center returns to North Campus.'}</p>
     {drawing && <div className="workspace-actions"><button className="intake-submit" disabled={blocked || draft.length < 3} onClick={() => void save(draft)}>Save event area</button><button className="workspace-button" disabled={blocked || !draft.length} onClick={() => setDraft(value => value.slice(0, -1))}>Undo point</button><button className="workspace-button" disabled={blocked} onClick={() => { setDrawing(false); setDraft([]); setError(''); }}>Cancel drawing</button></div>}
     {error && <p role="alert" className="intake-error">{error}</p>}
-    <div className={`event-map${drawing ? ' event-map-drawing' : ''}`}><MapContainer center={NORTH_CAMPUS} zoom={17} scrollWheelZoom={false} doubleClickZoom={!drawing}>
-      <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+    <div className={`event-map${drawing ? ' event-map-drawing' : ''}`}><MapContainer center={NORTH_CAMPUS} zoom={17} maxZoom={23} zoomSnap={.1} zoomDelta={.5} scrollWheelZoom={false} doubleClickZoom={!drawing}>
+      <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" maxNativeZoom={19} maxZoom={23} />
       <EventAreaLayer areas={[{ eventId, title, points }]} autoFit={!drawing} />
       <DrawBoundary enabled={drawing && !blocked && draft.length < 50} points={draft} onPoint={point => setDraft(value => [...value, point])} />
     </MapContainer></div>

@@ -1,6 +1,6 @@
-import { Fragment, createContext, useContext, useEffect, useRef, useState, type FormEvent } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type FormEvent } from 'react';
 import { SignIn, SignUp, useClerk } from '@clerk/react';
-import { Circle, MapContainer, Marker, TileLayer, Tooltip, ZoomControl } from 'react-leaflet';
+import { MapContainer, Marker, TileLayer, Tooltip, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
 import { reducers, tables } from './module_bindings';
 import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
@@ -26,8 +26,8 @@ const SignedInContext = createContext(false);
 const pinIcon = (mine: boolean) => L.divIcon({
   className: `live-pin${mine ? ' live-pin-mine' : ''}`,
   html: '<span></span>',
-  iconSize: [22, 22],
-  iconAnchor: [11, 11],
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
 });
 const venueIcon = L.divIcon({
   className: 'venue-pin',
@@ -286,19 +286,20 @@ function MapExperience({ myName = '', pins, profileById, myId, loaded, connected
     if (button === 'red' && sharing) onToggle();
   }, score.adopt, score.addRadioConnection);
   return <main className={`map-app style-${style}`}>
-    <MapContainer center={DUDERSTADT} zoom={17} zoomControl={false} scrollWheelZoom className="leaflet-map">
-      <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+    <MapContainer center={DUDERSTADT} zoom={17} maxZoom={23} zoomSnap={.1} zoomDelta={.5} zoomControl={false} scrollWheelZoom className="leaflet-map">
+      <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" maxNativeZoom={19} maxZoom={23} />
       <ZoomControl position="bottomright" />
       <EventAreaLayer areas={areas} homeLayout />
       <Marker position={DUDERSTADT} icon={venueIcon} interactive={false} />
-      {pins.map(pin => <Fragment key={pin.participantId}>
-        <Circle center={[pin.latitude, pin.longitude]} radius={Math.max(5, pin.accuracyMeters)} pathOptions={{ color: pin.participantId === myId ? '#174d39' : '#227c62', fillColor: pin.participantId === myId ? '#31835f' : '#58a88b', fillOpacity: 0.1, weight: 1 }} />
-        <Marker position={[pin.latitude, pin.longitude]} icon={pinIcon(pin.participantId === myId)}>
-          <Tooltip direction="top" offset={[0, -12]}>
-            {pin.participantId === myId ? <b>Your location</b> : profileById.has(pin.participantId) ? <span className="profile-tooltip"><b>{profileById.get(pin.participantId)?.displayName}</b>{profileById.get(pin.participantId)?.headline && <small>{profileById.get(pin.participantId)?.headline}</small>}{profileById.get(pin.participantId)?.interests && <small>Interests: {profileById.get(pin.participantId)?.interests}</small>}</span> : 'Anonymous participant'}
+      {pins.map(pin => {
+        const profile = profileById.get(pin.participantId);
+        const name = profile?.displayName || (pin.participantId === myId ? 'Your location' : 'Anonymous participant');
+        return <Marker key={pin.participantId} position={[pin.latitude, pin.longitude]} icon={pinIcon(pin.participantId === myId)} title={name}>
+          <Tooltip direction="top" offset={[0, -6]}>
+            <span className="profile-tooltip"><b>{name}</b>{(profile?.headline || profile?.interests) && <small>{profile.headline || `Interests: ${profile.interests}`}</small>}</span>
           </Tooltip>
-        </Marker>
-      </Fragment>)}
+        </Marker>;
+      })}
     </MapContainer>
 
     <header className="map-topbar"><a className="brand" href="/" aria-label="mutuals">{formal ? <b className="brand-text">mutuals</b> : <img className="brand-word" src="/mutuals/mutuals_word.png" alt="mutuals" />}<small>{formal ? 'PROFESSIONAL NETWORKING · MHACKS 2026' : 'PEOPLE FIND PEOPLE · MHACKS 2026'}</small></a><div className="topbar-actions"><a className="nav-link" href="/events">Events & assistants</a><a className="nav-link" href="/chat">My profile</a><StyleToggle /><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div><AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={onRequestSignIn} /></div></header>
@@ -306,7 +307,7 @@ function MapExperience({ myName = '', pins, profileById, myId, loaded, connected
     <section className="map-card" aria-label="Live location sharing controls">
       <span className="eyebrow">DUDERSTADT CENTER · ANN ARBOR</span>
       <h1>Find people nearby.</h1>
-      <p className="subhead">Only anonymous live locations appear here. Names and profiles stay private.</p>
+      <p className="subhead">Find people nearby. Hover over a dot to see the name and short profile they've chosen to share.</p>
       <PointsCard {...score} formal={formal} />
       <ConnectionsList connections={score.connections.map(c => ({ ...c, name: nameOf(c.id) || c.name }))} formal={formal} />
       <div className="count-line"><span className="count-number">{loaded ? pins.length : '—'}</span><span>people sharing location</span><i className="count-live" /></div>
@@ -321,7 +322,7 @@ function MapExperience({ myName = '', pins, profileById, myId, loaded, connected
       {score.gain && <div className="points-toast" key={score.gain.at}>+{score.gain.points} pts · {gainText(score.gain, formal)}</div>}
     </section>
 
-    <div className="map-bottom"><span>GPS accuracy shown by circles · Indoor locations may drift</span><span>Map data &copy; OpenStreetMap</span></div>
+    <div className="map-bottom"><span>Hover over a dot for a profile · Indoor GPS may drift</span><span>Map data &copy; OpenStreetMap</span></div>
   </main>;
 }
 

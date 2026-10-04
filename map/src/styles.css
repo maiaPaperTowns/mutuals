@@ -54,7 +54,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
 .clerk-form [data-clerk-component] { width: 100%; }
 .profile-tooltip { display: flex; flex-direction: column; gap: 4px; max-width: 220px; }
 .profile-tooltip b { color: #294c37; }
-.profile-tooltip small { color: #657265; white-space: normal; }
+.profile-tooltip small { color: #657265; white-space: normal; overflow-wrap: anywhere; line-height: 1.45; }
 .map-loading { display: grid; width: 100%; height: 100%; min-height: 100dvh; place-items: center; background: #e9ece8; color: #53634f; font: 11px var(--mono); }
 .profile-link { margin: 11px 0 0; padding: 0; border: 0; background: transparent; color: #4e7258; font-size: 10px; font-weight: 700; text-decoration: underline; cursor: pointer; }
 .map-card { position: absolute; z-index: 500; top: 88px; left: 20px; width: min(362px, calc(100vw - 40px)); padding: 23px; border: 1px solid #e7eae2; border-radius: 18px; background: #fffffff4; box-shadow: 0 12px 40px #2531281a; backdrop-filter: blur(12px); }
@@ -84,9 +84,9 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
 .venue-pin small { top: 13px; border-radius: 0 0 5px 5px; color: #646f65; font-size: 9px; }
 .venue-dot { width: 8px; height: 8px; margin-bottom: 2px; background: #d37654; box-shadow: 0 0 0 4px #d3765424; }
 .map-bottom { position: absolute; z-index: 400; bottom: 12px; left: 14px; display: flex; gap: 15px; padding: 7px 10px; border-radius: 7px; background: #fffffff0; color: #747d73; font-size: 9px; box-shadow: 0 2px 8px #00000010; }
-.live-pin { border: 0; background: transparent; }
-.live-pin span { display: block; width: 19px; height: 19px; border: 3px solid white; border-radius: 50%; background: #54a487; box-shadow: 0 1px 7px #163e2c77, 0 0 0 5px #54a48732; }
-.live-pin-mine span { background: #244e3a; box-shadow: 0 1px 7px #163e2c77, 0 0 0 6px #244e3a38; }
+.live-pin { display: grid; place-items: center; border: 0; background: transparent; }
+.live-pin span { display: block; width: 6px; height: 6px; border: 1px solid white; border-radius: 50%; background: #54a487; }
+.live-pin-mine span { background: #244e3a; }
 @media (max-width: 600px) {
   .map-app { min-height: 100dvh; }
   .map-topbar { top: 10px; left: 10px; right: 10px; }
@@ -98,7 +98,8 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
   .profile-button, .profile-open-button { padding: 5px 6px; font-size: 8px; }
   .account-name { max-width: 74px; }
   .sign-out { padding-left: 6px; font-size: 8px; }
-  .map-card { top: auto; bottom: 34px; left: 10px; width: calc(100vw - 20px); padding: 17px; border-radius: 15px; }
+  .map-card { top: auto; bottom: 34px; left: 10px; width: calc(100vw - 20px); max-height: min(42dvh, calc(100dvh - 240px)); overflow-y: auto; padding: 17px; border-radius: 15px; }
+  .map-app .event-area-reset { top: 140px; right: 16px; }
   .map-card h1 { margin-top: 8px; font-size: 21px; }
   .count-line { margin: 13px 0 11px; }
   .consent { margin-top: 10px; }
@@ -281,7 +282,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
 .event-area-reset { position: absolute; top: 12px; right: 12px; z-index: 1000; background: #fffef9; box-shadow: 0 2px 8px #17392422; }
 .map-app .event-area-reset { top: 102px; right: 20px; }
 .event-map-drawing .leaflet-container { cursor: crosshair; }
-.event-star-pin span { color: #fff; text-align: center; font-size: 14px; background: #81a444; }
+.event-star-pin span { background: #c69b35; }
 .gps-status { color: #618449; font-size: 11px; }
 .connection-card { display: flex; justify-content: space-between; align-items: center; gap: 15px; background: #fffef9; border: 1px solid #dce5d1; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
 .connection-card h4 { margin: 0 0 6px; font: 700 15px Manrope, sans-serif; }
