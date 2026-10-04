@@ -142,7 +142,10 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
     setEventId(id); setChatDraft(''); setLocalReplies([]); pendingChat.current = null; setError(''); setNotice('');
     const params = new URLSearchParams({ event: id, stage }); window.history.replaceState({}, '', `${window.location.pathname}?${params}`);
   };
-  const changeStage = (value: Stage) => { setStage(value); setChatDraft(''); pendingChat.current = null; };
+  const changeStage = (value: Stage) => {
+    setStage(value); setChatDraft(''); pendingChat.current = null;
+    window.history.replaceState({}, '', `${window.location.pathname}?${new URLSearchParams({ event: eventId, stage: value })}`);
+  };
   const submitChat = async (message: string, selectedStage = stage) => {
     if (chatBusy) return;
     setChatBusy(true); setError('');

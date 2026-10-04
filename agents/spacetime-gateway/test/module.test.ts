@@ -220,6 +220,32 @@ test('assistant chats call ASI, persist separate personal stage histories and re
   assert.equal(call.body.tools.some((t: any) => t.function.name === 'respond_connection'), false);
 });
 
+test('assistant retries a transient ASI server error without repeating an applied action', () => {
+  const f = networkingFixture();
+  const targetId = f.users[1].toHexString();
+  let attempts = 0;
+  f.ctx.http.fetch = () => {
+    attempts++;
+    if (attempts === 2) return { ok: false, status: 503 };
+    const message = attempts === 1
+      ? { tool_calls: [{ id: 'star-call', type: 'function', function: { name: 'set_star', arguments: JSON.stringify({ target_id: targetId, starred: true }) } }] }
+      : { content: 'The participant is starred.' };
+    return { ok: true, status: 200, json: () => ({ choices: [{ message }] }) };
+  };
+  const result = JSON.parse(module.sendAssistantMessage(f.ctx, { eventId: f.eventId, stage: 'pre', message: 'Star this participant.', requestId: 'transient-request' }));
+  assert.equal(attempts, 3);
+  assert.equal(result.actions.length, 1);
+  assert.equal([...f.db.eventStar.iter()].length, 1);
+  attempts = 0;
+  f.ctx.http.fetch = () => { attempts++; return { ok: false, status: 403 }; };
+  assert.throws(() => module.sendAssistantMessage(f.ctx, { eventId: f.eventId, stage: 'pre', message: 'Hello.', requestId: 'auth-failure' }), /HTTP 403/);
+  assert.equal(attempts, 1);
+  attempts = 0;
+  f.ctx.http.fetch = () => { attempts++; return { ok: false, status: 500 }; };
+  assert.throws(() => module.sendAssistantMessage(f.ctx, { eventId: f.eventId, stage: 'pre', message: 'Hello again.', requestId: 'persistent-failure' }), /HTTP 500/);
+  assert.equal(attempts, 2);
+});
+
 test('event connections are idempotent, scoped to members, and only the receiver can answer', () => {
   const f = networkingFixture();
   module.startNetworkingEvent(f.tx, { eventId: f.eventId });
@@ -244,7 +270,7 @@ test('assistant tools cannot escape their stage or event and retry does not repe
   f.ctx.http.fetch = (url: string, options: any) => {
     if (!url.includes('chat/completions')) return fetch(url, options);
     completions++;
-    if (completions === 2) return { ok: false, status: 503 };
+    if (completions === 2 || completions === 3) return { ok: false, status: 503 };
     const body = JSON.parse(options.body);
     return { ok: true, json: () => ({ choices: [{ message: body.tools ? { content: null, tool_calls: [{ id: 'tool-1', function: {
       name: 'set_star', arguments: JSON.stringify({ target_id: f.users[1].toHexString(), starred: true }),
@@ -256,7 +282,8 @@ test('assistant tools cannot escape their stage or event and retry does not repe
   assert.ok(appliedAt.includes('set_star'));
   module.sendAssistantMessage(f.ctx, args);
   assert.equal([...f.db.eventStar.iter()].length, 1);
-  f.ctx.http.fetch = () => ({ ok: true, json: () => ({ choices: [{ message: completions++ < 5 ? { tool_calls: [{ id: 'bad', function: { name: 'request_connection', arguments: '{}' } }] } : { content: 'This action is not allowed.' } }] }) });
+  let forbiddenAttempts = 0;
+  f.ctx.http.fetch = () => ({ ok: true, json: () => ({ choices: [{ message: forbiddenAttempts++ === 0 ? { tool_calls: [{ id: 'bad', function: { name: 'request_connection', arguments: '{}' } }] } : { content: 'This action is not allowed.' } }] }) });
   // Directly calling a During-only tool through Pre is rejected before writes.
   try { module.sendAssistantMessage(f.ctx, { ...args, requestId: 'tools-2' }); } catch { /* empty provider reply is acceptable; no tool write is */ }
   assert.equal([...f.db.agentInteraction.iter()].length, 0);
