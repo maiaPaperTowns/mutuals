@@ -1,5 +1,9 @@
 # AGENTS.md
 
+## Canonical repository
+
+All future work belongs to the public `maiaPaperTowns/mutuals` repository. Use the local checkout `D:\ChatGPTLocalProjects\ROInetworking\mutuals` and its `origin` for implementation, commits, pushes and deployments. The adjacent `mhacks-2026` checkout is a legacy reference; do not continue development or push there unless explicitly requested. The missing legacy map commits were migrated individually with their source SHAs recorded in the new commit messages; see `reports/2026-10-04-repository-migration.md`.
+
 ## Permanent user instruction: synchronize completed changes
 
 The user explicitly requested: "push，同步运，做完改变永远同步云，执行并写进agnets.md".
@@ -15,8 +19,9 @@ After completing a requested change, commit and push it to the current branch an
 
 ## Existing cloud targets
 
-- Git remote: `origin`, `https://github.com/maiaPaperTowns/mutuals.git`. Preserve the current branch; `feat/live-map-spacetimedb` was current when these instructions were added.
+- Git remote: `origin`, `https://github.com/maiaPaperTowns/mutuals.git`. The migration targets `main`; inspect the current branch before future changes.
 - Vercel: project `mhacks-live-map`, linked by ignored `.vercel/project.json`; project root `map`. Deploy from repository root: `npx.cmd --yes vercel --prod --yes --scope terryzhu2024-8185`. Explicit scope avoids a default-scope authorization failure observed with CLI 62.2.0. Verify READY status.
+- On October 4, 2026, the user selected manual Vercel deployment from this public repository after the native Git connection was blocked by personal-repository owner permissions. Deploy after runtime changes as authorized above; do not assume pushes trigger Vercel or claim the remote project has a native Git connection.
 - Verified public entry: `https://mutuals.tech/chat`. Custom domain `mutuals.tech` is also assigned; verify DNS/login before claiming it works on a user's network.
 - SpacetimeDB: database `mhacks-live-map`, server `maincloud`; Windows CLI `C:\Users\TerryZhu\AppData\Local\SpacetimeDB\spacetime.exe`.
 - Module source `map/spacetimedb`. Generate: `spacetime generate --lang typescript --out-dir map/src/module_bindings --module-path map/spacetimedb --yes`. Publish: `spacetime publish mhacks-live-map --server maincloud --module-path map/spacetimedb --delete-data=never --yes`.
