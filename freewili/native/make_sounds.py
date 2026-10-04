@@ -200,7 +200,33 @@ def levelup() -> list[float]:
     return mix(out, sparkle) + puppy_yip()
 
 
-SOUNDS = {"levelup": levelup, "near": near, "close": close, "hide": hide, "yip": yip, "match": match_ding, "yes": double_yes, "miss": womp}
+# ---- formal style (recruiting events): soft sine chimes, no puppy, no voice ----
+def f_chime() -> list[float]:      # contact nearby
+    return tone(880, 880, 0.18, "sine", 0.45, decay=9) + tone(1175, 1175, 0.3, "sine", 0.4, decay=7)
+
+
+def f_connect() -> list[float]:    # connection made / mutual interest
+    return mix(tone(659, 659, 0.5, "sine", 0.35, decay=4), rest(0.08) + tone(831, 831, 0.45, "sine", 0.3, decay=4),
+               rest(0.16) + tone(988, 988, 0.4, "sine", 0.3, decay=4))
+
+
+def f_soft() -> list[float]:       # private mode
+    return tone(523, 440, 0.3, "sine", 0.4, decay=6)
+
+
+def f_tier() -> list[float]:       # tier up
+    out = []
+    for f in (523, 659, 784):
+        out += tone(f, f, 0.12, "sine", 0.4, decay=6)
+    return out + tone(1047, 1047, 0.45, "sine", 0.4, decay=4)
+
+
+def f_tick() -> list[float]:       # hello / visible
+    return tone(1319, 1319, 0.08, "sine", 0.4, decay=25)
+
+
+SOUNDS = {"f_chime": f_chime, "f_connect": f_connect, "f_soft": f_soft, "f_tier": f_tier, "f_tick": f_tick,
+          "levelup": levelup, "near": near, "close": close, "hide": hide, "yip": yip, "match": match_ding, "yes": double_yes, "miss": womp}
 
 
 def to_int16(samples: list[float]) -> list[int]:

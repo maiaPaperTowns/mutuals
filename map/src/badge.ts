@@ -5,6 +5,7 @@
 //   map → badge:  "M <s> <nearby> <meters> <points> <met> <name>"
 //                 s = H not discoverable · A sharing, nobody near · N someone near · C right here
 //                 "N <my name>"   the first name this badge broadcasts to nearby badges (radio) while discoverable
+//                 "T C" | "T F"   style: cute (clubs, mixers) or formal (recruiting events)
 //   badge → map:  "B yellow" | "B green" | "B blue" | "B red"   (MENU opens stats on the badge itself)
 //                 "P <points> <caught> <met>"  points the badge earned itself: practice, radio finds (higher wins)
 //                 "R <count> <rssi> <name>"    other mutuals badges its radio hears right now (no GPS needed)
@@ -72,7 +73,7 @@ export function badgeLine(status: BadgeStatus, score: BadgeScore): string {
 }
 
 /** Connect / disconnect the badge, send it a status every second, hear its buttons and its practice points. */
-export function useBadge(status: BadgeStatus, score: BadgeScore, myName: string, onButton: (button: BadgeButton) => void,
+export function useBadge(status: BadgeStatus, score: BadgeScore, myName: string, formal: boolean, onButton: (button: BadgeButton) => void,
   onPoints: (points: number, caught: number, met: number) => void) {
   const [radio, setRadio] = useState<RadioPeer | null>(null);
   const [connected, setConnected] = useState(false);
@@ -84,7 +85,7 @@ export function useBadge(status: BadgeStatus, score: BadgeScore, myName: string,
   const buttonRef = useRef(onButton);
   const pointsRef = useRef(onPoints);
   const firstName = badgeText(myName.split(/\s+/)[0] ?? '').slice(0, 12);
-  const line = badgeLine(status, score) + `N ${firstName}\n`;
+  const line = badgeLine(status, score) + `N ${firstName}\nT ${formal ? 'F' : 'C'}\n`;
   lineRef.current = line;
   buttonRef.current = onButton;
   pointsRef.current = onPoints;

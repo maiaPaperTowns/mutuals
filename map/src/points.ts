@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 export const LEVEL_AT = [0, 50, 100, 200, 400];
 export const LEVEL_NAME = ['New here!', 'Getting out there!', 'Making connections!', 'People magnet!', 'Legend!'];
+export const TIER_NAME = ['Newcomer', 'Networker', 'Connector', 'Influencer', 'Ambassador']; // formal style
 export const PTS_NEARBY = 10;
 export const PTS_FOUND = 50;
 
@@ -37,7 +38,7 @@ function save(saved: Saved) {
   try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch { /* private mode: points last this visit */ }
 }
 
-export type Gain = { points: number; reason: string; at: number };
+export type Gain = { points: number; kind: 'found' | 'nearby' | 'badge'; who: string; at: number };
 
 export function usePoints() {
   const [saved, setSaved] = useState<Saved>(load);
@@ -45,12 +46,12 @@ export function usePoints() {
   const savedRef = useRef(saved);
   savedRef.current = saved;
 
-  const update = useCallback((next: Saved, reason?: string) => {
+  const update = useCallback((next: Saved, why?: Pick<Gain, 'kind' | 'who'>) => {
     const gained = next.points - savedRef.current.points;
     savedRef.current = next;
     setSaved(next);
     save(next);
-    if (gained > 0 && reason) setGain({ points: gained, reason, at: Date.now() });
+    if (gained > 0 && why) setGain({ points: gained, ...why, at: Date.now() });
   }, []);
 
   /** Score what the map shows: new people nearby, and the person you're right next to. */
@@ -60,13 +61,13 @@ export function usePoints() {
     const newFound = foundId && !cur.met.includes(foundId) ? foundId : undefined;
     if (!newNearby.length && !newFound) return;
     const points = cur.points + newNearby.length * PTS_NEARBY + (newFound ? PTS_FOUND : 0);
-    const reason = newFound ? `you found ${nameOf(newFound)}!` : `${nameOf(newNearby[0]!)} is nearby`;
+    const why = newFound ? { kind: 'found' as const, who: nameOf(newFound) } : { kind: 'nearby' as const, who: nameOf(newNearby[0]!) };
     update({
       ...cur,
       points,
       nearby: [...cur.nearby, ...newNearby],
       met: newFound ? [...cur.met, newFound] : cur.met,
-    }, reason);
+    }, why);
   }, [update]);
 
   /** The badge's own total (practice matches, badges its radio found); keep whichever is higher. */
@@ -78,7 +79,7 @@ export function usePoints() {
       points: Math.max(cur.points, badgePoints),
       caught: Math.max(cur.caught, badgeCaught),
       badgeMet: Math.max(cur.badgeMet ?? 0, badgeMet),
-    }, 'from your badge');
+    }, { kind: 'badge', who: '' });
   }, [update]);
 
   // Gains fade out after a few seconds.

@@ -27,7 +27,8 @@ If the GUI shows two "RPI-RP2" drives or the badge seems stuck: unplug it, wait 
 
 ## 3. Open the mutuals map
 
-**Option A: the deployed site.** Open the link from Maia/Terry in **Chrome**. Skip to step 4.
+**Option A: the shared link.** Open the link Maia sends (it looks like `https://….trycloudflare.com`) in
+**Chrome**. Skip to step 4.
 
 **Option B: run it on your laptop.** Needs [Node.js 20.19+](https://nodejs.org) and git.
 
@@ -37,12 +38,12 @@ cd mhacks-2026/map
 npm ci
 ```
 
-Create a file `map/.env.local` with these three lines. Get the Clerk key from Maia or Terry; it's a public key.
+Create a file `map/.env.local` with these three lines (the Clerk key is a public key):
 
 ```
 VITE_SPACETIMEDB_URI=wss://maincloud.spacetimedb.com
 VITE_SPACETIMEDB_DATABASE=mhacks-live-map
-VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_bm92ZWwtZ3JpZmZvbi05MDczLmNsZXJrLmFjY291bnRzLmRldiQ=
 ```
 
 ```bash
@@ -84,6 +85,14 @@ What the badge shows:
 - **level up!**: Lv 1 → 2 → 3 → 4 → 5 at 50 / 100 / 200 / 400 pts. Your home-screen pup grows up.
 
 Your points show on the badge and on the website's points card. They're saved in this browser.
+
+## Cute or Formal
+
+Use the **✿ Cute | Formal** switch at the top of the website. It changes the website **and** the connected badge:
+
+- **Cute** (clubs, university mixers): the pastel pixel pup, puppy noises, Lv 1–5.
+- **Formal** (recruiting events): a clean white and navy look with simple icons instead of the pup, wording like
+  "Contact nearby" and "Connection made", Tier 1–5 (Newcomer → Ambassador), and soft chimes.
 
 ## Badge-to-badge radio (no website needed)
 

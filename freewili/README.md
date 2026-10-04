@@ -42,6 +42,8 @@ OG firmware can't show images over USB, so this is a real display-CPU app built 
 - **Radio** (no website needed): badges beacon to each other on the main CPU's CC1101 (433.92 MHz). That gives
   "someone's nearby!" with their name, and "you found them!" when the signal is strong (> -50 dBm, tune
   `RADIO_CLOSE_DBM`). +10 / +50 pts per new badge. Not discoverable = no beacon. MENU shows the radio status.
+- **Cute / Formal:** the website's switch sends `T C` / `T F`. Formal is white/navy line icons, professional
+  wording, Tier 1–5 and soft chimes (recruiting events). Cute is the pixel pup (clubs, mixers).
 - **Practice mode** (no website): quiet match prompts, YES to catch (+10). Practice pauses after 2 misses.
   Points sync both ways (the higher total wins).
 - **Sounds** (`native/make_sounds.py`): chiptune effects + synthesized puppy noises, 8 kHz like the OG's I2S

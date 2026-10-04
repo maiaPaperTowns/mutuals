@@ -12,6 +12,8 @@
 typedef enum {
     SP_LV1, SP_LV2, SP_LV3, SP_LV4, SP_LV5,   /* home: your pup grows up with your level */
     SP_LOOKING, SP_MATCH, SP_MUTUAL, SP_MISS, SP_NEARBY, SP_OFFLINE, SP_BLANK,
+    /* formal style (recruiting events): icons instead of the pup */
+    SPF_HOME, SPF_LOOKING, SPF_MATCH, SPF_MUTUAL, SPF_MISS, SPF_NEARBY, SPF_OFFLINE, SPF_LEVEL,
     PHOTON_SPRITE_COUNT
 } photon_sprite_id_t;
 
@@ -20,7 +22,7 @@ typedef struct {
     unsigned tile_count;
 } photon_sprite_t;
 
-extern const uint16_t photon_background_px[320 * 240];
+extern const uint16_t *const photon_backgrounds[2];  /* [0] cute, [1] formal; 320x240 each */
 extern const photon_sprite_t photon_sprites[PHOTON_SPRITE_COUNT];
 
 /* Where the badge draws live values (must match make_assets.py). */

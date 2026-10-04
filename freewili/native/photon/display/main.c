@@ -20,6 +20,10 @@
  *   wearer's name and signal; a strong signal → "you found them!". +10 / +50 pts the first time per badge.
  *   Not discoverable (NO on the map) = this badge stops broadcasting.
  *
+ *   STYLE: the website's Cute / Formal switch ("T C" / "T F") picks the look. Cute is the pastel pixel pup with
+ *   puppy noises (clubs, university mixers). Formal is white/navy line icons, professional wording, tiers and
+ *   soft chimes (recruiting events).
+ *
  *   MENU = stats (people met, matches caught, points, level), MENU / BACK closes it.
  *   Holding the red button (NO) for 6 s still powers the board off (FWOG_POWER_DEFAULT), so NO is a short tap.
  *
@@ -40,6 +44,15 @@ FWOG_POWER_DEFAULT();
 #define NAVY RGB565(36, 40, 74)
 #define MUTED RGB565(110, 108, 140)
 #define BAR_FILL RGB565(92, 184, 138)
+#define F_NAVY RGB565(22, 34, 64)
+#define F_MUTED RGB565(90, 100, 125)
+#define F_BAR RGB565(44, 98, 180)
+
+/* Cute (clubs, university mixers) or formal (recruiting events), set by the website. */
+static bool formal;
+#define STYLE(cute, formal_text) (formal ? (formal_text) : (cute))
+#define INK STYLE(NAVY, F_NAVY)
+#define INK_SOFT STYLE(MUTED, F_MUTED)
 
 #define PROMPT_MS 2000u
 #define RESULT_MS 1600u
@@ -59,8 +72,10 @@ FWOG_POWER_DEFAULT();
 
 /* ---- points & levels (same table as the website: map/src/points.ts) ---- */
 static const int LEVEL_AT[5] = {0, 50, 100, 200, 400};
-static const char *const LEVEL_NAME[5] = {"New here!", "Getting out there!", "Making connections!",
-                                          "People magnet!", "Legend!"};
+static const char *const LEVEL_NAME_CUTE[5] = {"New here!", "Getting out there!", "Making connections!",
+                                               "People magnet!", "Legend!"};
+static const char *const LEVEL_NAME_FORMAL[5] = {"Newcomer", "Networker", "Connector", "Influencer", "Ambassador"};
+#define LEVEL_NAME STYLE(LEVEL_NAME_CUTE, LEVEL_NAME_FORMAL)
 static int points, met, caught;
 static int misses;  /* practice prompts in a row nobody answered */
 
@@ -111,10 +126,23 @@ static void play(const int16_t *clip, unsigned n) {
     i2s_audio_start(clip, n, true, false);
 }
 
+typedef enum { SFX_HI, SFX_MUTUAL, SFX_NEAR, SFX_FOUND, SFX_HIDE, SFX_LEVEL } sfx_t;
+
+static void sfx(sfx_t e) {  /* the same moments, puppy-flavoured or chime-flavoured */
+    switch (e) {
+        case SFX_HI: formal ? play(snd_f_tick, snd_f_tick_len) : play(snd_yip, snd_yip_len); break;
+        case SFX_MUTUAL: formal ? play(snd_f_connect, snd_f_connect_len) : play(snd_yes, snd_yes_len); break;
+        case SFX_NEAR: formal ? play(snd_f_chime, snd_f_chime_len) : play(snd_near, snd_near_len); break;
+        case SFX_FOUND: formal ? play(snd_f_connect, snd_f_connect_len) : play(snd_close, snd_close_len); break;
+        case SFX_HIDE: formal ? play(snd_f_soft, snd_f_soft_len) : sfx(SFX_HIDE); break;
+        case SFX_LEVEL: formal ? play(snd_f_tier, snd_f_tier_len) : play(snd_levelup, snd_levelup_len); break;
+    }
+}
+
 /* ---- screen ---- */
 static void draw_background(void) {
     st7789_set_window(0, 0, 320, 240);
-    st7789_blit(photon_background_px, 320u * 240u);
+    st7789_blit(photon_backgrounds[formal], 320u * 240u);
 }
 
 static void draw_sprite(photon_sprite_id_t s, unsigned frame) {
@@ -132,7 +160,7 @@ static unsigned band_y, band_h;
 static void band_begin(unsigned y, unsigned h) {
     st7789_dma_wait();  /* the buffer may still be on its way to the panel */
     band_y = y, band_h = h;
-    memcpy(buf, photon_background_px + y * 320u, 320u * h * sizeof buf[0]);
+    memcpy(buf, photon_backgrounds[formal] + y * 320u, 320u * h * sizeof buf[0]);
 }
 
 static void band_end(void) {
@@ -186,23 +214,23 @@ static void band_bar(void) {
     for (unsigned y = PHOTON_BAR_Y0 + 1; y < PHOTON_BAR_Y1; ++y) {
         const int row = (int)y - (int)band_y;
         if (row < 0 || row >= (int)band_h) continue;
-        for (unsigned x = x0; x < x0 + fill; ++x) buf[(unsigned)row * 320u + x] = BAR_FILL;
+        for (unsigned x = x0; x < x0 + fill; ++x) buf[(unsigned)row * 320u + x] = STYLE(BAR_FILL, F_BAR);
     }
 }
 
 static void band_points(void) {
     char t[24];
     snprintf(t, sizeof t, "%d pts", points);
-    band_text(&photon_font_small, LEFT, 68, 166, t, NAVY);
-    snprintf(t, sizeof t, "Lv %d", level_of(points));
-    band_text(&photon_font_small, RIGHT, 264, 166, t, NAVY);
+    band_text(&photon_font_small, LEFT, 68, 166, t, INK);
+    snprintf(t, sizeof t, STYLE("Lv %d", "Tier %d"), level_of(points));
+    band_text(&photon_font_small, RIGHT, 264, 166, t, INK);
     band_bar();
 }
 
 static void draw_info(const char *title, const char *detail) {  /* rows 124..201: just below the pup tiles */
     band_begin(124, 78);
-    band_text(&photon_font_large, CENTER, 0, 123, title, NAVY);
-    band_text(&photon_font_small, CENTER, 0, 148, detail, MUTED);
+    band_text(&photon_font_large, CENTER, 0, 123, title, INK);
+    band_text(&photon_font_small, CENTER, 0, 148, detail, INK_SOFT);
     band_points();
     band_end();
 }
@@ -217,6 +245,7 @@ static char my_name[MUTUALS_NAME_MAX + 1];
  * website → badge, about once a second:  "M <s> <nearby> <meters> <points> <met> <name>\n"
  *   s = H not discoverable · A sharing, nobody near · N someone near · C someone right here
  *                   "N <my name>"  (the name this badge broadcasts to nearby badges while discoverable)
+ *                   "T C" / "T F"  (style: cute / formal)
  * badge → website:  "B gray|yellow|green|blue|red", "P <points> <caught> <met>" when the badge earns points
  *                   (practice, radio finds), "R <count> <rssi> <name>" while other badges are heard,
  *                   "HI mutuals-badge 3" when asked with "?". */
@@ -228,6 +257,7 @@ static void report_points(void) { printf("P %d %d %d\n", points, caught, met); }
 
 static void map_parse(const char *s, uint32_t now) {
     if (s[0] == '?') { printf("HI mutuals-badge 3\n"); report_points(); return; }
+    if (s[0] == 'T' && s[1] == ' ') { formal = s[2] == 'F'; return; }  /* style: "T C" cute, "T F" formal */
     if (s[0] == 'N' && s[1] == ' ') {  /* "N <my name>": broadcast it to nearby badges while discoverable */
         char name[MUTUALS_NAME_MAX + 1] = "";
         strncpy(name, s + 2, MUTUALS_NAME_MAX);
@@ -303,21 +333,22 @@ static void link_send_me(void) {
 static void draw_stats(void) {  /* the MENU screen, over the pup area too */
     char v[40];
     band_begin(BUF_Y0, BUF_ROWS);
-    band_text(&photon_font_large, CENTER, 0, 22, "stats", NAVY);
-    const char *rows[5] = {"People met", "Matches caught", "Total points", "Level", "Radio"};
+    band_text(&photon_font_large, CENTER, 0, 22, STYLE("stats", "Summary"), INK);
+    const char *rows[5] = {"People met", STYLE("Matches caught", "Practice matches"), "Total points",
+                           STYLE("Level", "Tier"), "Radio"};
     for (int i = 0; i < 5; ++i) {
         const unsigned y = 50u + (unsigned)i * 18u;
-        band_text(&photon_font_small, LEFT, 56, y, rows[i], NAVY);
+        band_text(&photon_font_small, LEFT, 56, y, rows[i], INK);
         if (i == 0) snprintf(v, sizeof v, "%d", met);
         else if (i == 1) snprintf(v, sizeof v, "%d", caught);
         else if (i == 2) snprintf(v, sizeof v, "%d", points);
-        else if (i == 3) snprintf(v, sizeof v, "Lv %d  %s", level_of(points), LEVEL_NAME[level_of(points) - 1]);
+        else if (i == 3) snprintf(v, sizeof v, STYLE("Lv %d  %s", "Tier %d  %s"), level_of(points), LEVEL_NAME[level_of(points) - 1]);
         else if (!link_ok || !radio.ok) snprintf(v, sizeof v, "off");
         else if (!discoverable) snprintf(v, sizeof v, "silent (hidden)");
         else snprintf(v, sizeof v, "on  %d badge%s near", radio.count, radio.count == 1 ? "" : "s");
-        band_text(&photon_font_small, RIGHT, 264, y, v, MUTED);
+        band_text(&photon_font_small, RIGHT, 264, y, v, INK_SOFT);
     }
-    band_text(&photon_font_small, CENTER, 0, 144, "press BACK to close", MUTED);
+    band_text(&photon_font_small, CENTER, 0, 144, "press BACK to close", INK_SOFT);
     band_points();
     band_end();
 }
@@ -330,6 +361,17 @@ typedef enum {
 } view_t;
 
 static photon_sprite_id_t view_sprite(view_t v) {
+    if (formal) switch (v) {
+        case V_HOME: return SPF_HOME;
+        case V_LEVELUP: return SPF_LEVEL;
+        case V_LONELY: case V_LOOKING: return SPF_LOOKING;
+        case V_PROMPT: return SPF_MATCH;
+        case V_MUTUAL: case V_FOUND: return SPF_MUTUAL;
+        case V_MISS: return SPF_MISS;
+        case V_NEARBY: return SPF_NEARBY;
+        case V_HIDDEN: return SPF_OFFLINE;
+        default: return SP_BLANK;
+    }
     switch (v) {
         case V_HOME: case V_LEVELUP: return (photon_sprite_id_t)(SP_LV1 + level_of(points) - 1);
         case V_LONELY: case V_LOOKING: return SP_LOOKING;
@@ -349,30 +391,30 @@ static void view_text(view_t v, char *title, char *detail, size_t n) {
     detail[0] = 0;
     switch (v) {
         case V_HOME:
-            snprintf(title, n, "ready to meet?");
-            snprintf(detail, n, misses >= IDLE_MISSES ? "press NEXT for a match" : "catch matches with YES");
+            snprintf(title, n, STYLE("ready to meet?", "Ready to connect"));
+            snprintf(detail, n, misses >= IDLE_MISSES ? "press NEXT for a match" : STYLE("catch matches with YES", "practice with YES"));
             break;
-        case V_LONELY: snprintf(title, n, "looking..."); snprintf(detail, n, "your pup misses people"); break;
-        case V_PROMPT: snprintf(title, n, "match found!"); snprintf(detail, n, "press YES before it's gone!"); break;
-        case V_MUTUAL: snprintf(title, n, "it's mutual!"); snprintf(detail, n, "+%d pts", PTS_CATCH); break;
-        case V_MISS: snprintf(title, n, "too slow..."); snprintf(detail, n, "next one will come!"); break;
-        case V_HIDDEN: snprintf(title, n, "not discoverable"); snprintf(detail, n, "press YES to share your spot"); break;
-        case V_LOOKING: snprintf(title, n, "looking..."); snprintf(detail, n, "you're on the map"); break;
+        case V_LONELY: snprintf(title, n, STYLE("looking...", "Searching...")); snprintf(detail, n, STYLE("your pup misses people", "no recent connections")); break;
+        case V_PROMPT: snprintf(title, n, STYLE("match found!", "Potential match")); snprintf(detail, n, STYLE("press YES before it's gone!", "press YES to connect")); break;
+        case V_MUTUAL: snprintf(title, n, STYLE("it's mutual!", "Mutual interest")); snprintf(detail, n, "+%d pts", PTS_CATCH); break;
+        case V_MISS: snprintf(title, n, STYLE("too slow...", "Missed")); snprintf(detail, n, STYLE("next one will come!", "another will come")); break;
+        case V_HIDDEN: snprintf(title, n, STYLE("not discoverable", "Private mode")); snprintf(detail, n, STYLE("press YES to share your spot", "press YES to become visible")); break;
+        case V_LOOKING: snprintf(title, n, STYLE("looking...", "Searching nearby")); snprintf(detail, n, STYLE("you're on the map", "you're visible on the map")); break;
         case V_NEARBY:
-            snprintf(title, n, "someone's nearby!");
+            snprintf(title, n, STYLE("someone's nearby!", "Contact nearby"));
             if (radio_src) snprintf(detail, n, "%s  signal %d dBm", who, radio.rssi);
             else if (map.nearby > 1) snprintf(detail, n, "%s - %d m  +%d more", who, map.meters, map.nearby - 1);
             else snprintf(detail, n, "%s - %d m", who, map.meters);
             break;
         case V_FOUND:
-            snprintf(title, n, "you found them!");
+            snprintf(title, n, STYLE("you found them!", "Connection made"));
             if (map.gained > 0) snprintf(detail, n, "+%d pts  %s", map.gained, who);
-            else if (radio_src) snprintf(detail, n, "%s  right here!", who);
+            else if (radio_src) snprintf(detail, n, STYLE("%s  right here!", "%s  in person"), who);
             else snprintf(detail, n, "%s - %d m", who, map.meters);
             break;
         case V_LEVELUP:
-            snprintf(title, n, "level up!");
-            snprintf(detail, n, "Lv %d  %s", level_of(points), LEVEL_NAME[level_of(points) - 1]);
+            snprintf(title, n, STYLE("level up!", "Tier up"));
+            snprintf(detail, n, STYLE("Lv %d  %s", "Tier %d  %s"), level_of(points), LEVEL_NAME[level_of(points) - 1]);
             break;
         default: title[0] = 0; break;
     }
@@ -394,21 +436,21 @@ static void on_enter(view_t from, view_t to, uint32_t now) {  /* sound + lights 
     switch (to) {
         /* practice prompts and misses are silent: they happen on their own, and an idle badge must stay quiet */
         case V_PROMPT: led_all(255, 190, 20); break;
-        case V_MUTUAL: play(snd_yes, snd_yes_len); break;  /* you pressed YES */
+        case V_MUTUAL: sfx(SFX_MUTUAL); break;  /* you pressed YES */
         case V_MISS: led_all(60, 0, 0); break;
         case V_NEARBY:
             if (from != V_FOUND && (!near_sounded || now - last_near_sound > NEAR_SOUND_GAP_MS)) {
-                play(snd_near, snd_near_len);
+                sfx(SFX_NEAR);
                 last_near_sound = now, near_sounded = true;
             }
             led_all(255, 150, 20);
             break;
-        case V_FOUND: play(snd_close, snd_close_len); break;
+        case V_FOUND: sfx(SFX_FOUND); break;
         case V_HIDDEN:
-            if (from == V_LOOKING || from == V_NEARBY || from == V_FOUND) play(snd_hide, snd_hide_len);
+            if (from == V_LOOKING || from == V_NEARBY || from == V_FOUND) sfx(SFX_HIDE);
             led_all(12, 8, 24);
             break;
-        case V_LOOKING: if (from == V_HIDDEN || from < V_HIDDEN) play(snd_yip, snd_yip_len); led_progress(); break;
+        case V_LOOKING: if (from == V_HIDDEN || from < V_HIDDEN) sfx(SFX_HI); led_progress(); break;
         default: led_progress(); break;
     }
 }
@@ -446,7 +488,7 @@ int main(void) {
     int drawn_points = -1;
     uint32_t next_me = now, next_radio_line = now;
     led_progress();
-    play(snd_yip, snd_yip_len);  /* hi! */
+    sfx(SFX_HI);  /* hi! */
 
     while (true) {
         now = to_ms_since_boot(get_absolute_time());
@@ -454,9 +496,10 @@ int main(void) {
         const uint8_t pressed = power.buttons.pressed;
         if (audio_ok) i2s_audio_process();
         const int points_before = points;
-        const bool was_map = map.on;
+        const bool was_map = map.on, was_formal = formal;
         map_poll(now);
         link_poll(now);
+        if (formal != was_formal) shown = V_NONE;  /* restyle: redraw everything */
         if (me_dirty || (int32_t)(now - next_me) >= 0) { link_send_me(); me_dirty = false; next_me = now + 2000u; }
         if (was_map && !map.on) game = V_HOME, entered = now, next_prompt = now + NEXT_GAP();
 
@@ -480,7 +523,7 @@ int main(void) {
             } else if (game == V_PROMPT && (pressed & FWOG_BTN_BIT(FWOG_BTN_RED))) {
                 game = V_MISS, entered = now;  /* a skip, not a miss: doesn't count toward pausing */
             } else if ((game == V_HOME || game == V_LONELY) && (pressed & FWOG_BTN_BIT(FWOG_BTN_GREEN))) {
-                play(snd_yip, snd_yip_len);  /* say hi */
+                sfx(SFX_HI);  /* say hi */
             } else if ((game == V_HOME || game == V_LONELY) && (pressed & FWOG_BTN_BIT(FWOG_BTN_BLUE))) {
                 next_prompt = now;  /* NEXT: call the next match now */
             }
@@ -529,7 +572,7 @@ int main(void) {
         }
         if (leveled) {
             overlay = V_LEVELUP, overlay_until = now + LEVELUP_MS;
-            play(snd_levelup, snd_levelup_len);
+            sfx(SFX_LEVEL);
         }
         const view_t view = overlay != V_NONE ? overlay : base;
 

@@ -5,7 +5,7 @@ import L from 'leaflet';
 import { reducers, tables } from './module_bindings';
 import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { badgeStatus, badgeSupported, useBadge, type BadgeStatus } from './badge';
-import { LEVEL_AT, LEVEL_NAME, usePoints } from './points';
+import { LEVEL_AT, LEVEL_NAME, TIER_NAME, usePoints, type Gain } from './points';
 
 const DUDERSTADT: [number, number] = [42.2912, -83.7157];
 type LocationPin = { participantId: string; latitude: number; longitude: number; accuracyMeters: number };
@@ -13,6 +13,14 @@ type UserProfile = { displayName: string; headline: string; interests: string; s
 type PublicMapProfile = Pick<UserProfile, 'displayName' | 'headline' | 'interests'>;
 const AuthDialogContext = createContext<() => void>(() => {});
 const SignedInContext = createContext(false);
+
+// Cute (clubs, university mixers: the pixel pup) or formal (recruiting events: clean, no pup). Per browser.
+type Style = 'cute' | 'formal';
+const STYLE_KEY = 'mutuals-style';
+const StyleContext = createContext<{ style: Style; setStyle: (style: Style) => void }>({ style: 'cute', setStyle: () => {} });
+function loadStyle(): Style {
+  try { return localStorage.getItem(STYLE_KEY) === 'formal' ? 'formal' : 'cute'; } catch { return 'cute'; }
+}
 
 const pinIcon = (mine: boolean) => L.divIcon({
   className: `live-pin${mine ? ' live-pin-mine' : ''}`,
@@ -227,12 +235,14 @@ function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, s
     award(nearbyKey ? nearbyKey.split(',') : [], status.closestId, id => nameOf(id) ?? 'someone');
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-score only when who is near changes
   }, [nearbyKey, status.closestId, award]);
-  const badge = useBadge(status, { points: score.points, met: score.met }, nameOf(myId) ?? '', button => {
+  const { style } = useContext(StyleContext);
+  const formal = style === 'formal';
+  const badge = useBadge(status, { points: score.points, met: score.met }, nameOf(myId) ?? '', formal, button => {
     if (busy) return;
     if (button === 'green' && !sharing) onToggle();
     if (button === 'red' && sharing) onToggle();
   }, score.adopt);
-  return <main className="map-app">
+  return <main className={`map-app style-${style}`}>
     <MapContainer center={DUDERSTADT} zoom={17} zoomControl={false} scrollWheelZoom className="leaflet-map">
       <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
       <ZoomControl position="bottomright" />
@@ -247,13 +257,13 @@ function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, s
       </Fragment>)}
     </MapContainer>
 
-    <header className="map-topbar"><a className="brand" href="/" aria-label="mutuals"><img className="brand-word" src="/mutuals/mutuals_word.png" alt="mutuals" /><small>PEOPLE FIND PEOPLE · MHACKS 2026</small></a><div className="topbar-actions"><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div><AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={onRequestSignIn} /></div></header>
+    <header className="map-topbar"><a className="brand" href="/" aria-label="mutuals">{formal ? <b className="brand-text">mutuals</b> : <img className="brand-word" src="/mutuals/mutuals_word.png" alt="mutuals" />}<small>{formal ? 'PROFESSIONAL NETWORKING · MHACKS 2026' : 'PEOPLE FIND PEOPLE · MHACKS 2026'}</small></a><div className="topbar-actions"><StyleToggle /><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div><AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={onRequestSignIn} /></div></header>
 
     <section className="map-card" aria-label="Live location sharing controls">
       <span className="eyebrow">DUDERSTADT CENTER · ANN ARBOR</span>
       <h1>Find people nearby.</h1>
       <p className="subhead">Only anonymous live locations appear here. Names and profiles stay private.</p>
-      <PointsCard {...score} />
+      <PointsCard {...score} formal={formal} />
       <div className="count-line"><span className="count-number">{loaded ? pins.length : '—'}</span><span>people sharing location</span><i className="count-live" /></div>
       <button className={`share-button${sharing ? ' sharing' : ''}`} type="button" role={signedIn || preview ? 'switch' : undefined} aria-checked={signedIn || preview ? sharing : undefined} disabled={busy || (!connected && !preview)} onClick={onToggle}>
         <span className="switch-dot" />{busy ? 'Updating…' : sharing ? 'Stop sharing my location' : preview ? 'Preview my location' : signedIn ? 'Share my live location' : 'Sign in to share your location'}
@@ -262,41 +272,56 @@ function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, s
       {sharing && <p className="sharing-status">{message || (preview ? 'Local preview: your location is not sent to anyone.' : "Waiting for your phone's location… The first fix may take a few seconds.")}</p>}
       {!sharing && message && <p className="error-message" role="alert">{message}</p>}
       {!signedIn && !preview && <button className="profile-link" type="button" onClick={onRequestSignIn}>Sign up or log in to share your location</button>}
-      <BadgeControl status={status} {...badge} />
-      {score.gain && <div className="points-toast" key={score.gain.at}>+{score.gain.points} pts · {score.gain.reason}</div>}
+      <BadgeControl status={status} formal={formal} {...badge} />
+      {score.gain && <div className="points-toast" key={score.gain.at}>+{score.gain.points} pts · {gainText(score.gain, formal)}</div>}
     </section>
 
     <div className="map-bottom"><span>GPS accuracy shown by circles · Indoor locations may drift</span><span>Map data &copy; OpenStreetMap</span></div>
   </main>;
 }
 
-const BADGE_TEXT: Record<BadgeStatus['state'], string> = {
-  H: 'Not discoverable',
-  A: 'Looking… nobody near yet',
-  N: "Someone's nearby!",
-  C: 'You found them!',
+const BADGE_TEXT: Record<BadgeStatus['state'], [cute: string, formal: string]> = {
+  H: ['Not discoverable', 'Private mode'],
+  A: ['Looking… nobody near yet', 'Searching nearby'],
+  N: ["Someone's nearby!", 'Contact nearby'],
+  C: ['You found them!', 'Connection made'],
 };
 
-function PointsCard({ points, level, progress, met }: ReturnType<typeof usePoints>) {
+function gainText(gain: Gain, formal: boolean): string {
+  if (gain.kind === 'badge') return formal ? 'synced from your badge' : 'from your badge';
+  if (gain.kind === 'found') return formal ? `Connection made: ${gain.who}` : `you found ${gain.who}!`;
+  return formal ? `Contact nearby: ${gain.who}` : `${gain.who} is nearby`;
+}
+
+function StyleToggle() {
+  const { style, setStyle } = useContext(StyleContext);
+  return <div className="style-toggle" role="radiogroup" aria-label="Event style">
+    <button type="button" role="radio" aria-checked={style === 'cute'} className={style === 'cute' ? 'on' : ''} onClick={() => setStyle('cute')} title="Clubs, university mixers">✿ Cute</button>
+    <button type="button" role="radio" aria-checked={style === 'formal'} className={style === 'formal' ? 'on' : ''} onClick={() => setStyle('formal')} title="Recruiting events">Formal</button>
+  </div>;
+}
+
+function PointsCard({ points, level, progress, met, formal }: ReturnType<typeof usePoints> & { formal: boolean }) {
   const next = LEVEL_AT[level];
+  const unit = formal ? 'Tier' : 'Lv';
   return <div className="points-card">
-    <img className="points-pup" src={`/mutuals/lv${level}.png`} alt={`Level ${level} pup`} />
+    {formal ? <span className="points-tier" aria-hidden="true">T{level}</span> : <img className="points-pup" src={`/mutuals/lv${level}.png`} alt={`Level ${level} pup`} />}
     <div className="points-body">
-      <div className="points-row"><span className="points-star" aria-hidden="true">★</span><b>{points}</b><span>pts</span><span className="points-level">Lv {level}</span></div>
+      <div className="points-row">{!formal && <span className="points-star" aria-hidden="true">★</span>}<b>{points}</b><span>pts</span><span className="points-level">{unit} {level}</span></div>
       <div className="points-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}><i style={{ width: `${Math.round(progress * 100)}%` }} /></div>
-      <small>{LEVEL_NAME[level - 1]} · {met} met{next !== undefined ? ` · ${next - points} pts to Lv ${level + 1}` : ''}</small>
+      <small>{(formal ? TIER_NAME : LEVEL_NAME)[level - 1]} · {met} {formal ? 'connections' : 'met'}{next !== undefined ? ` · ${next - points} pts to ${unit} ${level + 1}` : ''}</small>
     </div>
   </div>;
 }
 
-function BadgeControl({ status, connected, connect, disconnect, error, radio }: { status: BadgeStatus } & ReturnType<typeof useBadge>) {
+function BadgeControl({ status, formal, connected, connect, disconnect, error, radio }: { status: BadgeStatus; formal: boolean } & ReturnType<typeof useBadge>) {
   if (!badgeSupported()) return null; // Web Serial: Chrome / Edge on a computer
   return <div className={`badge-control${connected ? ' on' : ''}`}>
-    <span className="badge-icon" aria-hidden="true">🐶</span>
+    <span className="badge-icon" aria-hidden="true">{formal ? '◧' : '🐶'}</span>
     <div className="badge-copy">
-      <b>{connected ? 'mutuals badge connected' : 'mutuals FREE-WILi badge'}</b>
-      {connected && radio && <small className="badge-radio">📡 Radio: {radio.name || 'a mutuals badge'} is {radio.rssi >= -50 ? 'right here' : 'nearby'} ({radio.rssi} dBm){radio.count > 1 ? ` · ${radio.count} badges` : ''}</small>}
-      <small>{error || (connected ? `${BADGE_TEXT[status.state]}${status.state === 'N' || status.state === 'C' ? ` · ${status.name} · ${status.meters} m` : ''} · YES share · NO hide · MENU stats` : 'Plug in your badge: your pup, points and who is near you, on its screen')}</small>
+      <b>{connected ? 'mutuals badge connected' : formal ? 'mutuals badge' : 'mutuals FREE-WILi badge'}</b>
+      {connected && radio && <small className="badge-radio">📡 Radio: {radio.name || 'a mutuals badge'} is {radio.rssi >= -50 ? (formal ? 'in person' : 'right here') : 'nearby'} ({radio.rssi} dBm){radio.count > 1 ? ` · ${radio.count} badges` : ''}</small>}
+      <small>{error || (connected ? `${BADGE_TEXT[status.state][formal ? 1 : 0]}${status.state === 'N' || status.state === 'C' ? ` · ${status.name} · ${status.meters} m` : ''} · YES share · NO hide · MENU stats` : (formal ? 'Plug in your badge: your score and nearby contacts on its screen' : 'Plug in your badge: your pup, points and who is near you, on its screen'))}</small>
     </div>
     <button type="button" onClick={() => void (connected ? disconnect() : connect())}>{connected ? 'Disconnect' : 'Connect'}</button>
   </div>;
@@ -351,14 +376,19 @@ function useDemoWalkers(me: LocationPin | null) {
 
 export default function App({ live, authEnabled, signedIn, accountName = 'Your account' }: { live: boolean; authEnabled: boolean; signedIn: boolean; accountName?: string }) {
   const [authOpen, setAuthOpen] = useState(false);
+  const [style, setStyleState] = useState<Style>(loadStyle);
+  const setStyle = (next: Style) => {
+    setStyleState(next);
+    try { localStorage.setItem(STYLE_KEY, next); } catch { /* private mode: lasts this visit */ }
+  };
   const requestSignIn = () => setAuthOpen(true);
   useEffect(() => {
     if (signedIn) setAuthOpen(false);
   }, [signedIn]);
-  return <AuthDialogContext.Provider value={requestSignIn}>
+  return <StyleContext.Provider value={{ style, setStyle }}><AuthDialogContext.Provider value={requestSignIn}>
     <SignedInContext.Provider value={signedIn}>
       {live ? <LiveMapContent authEnabled={authEnabled} accountName={accountName} /> : <PreviewMap />}
       {authOpen && <AuthDialog authEnabled={authEnabled} onClose={() => setAuthOpen(false)} />}
     </SignedInContext.Provider>
-  </AuthDialogContext.Provider>;
+  </AuthDialogContext.Provider></StyleContext.Provider>;
 }
