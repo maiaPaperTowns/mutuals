@@ -31,6 +31,8 @@ Retrieved design context and screenshots for home `16:2`, profile `14:2`, event 
 
 ## Deferred items for user review
 
+Subsequent clarifications are tracked in `reports/2026-10-04-ui-follow-up.md`. The user has resolved the Event person-card click: clicking the card body must do nothing, as currently implemented.
+
 1. Event image and Other information: no corresponding event fields exist. Existing area map and known event metadata remain; no new storage was invented.
 2. People Reserved button and person-profile links: no confirmed existing operation. These actions were omitted.
 3. Mascot checkbox: its exact purpose was not identifiable. Existing points, mascot, badge and Cute/Formal controls remain.
