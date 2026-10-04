@@ -1529,8 +1529,25 @@ export const myNetworkingMemberships = spacetimedb.view({ name: 'my_networking_m
     ({ memberId, eventId, userId, discoverable, zoneId, availabilityStatus })));
 export const myEventStars = spacetimedb.view({ name: 'my_event_stars', public: true }, t.array(eventStar.rowType), ctx =>
   Array.from(ctx.db.eventStar.userId.filter(callerUserId(ctx))));
+type AssistantMessageOrder = { messageId: string; eventId: string; stage: string; role: string; createdAt: { microsSinceUnixEpoch: bigint } };
+function compareAssistantMessages(a: AssistantMessageOrder, b: AssistantMessageOrder) {
+  return Number(a.createdAt.microsSinceUnixEpoch - b.createdAt.microsSinceUnixEpoch)
+    || (a.messageId.split('__').slice(0, -1).join('__') === b.messageId.split('__').slice(0, -1).join('__') && a.role !== b.role ? (a.role === 'user' ? -1 : 1) : a.messageId.localeCompare(b.messageId));
+}
+function retainedAssistantMessages<Row extends AssistantMessageOrder>(rows: Row[]): Row[] {
+  const counts = new Map<string, number>();
+  return rows.sort(compareAssistantMessages).reverse().filter(row => {
+    const key = JSON.stringify([row.eventId, row.stage]), count = (counts.get(key) ?? 0) + 1;
+    counts.set(key, count); return count <= 50;
+  }).reverse();
+}
+function pruneAssistantMessages(ctx: ModuleContext, userId: string) {
+  const rows = Array.from(ctx.db.assistantMessage.userId.filter(userId));
+  const kept = new Set(retainedAssistantMessages([...rows]).map(row => row.messageId));
+  for (const row of rows) if (!kept.has(row.messageId)) ctx.db.assistantMessage.messageId.delete(row.messageId);
+}
 export const myAssistantMessages = spacetimedb.view({ name: 'my_assistant_messages', public: true }, t.array(assistantMessage.rowType), ctx =>
-  Array.from(ctx.db.assistantMessage.userId.filter(callerUserId(ctx))));
+  retainedAssistantMessages(Array.from(ctx.db.assistantMessage.userId.filter(callerUserId(ctx)))));
 export const myAssistantNotifications = spacetimedb.view({ name: 'my_assistant_notifications', public: true }, t.array(assistantNotification.rowType), ctx =>
   Array.from(ctx.db.assistantNotification.userId.filter(callerUserId(ctx))));
 export const myAgentExchanges = spacetimedb.view({ name: 'my_agent_exchanges', public: true }, t.array(agentExchange.rowType), ctx =>
@@ -1559,6 +1576,7 @@ export const myEventMapPins = spacetimedb.view({ name: 'my_event_map_pins', publ
 
 export const networkingAccountStatus = spacetimedb.procedure(t.string(), ctx => ctx.withTx(tx => {
   const account = ownCloudAccount(tx);
+  pruneAssistantMessages(tx, account.userId);
   return JSON.stringify({ user_id: account.userId, is_admin: Boolean(tx.db.cloudAdmin.identity.find(tx.sender)),
     profile_ready: Array.isArray(account.profile.embedding) && account.profile.embedding.length === 1024 });
 }));
@@ -1773,6 +1791,7 @@ function interestPage(ctx: ModuleContext, eventId: string, userId: string, offse
       starred: Boolean(ctx.db.eventStar.starId.find(`${eventKey(eventId, userId)}__${member.userId}`)),
       distance_meters: ownPosition && position ? Math.round(gpsDistance(ownPosition, position)) : null }];
   });
+  items.sort((a: any, b: any) => b.fit_score - a.fit_score);
   return { ready: Boolean(list), total: items.length, offset, items: items.slice(offset, offset + limit) };
 }
 export const getEventInterestList = spacetimedb.procedure({ eventId: t.string(), offset: t.u32(), limit: t.u32() }, t.string(), (ctx, { eventId, offset, limit }) => ctx.withTx(tx => {
@@ -1923,6 +1942,7 @@ function recordDuringConnection(ctx: ModuleContext, eventId: string, interaction
       : status === 'accepted' ? `You and ${name} accepted a connection. Tap End chat when you finish.`
       : status === 'completed' ? `Your chat with ${name} was marked finished.` : `The connection request with ${name} was declined.`;
     ctx.db.assistantMessage.insert({ messageId, userId, eventId, stage: 'during', role: 'assistant', content, createdAt: ctx.timestamp });
+    pruneAssistantMessages(ctx, userId);
   }
 }
 
@@ -2092,6 +2112,7 @@ function runAssistantMessage(ctx: CloudContext, args: { eventId: string; stage: 
       if (existing) tx.db.assistantTurn.turnId.update(row); else tx.db.assistantTurn.insert(row);
       const messageId = `${turnId}__user`;
       if (!tx.db.assistantMessage.messageId.find(messageId)) tx.db.assistantMessage.insert({ messageId, userId: account.userId, eventId: args.eventId, stage, role: 'user', content: input, createdAt: tx.timestamp });
+      pruneAssistantMessages(tx, account.userId);
       const history = Array.from(tx.db.assistantMessage.userId.filter(account.userId)).filter(row => row.eventId === args.eventId && row.stage === stage && row.messageId !== messageId)
         .sort((a, b) => Number(a.createdAt.microsSinceUnixEpoch - b.createdAt.microsSinceUnixEpoch)
           || (a.messageId.split('__').slice(0, -1).join('__') === b.messageId.split('__').slice(0, -1).join('__') ? (a.role === 'user' ? -1 : 1) : a.messageId.localeCompare(b.messageId)))
@@ -2166,6 +2187,7 @@ function runAssistantMessage(ctx: CloudContext, args: { eventId: string; stage: 
         const row = tx.db.assistantTurn.turnId.find(turnId);
         if (!row) throw new SenderError('Your conversation changed while processing.');
         tx.db.assistantMessage.insert({ messageId: `${turnId}__assistant`, userId, eventId: args.eventId, stage, role: 'assistant', content: JSON.parse(resultJson).reply, createdAt: tx.timestamp });
+        pruneAssistantMessages(tx, userId);
         tx.db.assistantTurn.turnId.update({ ...row, status: 'completed', resultJson });
         return resultJson;
       });
