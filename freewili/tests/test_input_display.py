@@ -33,6 +33,14 @@ class Buttons(unittest.TestCase):
         self.assertEqual(ButtonTracker.parse_report([0, 0, 1, 0, 1]), {"green", "red"})
 
 
+class AsciiSafe(unittest.TestCase):
+    def test_board_text_is_ascii(self):
+        from photon_fw.device import ascii_safe
+        self.assertEqual(ascii_safe("\u201calso into SpacetimeDB\u201d \u2014 Zone B \u00b7 Lê"), '"also into SpacetimeDB" - Zone B - Le')
+        for m in Display().machines():
+            ascii_safe(device_text(m)).encode("ascii")  # never raises
+
+
 class Display(unittest.TestCase):
     def machines(self):
         m = Machine(0); yield m

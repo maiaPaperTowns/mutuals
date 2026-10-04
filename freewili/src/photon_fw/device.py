@@ -11,11 +11,20 @@ import queue
 import re
 import sys
 import threading
+import unicodedata
 from typing import Any
 
 from .input import ButtonTracker
 
 LED_COUNT = 7
+_ASCII = str.maketrans({"\u201c": '"', "\u201d": '"', "\u2018": "'", "\u2019": "'", "\u2013": "-", "\u2014": "-",
+                        "\u00b7": "-", "\u2026": "...", "\u2192": "->"})
+
+
+def ascii_safe(s: str) -> str:
+    """The FREE-WILi command line is ASCII-only: smart quotes → plain, accents dropped, anything else removed."""
+    s = unicodedata.normalize("NFKD", s.translate(_ASCII))
+    return s.encode("ascii", "ignore").decode("ascii")
 
 
 class FreeWiliDevice:
@@ -28,6 +37,7 @@ class FreeWiliDevice:
         self.pressed: set[str] = set()
 
     def text(self, s: str) -> None:
+        s = ascii_safe(s)
         if s != self._last_text:
             self._last_text = s
             self.dev.gui.show_text(s)
@@ -41,7 +51,7 @@ class FreeWiliDevice:
             self.dev.gui.set_led_color(i, *rgb, 0, 1)
 
     def say(self, s: str) -> None:
-        self.dev.io.audio.speak(s)
+        self.dev.io.audio.speak(ascii_safe(s))
 
     def buttons(self) -> set[str]:
         """Currently held buttons, from the latest `button` report(s)."""
