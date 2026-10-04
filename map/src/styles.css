@@ -37,20 +37,20 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
 .dialog-close:hover { background: #eef1e9; }
 .demo-dialog h2 { margin: 10px 0 7px; color: #253128; font: 800 23px/1.15 Manrope, sans-serif; letter-spacing: -.05em; }
 .dialog-copy { margin: 0 0 20px; color: #737d73; font-size: 11px; line-height: 1.55; }
-.demo-dialog form { display: grid; gap: 8px; }
-.demo-dialog label { margin-top: 4px; color: #586658; font-size: 10px; font-weight: 700; }
-.demo-dialog label span { color: #949c91; font-size: 9px; font-weight: 400; }
-.demo-dialog input { width: 100%; height: 42px; padding: 0 11px; border: 1px solid #dde3d9; border-radius: 9px; background: white; color: #2e3b31; font: inherit; font-size: 12px; }
-.demo-dialog input:focus { border-color: #63836b; outline: 3px solid #63836b25; }
+.demo-dialog:not(.auth-dialog) form { display: grid; gap: 8px; }
+.demo-dialog:not(.auth-dialog) label { margin-top: 4px; color: #586658; font-size: 10px; font-weight: 700; }
+.demo-dialog:not(.auth-dialog) label span { color: #949c91; font-size: 9px; font-weight: 400; }
+.demo-dialog:not(.auth-dialog) input { width: 100%; height: 42px; padding: 0 11px; border: 1px solid #dde3d9; border-radius: 9px; background: white; color: #2e3b31; font: inherit; font-size: 12px; }
+.demo-dialog:not(.auth-dialog) input:focus { border-color: #63836b; outline: 3px solid #63836b25; }
 .dialog-submit { min-height: 44px; margin-top: 10px; border: 0; border-radius: 9px; background: #294c37; color: white; font-size: 11px; font-weight: 700; cursor: pointer; }
 .dialog-submit:hover { background: #376348; }
-.demo-dialog textarea { width: 100%; min-height: 74px; padding: 10px 11px; resize: vertical; border: 1px solid #dde3d9; border-radius: 9px; background: white; color: #2e3b31; font: inherit; font-size: 12px; }
+.demo-dialog:not(.auth-dialog) textarea { width: 100%; min-height: 74px; padding: 10px 11px; resize: vertical; border: 1px solid #dde3d9; border-radius: 9px; background: white; color: #2e3b31; font: inherit; font-size: 12px; }
 .profile-visibility { display: flex; align-items: flex-start; gap: 8px; margin: 8px 0 2px !important; color: #53634f !important; line-height: 1.5; }
 .profile-visibility input { width: 15px; height: 15px; min-width: 15px; margin: 0; accent-color: #294c37; }
 .auth-tabs { display: flex; gap: 6px; margin: 14px 0; padding: 4px; border-radius: 10px; background: #eef1e9; }
 .auth-tabs button { flex: 1; min-height: 34px; border: 0; border-radius: 7px; background: transparent; color: #778176; font-size: 11px; font-weight: 700; cursor: pointer; }
 .auth-tabs button.active { background: white; color: #294c37; box-shadow: 0 1px 4px #25312818; }
-.clerk-form { max-height: min(62vh, 510px); overflow: auto; }
+.clerk-form { width: 100%; }
 .clerk-form [data-clerk-component] { width: 100%; }
 .profile-tooltip { display: flex; flex-direction: column; gap: 4px; max-width: 220px; }
 .profile-tooltip b { color: #294c37; }
@@ -449,3 +449,49 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
 .event-badge.formal .event-badge-copy b { color: #1f3a68; }
 .event-badge.formal button { background: #1f3a68; }
 .event-badge.formal.on button { background: #e6ebf3; color: #1f3a68; }
+
+/* Login / sign-up popup: one piece, no inner scrolling. Clerk's card sits flush inside our dialog. */
+.auth-dialog { width: min(460px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 26px 26px 18px; }
+.clerk-form .cl-rootBox, .clerk-form .cl-cardBox, .clerk-form .cl-card { width: 100%; max-width: 100%; margin: 0; }
+.clerk-form .cl-cardBox { border: 0; border-radius: 12px; box-shadow: none; }
+.clerk-form .cl-card { padding: 22px 4px 18px; border: 0; box-shadow: none; background: transparent; }
+.clerk-form .cl-footer { background: transparent; }
+.clerk-form .cl-formFieldLabelRow { display: flex; justify-content: space-between; align-items: baseline; }
+.auth-switch { margin: 6px 0 0; color: #737d73; font-size: 11px; text-align: center; }
+.auth-switch button { padding: 0; border: 0; background: transparent; color: #294c37; font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; }
+
+/* all levels */
+.levels-button { align-self: flex-start; margin-top: 6px; padding: 0; border: 0; background: transparent; color: #4e7258; font-size: 10px; font-weight: 800; text-decoration: underline; cursor: pointer; }
+.points-body { display: flex; flex-direction: column; }
+.levels-dialog { width: min(720px, 100%); }
+.levels-list { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 14px 0 4px; padding: 0; list-style: none; }
+.levels-list li { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 6px 10px; border: 1px solid #e3e1f1; border-radius: 14px; background: #fff; text-align: center; opacity: .62; }
+.levels-list li.reached { opacity: 1; }
+.levels-list li.current { border: 2px solid #5cb88a; background: #eef8f2; box-shadow: 0 6px 18px #5cb88a33; opacity: 1; }
+.levels-list img { width: 74px; height: 74px; object-fit: contain; image-rendering: pixelated; }
+.levels-list b { color: #24284a; font-size: 13px; }
+.levels-list span { color: #24284a; font-size: 11px; line-height: 1.3; min-height: 2.6em; }
+.levels-list small { color: #7a7896; font-size: 10px; font-weight: 700; }
+.levels-list li.current small { color: #2d553e; }
+.levels-tier { display: grid; place-items: center; width: 54px; height: 54px; margin: 10px 0; border-radius: 8px; background: #1f3a68; color: #fff; font: 800 17px Manrope, sans-serif; }
+.levels-dialog.formal .levels-list li.current { border-color: #2c62b4; background: #f1f5fb; box-shadow: 0 6px 18px #2c62b433; }
+.style-formal .levels-button { color: #1f3a68; }
+@media (max-width: 640px) {
+  .levels-list { grid-template-columns: repeat(2, 1fr); }
+  .levels-list li:last-child { grid-column: 1 / -1; }
+}
+
+/* people on the map: avatar dot + name */
+.person-pin { position: relative; overflow: visible; border: 0; background: transparent; }
+.person-avatar { position: relative; z-index: 1; display: grid; place-items: center; width: 34px; height: 34px; border: 3px solid #fff; border-radius: 50%; color: #fff; font: 800 15px Manrope, sans-serif; text-shadow: 0 1px 2px #0003; box-shadow: 0 4px 12px #1d2b2240, 0 0 0 1px #0000000f; box-sizing: border-box; transition: transform .15s ease; }
+.person-pin:hover .person-avatar { transform: scale(1.12); }
+.person-name { position: absolute; z-index: 2; top: 36px; left: 50%; transform: translateX(-50%); padding: 2px 8px; border-radius: 99px; background: #fffffff2; color: #24284a; font: 800 10.5px Manrope, sans-serif; white-space: nowrap; box-shadow: 0 2px 8px #1d2b2226; pointer-events: none; }
+.person-pulse { position: absolute; inset: 0; border-radius: 50%; }
+.person-pin-mine .person-pulse { background: #2d6a4f55; animation: person-pulse 2.2s ease-out infinite; }
+.person-pin-mine .person-name { background: #2d6a4f; color: #fff; }
+.person-pin-formal { }
+.person-pin-formal .person-avatar { border-radius: 10px; }
+.person-pin-formal.person-pin-mine .person-pulse { background: #1f3a6855; border-radius: 10px; }
+.person-pin-formal.person-pin-mine .person-name { background: #1f3a68; }
+@keyframes person-pulse { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(2.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .person-pin-mine .person-pulse { animation: none; } }
