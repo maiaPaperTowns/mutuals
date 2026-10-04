@@ -9,13 +9,15 @@ class NativeChatBackend:
 
     async def __call__(self, payload):
         key, request, message = payload['sessionKey'], payload['requestId'], payload['message'].strip()
+        # ASI:One includes the selected recipient's mention in ACP text.
+        message = re.sub(r'^(?:@mutuals-mhacks2026\s+)+', '', message, flags=re.I)
         if message.lower() == 'unlink':
             await self.rpc('unlink_asi_chat', [key])
             return {'reply': 'This chat is disconnected from your mutuals account.'}
         if re.match(r'^link\s+', message, re.I):
             code = re.sub(r'^link\s+', '', message, flags=re.I).strip()
             if not re.fullmatch(r'[a-f0-9]{32}', code):
-                return {'reply': 'Use link <code> with the five-minute code from your website account.'}
+                return {'reply': 'Send link followed by the five-minute code from your website account.'}
             try:
                 await self.rpc('redeem_asi_link_code', [code, key, request])
                 return {'reply': 'Your mutuals account is linked to this chat for up to 24 hours. Send events to choose an event; send unlink to disconnect.'}
@@ -27,7 +29,7 @@ class NativeChatBackend:
             context = json.loads(await self.rpc('get_asi_chat_context', [key]))
         except RuntimeError as e:
             if re.search(r'authorization|link.*again|website profile', str(e), re.I):
-                return {'reply': 'Link your account first: sign in at https://mutuals.tech/events, generate a code, then send link <code>. Pre and Post work here; During uses website GPS.'}
+                return {'reply': 'Link your account first: sign in at https://mutuals.tech/events, generate a code, then send link followed by that code. Pre and Post work here; During uses website GPS.'}
             raise
         events = context['events']
         choices = '\n'.join(f"{e['title']} ({e['phase']}) — event {e['event_id']}" for e in events)

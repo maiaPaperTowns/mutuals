@@ -29,7 +29,7 @@ def make_protocol(address: str, backend) -> Protocol:
         text = ''.join(item.text for item in msg.content if isinstance(item, TextContent)).strip()
         ended = any(isinstance(item, EndSessionContent) for item in msg.content)
         session = getattr(ctx, 'session', None)
-        reply = 'Welcome to mutuals. I help with event preparation and follow-up. Link your website account with link <code>.'
+        reply = 'Welcome to mutuals. I help with event preparation and follow-up. Send link followed by your website account code.'
         if not session:
             reply = 'A verified chat session is required. Please start a new ASI:One session.'
         elif text or ended:
@@ -52,5 +52,3 @@ def make_protocol(address: str, backend) -> Protocol:
         pass
 
     return protocol
-
-
