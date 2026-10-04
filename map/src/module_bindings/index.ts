@@ -34,17 +34,60 @@ import {
 } from "spacetimedb";
 
 // Import all reducer arg schemas
+import ApproveCloudFollowupReducer from "./approve_cloud_followup_reducer";
+import CreateAgentLinkCodeReducer from "./create_agent_link_code_reducer";
+import DeleteAgentPresenceReducer from "./delete_agent_presence_reducer";
+import DeleteAgentRecordReducer from "./delete_agent_record_reducer";
+import DeleteMyAgentDataReducer from "./delete_my_agent_data_reducer";
+import LeaveCloudEventReducer from "./leave_cloud_event_reducer";
 import LeaveMapReducer from "./leave_map_reducer";
+import LinkAgentUserReducer from "./link_agent_user_reducer";
+import PutAgentEventReducer from "./put_agent_event_reducer";
+import PutAgentFollowUpPlanReducer from "./put_agent_follow_up_plan_reducer";
+import PutAgentInteractionReducer from "./put_agent_interaction_reducer";
+import PutAgentPresenceReducer from "./put_agent_presence_reducer";
+import PutAgentProfileReducer from "./put_agent_profile_reducer";
+import PutAgentRoiHistoryReducer from "./put_agent_roi_history_reducer";
+import PutAgentTranscriptReducer from "./put_agent_transcript_reducer";
+import RecordCloudOutcomeReducer from "./record_cloud_outcome_reducer";
+import RedeemAgentLinkCodeReducer from "./redeem_agent_link_code_reducer";
+import RequestCloudConnectionReducer from "./request_cloud_connection_reducer";
+import RespondCloudConnectionReducer from "./respond_cloud_connection_reducer";
 import SaveMyProfileReducer from "./save_my_profile_reducer";
+import SetCloudPreferencesReducer from "./set_cloud_preferences_reducer";
+import SetCloudPresenceReducer from "./set_cloud_presence_reducer";
 import SetMyPresenceReducer from "./set_my_presence_reducer";
 import StopSharingLocationReducer from "./stop_sharing_location_reducer";
 import UpdateMyLocationReducer from "./update_my_location_reducer";
 
 // Import all procedure arg schemas
+import * as CloudBackendStatusProcedure from "./cloud_backend_status_procedure";
+import * as DeleteCloudAccountProcedure from "./delete_cloud_account_procedure";
+import * as DraftCloudFollowupProcedure from "./draft_cloud_followup_procedure";
+import * as GetCloudEventRecommendationsProcedure from "./get_cloud_event_recommendations_procedure";
+import * as GetCloudOpportunitiesProcedure from "./get_cloud_opportunities_procedure";
+import * as LoadCloudProfileProcedure from "./load_cloud_profile_procedure";
+import * as SaveCloudEventProcedure from "./save_cloud_event_procedure";
+import * as SubmitCloudIntroductionProcedure from "./submit_cloud_introduction_procedure";
+import * as VerifyCloudProvidersProcedure from "./verify_cloud_providers_procedure";
 
 // Import all table schema definitions
+import AgentEventsRow from "./agent_events_table";
+import AgentFollowUpPlansRow from "./agent_follow_up_plans_table";
+import AgentInteractionsRow from "./agent_interactions_table";
+import AgentLinkCodesRow from "./agent_link_codes_table";
+import AgentPresencesRow from "./agent_presences_table";
+import AgentProfilesRow from "./agent_profiles_table";
+import AgentRoiHistoryRow from "./agent_roi_history_table";
+import AgentTranscriptsRow from "./agent_transcripts_table";
+import AgentUserLinksRow from "./agent_user_links_table";
 import LiveLocationRow from "./live_location_table";
+import MyAgentFollowUpPlansRow from "./my_agent_follow_up_plans_table";
+import MyAgentInteractionsRow from "./my_agent_interactions_table";
+import MyAgentRoiHistoryRow from "./my_agent_roi_history_table";
+import MyAgentTranscriptsRow from "./my_agent_transcripts_table";
 import MyProfileRow from "./my_profile_table";
+import MyProfileDetailsRow from "./my_profile_details_table";
 import PresenceRow from "./presence_table";
 import PublicProfilesRow from "./public_profiles_table";
 
@@ -77,6 +120,97 @@ const tablesSchema = __schema({
       { name: 'presence_participant_id_key', constraint: 'unique', columns: ['participantId'] },
     ],
   }, PresenceRow),
+  agentEvents: __table({
+    name: 'agent_events',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, AgentEventsRow),
+  agentFollowUpPlans: __table({
+    name: 'agent_follow_up_plans',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, AgentFollowUpPlansRow),
+  agentInteractions: __table({
+    name: 'agent_interactions',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, AgentInteractionsRow),
+  agentLinkCodes: __table({
+    name: 'agent_link_codes',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, AgentLinkCodesRow),
+  agentPresences: __table({
+    name: 'agent_presences',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, AgentPresencesRow),
+  agentProfiles: __table({
+    name: 'agent_profiles',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, AgentProfilesRow),
+  agentRoiHistory: __table({
+    name: 'agent_roi_history',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, AgentRoiHistoryRow),
+  agentTranscripts: __table({
+    name: 'agent_transcripts',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, AgentTranscriptsRow),
+  agentUserLinks: __table({
+    name: 'agent_user_links',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, AgentUserLinksRow),
+  myAgentFollowUpPlans: __table({
+    name: 'my_agent_follow_up_plans',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyAgentFollowUpPlansRow),
+  myAgentInteractions: __table({
+    name: 'my_agent_interactions',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyAgentInteractionsRow),
+  myAgentRoiHistory: __table({
+    name: 'my_agent_roi_history',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyAgentRoiHistoryRow),
+  myAgentTranscripts: __table({
+    name: 'my_agent_transcripts',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyAgentTranscriptsRow),
   myProfile: __table({
     name: 'my_profile',
     indexes: [
@@ -84,6 +218,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MyProfileRow),
+  myProfileDetails: __table({
+    name: 'my_profile_details',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyProfileDetailsRow),
   publicProfiles: __table({
     name: 'public_profiles',
     indexes: [
@@ -95,8 +236,28 @@ const tablesSchema = __schema({
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
+  __reducerSchema("approve_cloud_followup", ApproveCloudFollowupReducer),
+  __reducerSchema("create_agent_link_code", CreateAgentLinkCodeReducer),
+  __reducerSchema("delete_agent_presence", DeleteAgentPresenceReducer),
+  __reducerSchema("delete_agent_record", DeleteAgentRecordReducer),
+  __reducerSchema("delete_my_agent_data", DeleteMyAgentDataReducer),
+  __reducerSchema("leave_cloud_event", LeaveCloudEventReducer),
   __reducerSchema("leave_map", LeaveMapReducer),
+  __reducerSchema("link_agent_user", LinkAgentUserReducer),
+  __reducerSchema("put_agent_event", PutAgentEventReducer),
+  __reducerSchema("put_agent_follow_up_plan", PutAgentFollowUpPlanReducer),
+  __reducerSchema("put_agent_interaction", PutAgentInteractionReducer),
+  __reducerSchema("put_agent_presence", PutAgentPresenceReducer),
+  __reducerSchema("put_agent_profile", PutAgentProfileReducer),
+  __reducerSchema("put_agent_roi_history", PutAgentRoiHistoryReducer),
+  __reducerSchema("put_agent_transcript", PutAgentTranscriptReducer),
+  __reducerSchema("record_cloud_outcome", RecordCloudOutcomeReducer),
+  __reducerSchema("redeem_agent_link_code", RedeemAgentLinkCodeReducer),
+  __reducerSchema("request_cloud_connection", RequestCloudConnectionReducer),
+  __reducerSchema("respond_cloud_connection", RespondCloudConnectionReducer),
   __reducerSchema("save_my_profile", SaveMyProfileReducer),
+  __reducerSchema("set_cloud_preferences", SetCloudPreferencesReducer),
+  __reducerSchema("set_cloud_presence", SetCloudPresenceReducer),
   __reducerSchema("set_my_presence", SetMyPresenceReducer),
   __reducerSchema("stop_sharing_location", StopSharingLocationReducer),
   __reducerSchema("update_my_location", UpdateMyLocationReducer),
@@ -104,6 +265,15 @@ const reducersSchema = __reducers(
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
 const proceduresSchema = __procedures(
+  __procedureSchema("cloud_backend_status", CloudBackendStatusProcedure.params, CloudBackendStatusProcedure.returnType),
+  __procedureSchema("delete_cloud_account", DeleteCloudAccountProcedure.params, DeleteCloudAccountProcedure.returnType),
+  __procedureSchema("draft_cloud_followup", DraftCloudFollowupProcedure.params, DraftCloudFollowupProcedure.returnType),
+  __procedureSchema("get_cloud_event_recommendations", GetCloudEventRecommendationsProcedure.params, GetCloudEventRecommendationsProcedure.returnType),
+  __procedureSchema("get_cloud_opportunities", GetCloudOpportunitiesProcedure.params, GetCloudOpportunitiesProcedure.returnType),
+  __procedureSchema("load_cloud_profile", LoadCloudProfileProcedure.params, LoadCloudProfileProcedure.returnType),
+  __procedureSchema("save_cloud_event", SaveCloudEventProcedure.params, SaveCloudEventProcedure.returnType),
+  __procedureSchema("submit_cloud_introduction", SubmitCloudIntroductionProcedure.params, SubmitCloudIntroductionProcedure.returnType),
+  __procedureSchema("verify_cloud_providers", VerifyCloudProvidersProcedure.params, VerifyCloudProvidersProcedure.returnType),
 );
 
 /** The remote SpacetimeDB module schema, both runtime and type information. */

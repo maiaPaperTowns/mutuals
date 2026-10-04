@@ -10,6 +10,142 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+export const AgentAuthSubject = __t.object("AgentAuthSubject", {
+  subject: __t.string(),
+  ownerIdentity: __t.identity(),
+});
+export type AgentAuthSubject = __Infer<typeof AgentAuthSubject>;
+
+export const AgentEvents = __t.object("AgentEvents", {});
+export type AgentEvents = __Infer<typeof AgentEvents>;
+
+export const AgentFollowUpPlans = __t.object("AgentFollowUpPlans", {});
+export type AgentFollowUpPlans = __Infer<typeof AgentFollowUpPlans>;
+
+export const AgentInteractions = __t.object("AgentInteractions", {});
+export type AgentInteractions = __Infer<typeof AgentInteractions>;
+
+export const AgentLinkCode = __t.object("AgentLinkCode", {
+  code: __t.string(),
+  userId: __t.string(),
+  expiresAtMs: __t.u64(),
+  agentScope: __t.string(),
+});
+export type AgentLinkCode = __Infer<typeof AgentLinkCode>;
+
+export const AgentLinkCodes = __t.object("AgentLinkCodes", {});
+export type AgentLinkCodes = __Infer<typeof AgentLinkCodes>;
+
+export const AgentPresence = __t.object("AgentPresence", {
+  userId: __t.string(),
+  zoneId: __t.string(),
+  availabilityStatus: __t.string(),
+  discoverable: __t.bool(),
+  updatedAt: __t.timestamp(),
+  payloadJson: __t.string(),
+  agentScope: __t.string(),
+});
+export type AgentPresence = __Infer<typeof AgentPresence>;
+
+export const AgentPresences = __t.object("AgentPresences", {});
+export type AgentPresences = __Infer<typeof AgentPresences>;
+
+export const AgentProfile = __t.object("AgentProfile", {
+  userId: __t.string(),
+  payloadJson: __t.string(),
+  agentScope: __t.string(),
+});
+export type AgentProfile = __Infer<typeof AgentProfile>;
+
+export const AgentProfileRecord = __t.object("AgentProfileRecord", {
+  userId: __t.string(),
+  payloadJson: __t.string(),
+});
+export type AgentProfileRecord = __Infer<typeof AgentProfileRecord>;
+
+export const AgentProfiles = __t.object("AgentProfiles", {});
+export type AgentProfiles = __Infer<typeof AgentProfiles>;
+
+export const AgentRoiHistory = __t.object("AgentRoiHistory", {});
+export type AgentRoiHistory = __Infer<typeof AgentRoiHistory>;
+
+export const AgentService = __t.object("AgentService", {
+  identity: __t.identity(),
+});
+export type AgentService = __Infer<typeof AgentService>;
+
+export const AgentTranscripts = __t.object("AgentTranscripts", {});
+export type AgentTranscripts = __Infer<typeof AgentTranscripts>;
+
+export const AgentUserLink = __t.object("AgentUserLink", {
+  userId: __t.string(),
+  authSubject: __t.string(),
+  ownerIdentity: __t.identity(),
+  messagingIdentity: __t.option(__t.string()),
+  createdAt: __t.timestamp(),
+  updatedAt: __t.timestamp(),
+  agentScope: __t.string(),
+});
+export type AgentUserLink = __Infer<typeof AgentUserLink>;
+
+export const AgentUserLinks = __t.object("AgentUserLinks", {});
+export type AgentUserLinks = __Infer<typeof AgentUserLinks>;
+
+export const CloudAdmin = __t.object("CloudAdmin", {
+  identity: __t.identity(),
+});
+export type CloudAdmin = __Infer<typeof CloudAdmin>;
+
+export const CloudOperation = __t.object("CloudOperation", {
+  userId: __t.string(),
+  operationId: __t.string(),
+  startedAtMs: __t.u64(),
+});
+export type CloudOperation = __Infer<typeof CloudOperation>;
+
+export const CloudProviderConfig = __t.object("CloudProviderConfig", {
+  name: __t.string(),
+  value: __t.string(),
+});
+export type CloudProviderConfig = __Infer<typeof CloudProviderConfig>;
+
+export const Event = __t.object("Event", {
+  eventId: __t.string(),
+  startAtMs: __t.u64(),
+  endAtMs: __t.u64(),
+  zoneId: __t.option(__t.string()),
+  payloadJson: __t.string(),
+  agentScope: __t.string(),
+});
+export type Event = __Infer<typeof Event>;
+
+export const FollowUpPlan = __t.object("FollowUpPlan", {
+  planId: __t.string(),
+  interactionId: __t.string(),
+  userA: __t.string(),
+  userB: __t.string(),
+  payloadJson: __t.string(),
+  agentScope: __t.string(),
+});
+export type FollowUpPlan = __Infer<typeof FollowUpPlan>;
+
+export const Interaction = __t.object("Interaction", {
+  interactionId: __t.string(),
+  userId: __t.string(),
+  targetId: __t.string(),
+  status: __t.string(),
+  roiScoreAtMatch: __t.f64(),
+  reason: __t.string(),
+  recordingConsentJson: __t.string(),
+  recordingActive: __t.bool(),
+  audioRef: __t.option(__t.string()),
+  transcriptRef: __t.option(__t.string()),
+  createdAt: __t.timestamp(),
+  payloadJson: __t.string(),
+  agentScope: __t.string(),
+});
+export type Interaction = __Infer<typeof Interaction>;
+
 export const LiveLocation = __t.object("LiveLocation", {
   participantId: __t.string(),
   latitude: __t.f64(),
@@ -19,14 +155,53 @@ export const LiveLocation = __t.object("LiveLocation", {
 });
 export type LiveLocation = __Infer<typeof LiveLocation>;
 
+export const MapAccountProfile = __t.object("MapAccountProfile", {
+  identity: __t.identity(),
+  displayName: __t.string(),
+  headline: __t.string(),
+  interests: __t.string(),
+  showOnMap: __t.bool(),
+  updatedAt: __t.timestamp(),
+});
+export type MapAccountProfile = __Infer<typeof MapAccountProfile>;
+
+export const MyAgentFollowUpPlans = __t.object("MyAgentFollowUpPlans", {});
+export type MyAgentFollowUpPlans = __Infer<typeof MyAgentFollowUpPlans>;
+
+export const MyAgentInteractions = __t.object("MyAgentInteractions", {});
+export type MyAgentInteractions = __Infer<typeof MyAgentInteractions>;
+
+export const MyAgentRoiHistory = __t.object("MyAgentRoiHistory", {});
+export type MyAgentRoiHistory = __Infer<typeof MyAgentRoiHistory>;
+
+export const MyAgentTranscripts = __t.object("MyAgentTranscripts", {});
+export type MyAgentTranscripts = __Infer<typeof MyAgentTranscripts>;
+
 export const MyProfile = __t.object("MyProfile", {});
 export type MyProfile = __Infer<typeof MyProfile>;
+
+export const MyProfileDetails = __t.object("MyProfileDetails", {});
+export type MyProfileDetails = __Infer<typeof MyProfileDetails>;
 
 export const ParticipantOwner = __t.object("ParticipantOwner", {
   participantId: __t.string(),
   ownerIdentity: __t.identity(),
 });
 export type ParticipantOwner = __Infer<typeof ParticipantOwner>;
+
+export const ParticipantPlan = __t.object("ParticipantPlan", {
+  planId: __t.string(),
+  interactionId: __t.string(),
+  peerId: __t.string(),
+  channelsJson: __t.string(),
+  agreed: __t.bool(),
+  yourDraft: __t.string(),
+  suggestedTiming: __t.string(),
+  rationale: __t.string(),
+  approved: __t.bool(),
+  sendStatus: __t.option(__t.string()),
+});
+export type ParticipantPlan = __Infer<typeof ParticipantPlan>;
 
 export const Presence = __t.object("Presence", {
   participantId: __t.string(),
@@ -46,6 +221,27 @@ export type PublicProfile = __Infer<typeof PublicProfile>;
 export const PublicProfiles = __t.object("PublicProfiles", {});
 export type PublicProfiles = __Infer<typeof PublicProfiles>;
 
+export const RoiHistory = __t.object("RoiHistory", {
+  entryId: __t.string(),
+  userId: __t.string(),
+  interactionId: __t.string(),
+  recordedAtMs: __t.u64(),
+  payloadJson: __t.string(),
+  agentScope: __t.string(),
+});
+export type RoiHistory = __Infer<typeof RoiHistory>;
+
+export const Transcript = __t.object("Transcript", {
+  interactionId: __t.string(),
+  userId: __t.string(),
+  targetId: __t.string(),
+  text: __t.string(),
+  audioRef: __t.option(__t.string()),
+  payloadJson: __t.string(),
+  agentScope: __t.string(),
+});
+export type Transcript = __Infer<typeof Transcript>;
+
 export const UserProfile = __t.object("UserProfile", {
   identity: __t.identity(),
   displayName: __t.string(),
@@ -53,6 +249,7 @@ export const UserProfile = __t.object("UserProfile", {
   interests: __t.string(),
   showOnMap: __t.bool(),
   updatedAt: __t.timestamp(),
+  agentProfileJson: __t.option(__t.string()),
 });
 export type UserProfile = __Infer<typeof UserProfile>;
 

@@ -4,6 +4,12 @@ import { Circle, MapContainer, Marker, TileLayer, Tooltip, ZoomControl } from 'r
 import L from 'leaflet';
 import { reducers, tables } from './module_bindings';
 import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
+import ProfileChat from './ProfileChat';
+import LiveProfileChat from './LiveProfileChat';
+import { createProfileApi } from './profileApi';
+
+const noToken = async () => null;
+const previewProfileApi = createProfileApi('', noToken, async () => {});
 
 const DUDERSTADT: [number, number] = [42.2912, -83.7157];
 type LocationPin = { participantId: string; latitude: number; longitude: number; accuracyMeters: number };
@@ -229,7 +235,7 @@ function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, s
       </Fragment>)}
     </MapContainer>
 
-    <header className="map-topbar"><a className="brand" href="/" aria-label="MHacks live map"><span className="brand-mark">mh<span>+</span></span><span><b>MHACKS</b><small>LIVE CAMPUS MAP</small></span></a><div className="topbar-actions"><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div><AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={onRequestSignIn} /></div></header>
+    <header className="map-topbar"><a className="brand" href="/" aria-label="MHacks live map"><span className="brand-mark">mh<span>+</span></span><span><b>MHACKS</b><small>LIVE CAMPUS MAP</small></span></a><div className="topbar-actions"><a className="nav-link" href="/chat">My profile</a><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div><AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={onRequestSignIn} /></div></header>
 
     <section className="map-card" aria-label="Live location sharing controls">
       <span className="eyebrow">DUDERSTADT CENTER · ANN ARBOR</span>
@@ -262,7 +268,7 @@ function PreviewMap() {
   return <MapExperience pins={pin ? [pin] : []} profileById={new Map()} myId={id} loaded connected={false} signedIn={false} sharing={sharing} busy={false} message="" preview onToggle={() => setSharing(value => !value)} onRequestSignIn={requestSignIn} authEnabled={false} accountName="Your account" />;
 }
 
-export default function App({ live, authEnabled, signedIn, accountName = 'Your account' }: { live: boolean; authEnabled: boolean; signedIn: boolean; accountName?: string }) {
+export default function App({ live, authEnabled, signedIn, accountName = 'Your account', getApiToken = noToken }: { live: boolean; authEnabled: boolean; signedIn: boolean; accountName?: string; getApiToken?: () => Promise<string | null> }) {
   const [authOpen, setAuthOpen] = useState(false);
   const requestSignIn = () => setAuthOpen(true);
   useEffect(() => {
@@ -270,7 +276,10 @@ export default function App({ live, authEnabled, signedIn, accountName = 'Your a
   }, [signedIn]);
   return <AuthDialogContext.Provider value={requestSignIn}>
     <SignedInContext.Provider value={signedIn}>
-      {live ? <LiveMapContent authEnabled={authEnabled} accountName={accountName} /> : <PreviewMap />}
+      {window.location.pathname.replace(/\/$/, '') === '/chat'
+        ? live ? <LiveProfileChat signedIn={signedIn} accountName={accountName} getToken={getApiToken} onSignIn={requestSignIn} accountControl={<AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={requestSignIn} />} />
+          : <ProfileChat signedIn={false} accountName={accountName} api={previewProfileApi} onSignIn={requestSignIn} />
+        : live ? <LiveMapContent authEnabled={authEnabled} accountName={accountName} /> : <PreviewMap />}
       {authOpen && <AuthDialog authEnabled={authEnabled} onClose={() => setAuthOpen(false)} />}
     </SignedInContext.Provider>
   </AuthDialogContext.Provider>;

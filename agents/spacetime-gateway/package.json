@@ -1,0 +1,19 @@
+{
+  "name": "asi-spacetime-gateway",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/module.test.ts test/networking.test.ts",
+    "test:integration": "tsx test/local-integration.ts"
+  },
+  "dependencies": {
+    "spacetimedb": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.3"
+  }
+}

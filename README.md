@@ -10,6 +10,14 @@ Nothing is revealed until you both say yes.
 
 > Built at MHacks 2026. Working name; the final name goes here once picked.
 
+## Current cloud deployment
+
+The [public web app](https://mhacks-live-map.vercel.app/chat) uses Clerk login and native SpacetimeDB procedures/reducers for private profile extraction, Pinecone indexing, event recommendations, opt-in networking, connection requests and follow-up drafts. ASI and Pinecone are called from SpacetimeDB Maincloud; this web path does not require the Python gateway or a local process.
+
+The iMessage architecture described below is a separate integration path. Photon/Agentverse transport, recording, push and automatic outbound delivery remain unconnected. Activity recommendations need a real catalog; two-account matching and the complete browser resume upload flow still need live acceptance checks. Follow-up drafts are copied and sent manually. See the [cloud acceptance report](reports/云端后端连接验收报告.md) for verified results and remaining configuration.
+
+Completed changes must be committed, pushed and deployed to affected cloud targets under the standing instructions in [AGENTS.md](AGENTS.md).
+
 ## The problem
 
 There are about a thousand hackers in this building, and you'll talk to maybe five of them. The person
@@ -83,6 +91,8 @@ Other folders: see the README inside each one.
 | Onboarding | Resume → profile | `agent1q…` *(fill in)* |
 | Matcher | Finds who nearby fits a need | `agent1q…` *(fill in)* |
 | Recruiter | Writes the plain-English reason for an intro | `agent1q…` *(fill in)* |
+
+The ASIone backend stores its six private data collections and matching presence in the same SpacetimeDB module as the map. Python services connect through a server-only TypeScript gateway. See [`agents/README.md`](agents/README.md) for schema-first deployment, environment setup, account linking, and JSON migration.
 
 ## Privacy, by design
 

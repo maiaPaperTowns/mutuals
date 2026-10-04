@@ -20,7 +20,7 @@ iPhone ──iMessage──► Photon (spectrum-ts) ──POST AGENT_URL──�
    │                     │  └──POST /offer {a, b, reasons}────────┘
    └──double-yes texts───┘          │
                                     ▼
-                           SpacetimeDB: person, profile, presence, match, rating
+                           SpacetimeDB: map presence + location, private ASI profiles/events/interactions/transcripts/plans/ROI
                                     ▲
                      React map (Terry) · Scoreboard (Elena)
 ```
@@ -87,6 +87,7 @@ names, addresses and the Innovation Lab badge. Demo video must show the ASI:One 
 
 **SpacetimeDB (Terry).** Live shared map state is the point: opted-in dots, zone changes, and opt-outs update
 without refresh. Show two screens updating at once. The current `map/spacetimedb` module is a standalone map+database for the MVP; when other modules need one shared database, merge its `presence` and private+`participant_owner` tables/reducers into the team's module rather than publishing a second module over it.
+ASIone persistence now shares that map module; see [`agents/README.md`](agents/README.md) for schema deployment and the private gateway.
 
 **Overall / FREE-WILi (Elena).** Real-phone testing, a bug list, and an honest ROI measure
 (intros → meetings → % worth it). Never state a number we didn't measure.

@@ -1,0 +1,9 @@
+.vercel
+.env*
+!.env.example
+.pytest_cache/
+.superpowers/
+tmp/
+reports/*.jpg
+reports/*.png
+reports/.resume-upload-private-backup.json

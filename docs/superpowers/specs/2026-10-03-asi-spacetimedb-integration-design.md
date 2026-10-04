@@ -32,6 +32,7 @@ Keep the current `presence`, `participant_owner`, `live_location`, and `user_pro
 | --- | --- | --- |
 | Profile | Extend `user_profile` with role, skills, experience, goals, offerings, seniority, availability, discoverability, follow-up preferences, and an update timestamp. Keep the existing map-card fields canonical for display name, headline, interests, and visibility. | Private to the owner and the authorized agent gateway. The existing public profile view returns only opted-in map-card fields. |
 | Identity mapping | New private `agent_user_link` table mapping the ASIone user key and messaging identifiers to the authenticated identity. Include owner identity and creation/update timestamps. | Authorized gateway only. |
+| Live ASI presence | New private `agent_presence` table keyed by ASIone user ID, containing zone, optional local x/y, availability, discoverability, and last-seen time. | Authorized gateway and the owning participant. Not the map's public presence table or GPS location history. |
 | Event catalog | New `event` table keyed by `event_id`, with searchable title, start/end, zone, host role, and a serialized payload for the remaining `EventInfo` fields. | Organizer writes; participant and agent reads. |
 | Interactions | New `interaction` table keyed by `interaction_id`, with participant IDs, state, ROI score, reason, consent state, recording state, and transcript reference. | Authorized gateway and the two participants through scoped views. |
 | Transcripts | New private `transcript` table keyed by interaction, containing transcript text and the optional audio reference. | Authorized gateway and interaction participants only after both recording consents are present. |
@@ -40,7 +41,7 @@ Keep the current `presence`, `participant_owner`, `live_location`, and `user_pro
 
 Use typed keys, owners, statuses, and timestamps for lookups and access checks. Add indexes for event time, interaction participants/status, plan owner/status, and ROI owner/time because those fields drive existing lookups. Store nested Pydantic values as serialized JSON fields in the first schema version so the backend can preserve its existing request/response models. Add extracted indexed columns only where matching or map queries need them. Keep embeddings as optional profile/event payload data until the embedding and vector-search integrations are implemented.
 
-The event catalog is populated through the organizer-only `POST /events` route, which upserts records. Test fixtures and `fake_data.py` remain test data and do not seed the production database. The map's existing location table remains the source for live coordinates; ASIone zone and availability values belong to the profile/presence data and must not create a second live-location record.
+The event catalog is populated through the organizer-only `POST /events` route, which upserts records. Test fixtures and `fake_data.py` remain test data and do not seed the production database. The map's existing location table remains the source for live GPS coordinates; ASIone zone and availability values belong to the private `agent_presence` data and must not create a second GPS location record. Agent presence updates expire after the existing stale timeout and are restored from the database when the ASIone agents start.
 
 ## API and privacy rules
 
@@ -61,6 +62,7 @@ Deploy the SpacetimeDB schema before the gateway and Python services. Configure 
 ## Acceptance criteria
 
 - All six ASIone collections persist in the current SpacetimeDB database after Python service restarts.
+- ASIone live presence and availability persist across agent restarts and expire after the configured stale timeout.
 - Existing ASIone route paths and response models remain unchanged.
 - Organizer event upserts survive restart and feed event recommendations.
 - Agent and participant reads return only the records their identity is allowed to access.
