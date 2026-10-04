@@ -7,7 +7,12 @@ export type Person = {
   name: string;
   zone?: string; // venue zone from the map, e.g. "Zone C"
   phone?: string; // shared only after both say yes
+  title?: string; // for the business card, e.g. "SWE Intern"
+  org?: string;
+  links?: Links; // shared only after both say yes
 };
+
+export type Links = { linkedin?: string; instagram?: string; discord?: string; github?: string; website?: string };
 
 export type MatchStatus = "offered" | "accepted" | "declined" | "expired";
 
@@ -21,12 +26,15 @@ export type Match = {
   answers: { a?: boolean; b?: boolean };
   ratings: { a?: boolean; b?: boolean };
   status: MatchStatus;
+  met?: boolean; // confirmed in person (FREE-WILi IR high-five)
+  metAt?: number;
+  worthAsked?: boolean; // the one "worth it?" follow-up was sent
   createdAt: number;
 };
 
 export type Outbound =
   | { text: string; celebrate?: boolean }
-  | { contactOf: Person };
+  | { contactOf: Person; matchId?: string }; // business card, sent only after a double yes
 
 export type Send = (personId: string, msg: Outbound) => Promise<void>;
 
@@ -88,11 +96,10 @@ export class DoubleYes {
     const match: Match = { ...m, answers: {}, ratings: {}, status: "offered", createdAt: Date.now() };
     this.matches.set(match.id, match);
     this.changed(match);
-    const ask =
-      "\n\nWant an intro? Reply YES or NO. I'll only share your name, zone and number if you both say yes.";
+    const ask = "\nIntro? Reply YES or NO (names only if you both say yes)";
     await Promise.all([
-      this.text(match.a.id, `I found someone nearby for you. ${match.reasonForA}${ask}`),
-      this.text(match.b.id, `Someone nearby could use you. ${match.reasonForB}${ask}`),
+      this.text(match.a.id, `👋 Someone nearby: ${match.reasonForA}${ask}`),
+      this.text(match.b.id, `👋 Someone nearby could use you: ${match.reasonForB}${ask}`),
     ]);
     return match;
   }
@@ -108,16 +115,60 @@ export class DoubleYes {
       return true;
     }
 
+    return this.rate(personId, answer);
+  }
+
+  /** Answer the "worth it?" follow-up (text, tapback or FREE-WILi button). False if none is pending. */
+  async rate(personId: string, worthIt: boolean): Promise<boolean> {
     const rated = this.awaitingRating.get(personId);
-    if (rated) {
-      this.awaitingRating.delete(personId);
-      rated.ratings[rated.a.id === personId ? "a" : "b"] = answer;
-      this.changed(rated);
-      this.opts.onRating?.(rated, personId, answer);
-      await this.text(personId, answer ? "Love that. Thanks for telling me!" : "Thanks, that helps me find better intros.");
-      return true;
-    }
-    return false;
+    if (!rated) return false;
+    this.awaitingRating.delete(personId);
+    rated.ratings[rated.a.id === personId ? "a" : "b"] = worthIt;
+    this.changed(rated);
+    this.opts.onRating?.(rated, personId, worthIt);
+    await this.text(personId, worthIt ? "Yay, thanks! 💜" : "Thanks, noted 💜");
+    return true;
+  }
+
+  /** They met in person (FREE-WILi IR high-five). Ask "worth it?" right away instead of waiting. */
+  async markMet(matchId: string): Promise<boolean> {
+    const m = this.matches.get(matchId);
+    if (!m || m.status !== "accepted" || m.met) return false;
+    m.met = true;
+    m.metAt = Date.now();
+    this.changed(m);
+    await this.askWorthIt(m);
+    return true;
+  }
+
+  /** What a person's badge should show right now (most recent intro first). */
+  phaseFor(personId: string): { phase: "idle" | "offer" | "waiting" | "matched" | "rate" | "met"; match?: Match } {
+    const pending = this.pendingFor(personId);
+    if (pending) return { phase: "offer", match: pending };
+    const mine = [...this.matches.values()]
+      .filter((m) => m.a.id === personId || m.b.id === personId)
+      .sort((x, y) => y.createdAt - x.createdAt);
+    const rating = this.awaitingRating.get(personId);
+    if (rating) return { phase: "rate", match: rating };
+    const m = mine[0];
+    if (!m) return { phase: "idle" };
+    if (m.status === "offered") return { phase: "waiting", match: m };
+    if (m.status === "accepted") return { phase: m.met ? "met" : "matched", match: m };
+    return { phase: "idle" };
+  }
+
+  get(matchId: string): Match | undefined {
+    return this.matches.get(matchId);
+  }
+
+  /** Answer one specific intro (from the mini app's buttons). False if it's not open for this person. */
+  async answerMatch(matchId: string, personId: string, answer: boolean): Promise<boolean> {
+    const m = this.matches.get(matchId);
+    if (!m || m.status !== "offered") return false;
+    const side = m.a.id === personId ? "a" : m.b.id === personId ? "b" : undefined;
+    if (!side || m.answers[side] !== undefined) return false;
+    await this.answer(m, personId, answer);
+    return true;
   }
 
   private async answer(m: Match, personId: string, answer: boolean) {
@@ -128,38 +179,40 @@ export class DoubleYes {
     if (!answer) {
       m.status = "declined";
       this.changed(m);
-      await this.text(personId, "No problem, I won't share anything. I'll keep looking.");
+      await this.text(personId, "No worries, nothing was shared 🤐");
       // Don't tell the other person who passed, only that this one didn't work out.
       if (m.answers[side === "a" ? "b" : "a"] === true) {
-        await this.text(other.id, "That intro didn't work out this time. I'll keep looking for you.");
+        await this.text(other.id, "That intro didn't work out. Still looking 🔍");
       }
       return;
     }
 
     if (!(m.answers.a && m.answers.b)) {
       this.changed(m);
-      await this.text(personId, "Got it! Waiting on the other person. I'll text you if they say yes too.");
+      await this.text(personId, "Got it! Waiting on them 👀");
       return;
     }
 
     m.status = "accepted";
     this.changed(m);
-    await Promise.all([this.reveal(m.a, m.b, m.reasonForA), this.reveal(m.b, m.a, m.reasonForB)]);
+    await Promise.all([this.reveal(m, m.a, m.b), this.reveal(m, m.b, m.a)]);
     this.later(this.followUp, () => this.askWorthIt(m));
   }
 
-  private async reveal(to: Person, other: Person, reason: string) {
-    const where = other.zone ? ` They're in ${other.zone}.` : "";
-    await this.text(to.id, `It's a match! Meet ${other.name}.${where}\n${reason}`, true);
-    if (other.phone) await this.send(to.id, { contactOf: other });
+  private async reveal(m: Match, to: Person, other: Person) {
+    const where = other.zone ? ` 📍 ${other.zone}` : "";
+    await this.text(to.id, `🎉 Double yes! Meet ${other.name}.${where}`, true);
+    if (other.phone) await this.send(to.id, { contactOf: other, matchId: m.id });
   }
 
   private async askWorthIt(m: Match) {
+    if (m.worthAsked) return; // only ever one follow-up
+    m.worthAsked = true;
     for (const p of [m.a, m.b]) {
       if (this.paused.has(p.id)) continue;
       this.awaitingRating.set(p.id, m);
       const other = p === m.a ? m.b : m.a;
-      await this.text(p.id, `Quick one: was meeting ${other.name} worth it? 👍 or 👎`);
+      await this.text(p.id, `Was meeting ${other.name} worth it? 👍 or 👎`);
     }
   }
 
@@ -170,7 +223,7 @@ export class DoubleYes {
       m.status = "expired";
       this.changed(m);
       for (const [side, p] of [["a", m.a], ["b", m.b]] as const) {
-        if (m.answers[side] === true) await this.text(p.id, "That intro timed out. I'll keep looking.");
+        if (m.answers[side] === true) await this.text(p.id, "That intro timed out. Still looking 🔍");
       }
     }
   }
@@ -188,7 +241,7 @@ export class DoubleYes {
       const other = m.a.id === personId ? m.b : m.a;
       const otherSide = m.a.id === personId ? "b" : "a";
       if (m.answers[otherSide] === true) {
-        await this.text(other.id, "That intro didn't work out this time. I'll keep looking for you.");
+        await this.text(other.id, "That intro didn't work out. Still looking 🔍");
       }
     }
   }
@@ -197,12 +250,36 @@ export class DoubleYes {
     this.paused.delete(personId);
   }
 
-  /** "delete me": pause, then drop every match that mentions this person. */
+  pausedIds(): string[] {
+    return [...this.paused];
+  }
+
+  restorePaused(ids: string[]) {
+    for (const id of ids) this.paused.add(id);
+  }
+
+  /** "delete me": quietly decline open intros, drop every match that mentions this person, keep no trace. */
   async forget(personId: string) {
     await this.pause(personId);
     for (const [id, m] of this.matches) {
       if (m.a.id === personId || m.b.id === personId) this.matches.delete(id);
     }
+    this.paused.delete(personId); // nothing about them is left, not even the paused flag
+  }
+
+  /** One person's own record, for their Mutual pup (FREE-WILi Tamagotchi). */
+  statsFor(personId: string) {
+    const mine = [...this.matches.values()].filter((m) => m.a.id === personId || m.b.id === personId);
+    const myRating = (m: Match) => m.ratings[m.a.id === personId ? "a" : "b"];
+    const lastMetAt = Math.max(0, ...mine.map((m) => m.metAt ?? 0));
+    return {
+      intros: mine.length,
+      doubleYes: mine.filter((m) => m.status === "accepted").length,
+      met: mine.filter((m) => m.met).length,
+      worthIt: mine.filter((m) => myRating(m) === true).length,
+      notWorthIt: mine.filter((m) => myRating(m) === false).length,
+      lastMetAt: lastMetAt || undefined,
+    };
   }
 
   /** Real counts only, for the scoreboard. */
@@ -214,6 +291,7 @@ export class DoubleYes {
       accepted: all.filter((m) => m.status === "accepted").length,
       declined: all.filter((m) => m.status === "declined").length,
       expired: all.filter((m) => m.status === "expired").length,
+      met: all.filter((m) => m.met).length,
       ratings: ratings.length,
       worthIt: ratings.filter(Boolean).length,
     };

@@ -345,3 +345,79 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
 .nearby-popup h2 { margin: 10px 0; }
 .nearby-popup p { line-height: 1.6; overflow-wrap: anywhere; }
 .nearby-popup .workspace-actions { flex-wrap: wrap; }
+.badge-control { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 11px; border: 1px dashed #d5dbcf; border-radius: 10px; background: #fafbf6; }
+.badge-control.on { border-style: solid; border-color: #b9d6c2; background: #f0f7f1; }
+.badge-icon { font-size: 20px; line-height: 1; }
+.badge-copy { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.badge-copy b { color: #2d553e; font-size: 11px; }
+.badge-copy small { color: #758074; font-size: 9.5px; line-height: 1.45; }
+.badge-control button { flex: none; padding: 7px 10px; border: 0; border-radius: 8px; background: #294c37; color: white; font-size: 10px; font-weight: 700; cursor: pointer; }
+.badge-control.on button { background: #e3e9df; color: #43584a; }
+
+/* mutuals: brand, points card, gain toast */
+.brand { flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 14px; }
+.brand-word { display: block; height: 24px; width: auto; image-rendering: pixelated; }
+.brand small { margin-top: 0; }
+.points-card { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 10px 12px; border: 1px solid #e3e1f1; border-radius: 12px; background: linear-gradient(180deg, #eef8f2, #f1effb); }
+.points-pup { width: 54px; height: 54px; object-fit: contain; image-rendering: pixelated; flex: none; }
+.points-body { flex: 1; min-width: 0; }
+.points-row { display: flex; align-items: baseline; gap: 5px; color: #24284a; font-size: 11px; }
+.points-row b { font: 800 22px Manrope, sans-serif; letter-spacing: -.04em; }
+.points-star { color: #f0b93a; font-size: 16px; }
+.points-level { margin-left: auto; font-weight: 800; }
+.points-bar { height: 8px; margin: 5px 0 5px; overflow: hidden; border: 1px solid #c8cade; border-radius: 99px; background: #e2e4f0; }
+.points-bar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #5cb88a, #7aa7f0); transition: width .6s ease; }
+.points-body small { color: #6e6c8c; font-size: 9.5px; }
+.points-toast { position: absolute; left: 23px; right: 23px; bottom: -18px; padding: 9px 12px; border-radius: 10px; background: #24284a; color: #fff; font-size: 11px; font-weight: 700; text-align: center; box-shadow: 0 8px 24px #24284a40; animation: points-pop 3.5s ease forwards; }
+@keyframes points-pop { 0% { opacity: 0; transform: translateY(8px) scale(.96); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
+.badge-copy .badge-radio { color: #2d553e; font-weight: 700; }
+
+/* Cute / Formal switch */
+.style-toggle { display: flex; padding: 3px; border: 1px solid #e8ebe3; border-radius: 99px; background: #fffffff2; box-shadow: 0 4px 18px #26332812; pointer-events: auto; }
+.style-toggle button { padding: 7px 11px; border: 0; border-radius: 99px; background: transparent; color: #6f7a70; font-size: 10px; font-weight: 700; cursor: pointer; }
+.style-toggle button.on { background: #294c37; color: #fff; }
+.brand-text { font: 800 20px Manrope, sans-serif !important; letter-spacing: -.03em !important; color: #16223f; }
+
+/* formal: recruiting events. Clean white and navy, square corners, no pastel or pixel art */
+.style-formal { --ink: #16223f; }
+.style-formal .brand, .style-formal .map-card, .style-formal .connection, .style-formal .style-toggle { border-color: #dde3ee; border-radius: 8px; box-shadow: 0 6px 24px #16223f14; }
+.style-formal .map-card { background: #ffffff; }
+.style-formal .map-card h1 { color: #16223f; }
+.style-formal .style-toggle button { border-radius: 6px; }
+.style-formal .style-toggle button.on, .style-formal .share-button, .style-formal .badge-control button, .style-formal .dialog-submit { background: #1f3a68; }
+.style-formal .share-button:hover { background: #2b4c84; }
+.style-formal .share-button.sharing { background: #8a2d2d; }
+.style-formal .points-card { border-color: #dde3ee; border-radius: 8px; background: #f6f8fb; }
+.style-formal .points-tier { display: grid; place-items: center; flex: none; width: 46px; height: 46px; border-radius: 8px; background: #1f3a68; color: #fff; font: 800 15px Manrope, sans-serif; }
+.style-formal .points-row { color: #16223f; }
+.style-formal .points-bar { border-color: #cfd7e4; background: #e6ebf3; }
+.style-formal .points-bar i { background: #2c62b4; }
+.style-formal .points-body small, .style-formal .subhead, .style-formal .eyebrow { color: #5a647d; }
+.style-formal .badge-control { border-radius: 8px; border-color: #d3dae6; background: #f8fafc; }
+.style-formal .badge-control.on { border-color: #b7c6de; background: #f1f5fb; }
+.style-formal .badge-copy b, .style-formal .badge-copy .badge-radio { color: #1f3a68; }
+.style-formal .badge-icon { color: #1f3a68; font-size: 18px; }
+.style-formal .points-toast { border-radius: 6px; background: #16223f; }
+.style-formal .count-number { color: #1f3a68; }
+.style-formal .badge-control.on button { background: #e6ebf3; color: #1f3a68; }
+.style-formal .badge-control button { color: #fff; }
+.badge-copy .badge-warn { color: #b3543f; font-weight: 700; }
+.badge-copy .badge-press { color: #2c62b4; font-weight: 700; }
+
+/* connections list */
+.connections { margin-top: 10px; padding: 10px 12px; border: 1px solid #e3e1f1; border-radius: 12px; background: #fbfaff; }
+.connections-head { display: flex; justify-content: space-between; align-items: center; color: #24284a; font-size: 11px; }
+.connections-head span { padding: 1px 7px; border-radius: 99px; background: #e8e4fa; font-size: 10px; font-weight: 800; }
+.connections ul { margin: 7px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.connections li { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 8px; font-size: 11px; }
+.connection-avatar { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: #dceee3; color: #2d553e; font-weight: 800; font-size: 11px; }
+.connection-name { overflow: hidden; color: #24284a; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.connections li small { color: #7a7896; font-size: 9.5px; }
+.connections-more { margin-top: 6px; padding: 0; border: 0; background: transparent; color: #4e7258; font-size: 10px; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.connections-empty { margin: 8px 2px 0; color: #8a889f; font-size: 10px; }
+.style-formal .connections { border-color: #dde3ee; border-radius: 8px; background: #f8fafc; }
+.style-formal .connections-head { color: #16223f; }
+.style-formal .connections-head span { background: #e1e8f3; color: #1f3a68; }
+.style-formal .connection-avatar { border-radius: 6px; background: #1f3a68; color: #fff; }
+.style-formal .connection-name { color: #16223f; }
+.style-formal .connections-more { color: #1f3a68; }

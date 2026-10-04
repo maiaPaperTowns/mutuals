@@ -16,13 +16,14 @@ export function parseCommand(text: string): Command | undefined {
 }
 
 export const REPLIES: Record<Command, string> = {
-  stop: "Paused. I won't send you any intros. Text START whenever you want back in.",
-  start: "You're back in! I'll text you when I find someone worth meeting.",
-  forget: "Done. I've deleted your profile and intros. Text me anytime to start fresh.",
+  stop: "Paused ⏸ Text START to come back.",
+  start: "You're back! 🐶",
+  forget: "Deleted everything 🗑 Text me anytime to start fresh.",
   help:
-    "Here's what I can do:\n" +
-    "• Send your resume PDF and I'll build your profile\n" +
-    "• Tell me what you're stuck on or who you want to meet\n" +
-    "• \"What do you know about me?\" shows your profile\n" +
-    "• STOP pauses intros, DELETE ME erases everything",
+    "🐶 Mutual can:\n" +
+    "📄 read your resume or LinkedIn PDF\n" +
+    "🔍 find people: \"who knows React?\"\n" +
+    "📍 \"I'm in the lounge\" · \"map\" · \"profile\"\n" +
+    "✏️ \"my name is …\" · \"my instagram is @…\"\n" +
+    "⏸ STOP · 🗑 DELETE ME",
 };

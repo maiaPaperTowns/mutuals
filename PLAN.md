@@ -1,3 +1,7 @@
+> **Historical plan.** This was the original MHacks plan for an iMessage recruiter agent (Photon). The team
+> pivoted to **mutuals**: the live map (`map/`) plus the FREE-WILi badge (`freewili/`). See [README.md](README.md)
+> for what was built.
+
 # MHacks 2026: plan & checkpoints
 
 > A recruiter agent for your networking: iMessage onboarding from a resume, opt-in live map,

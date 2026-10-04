@@ -8,6 +8,8 @@ import ProfileChat from './ProfileChat';
 import LiveProfileChat from './LiveProfileChat';
 import NetworkingWorkspace from './NetworkingWorkspace';
 import { createProfileApi } from './profileApi';
+import { badgeStatus, badgeSupported, useBadge, type BadgeStatus } from './badge';
+import { LEVEL_AT, LEVEL_NAME, TIER_NAME, usePoints, type Connection, type Gain } from './points';
 
 const noToken = async () => null;
 const previewProfileApi = createProfileApi('', noToken, async () => {});
@@ -18,6 +20,14 @@ type UserProfile = { displayName: string; headline: string; interests: string; s
 type PublicMapProfile = Pick<UserProfile, 'displayName' | 'headline' | 'interests'>;
 const AuthDialogContext = createContext<() => void>(() => {});
 const SignedInContext = createContext(false);
+
+// Cute (clubs, university mixers: the pixel pup) or formal (recruiting events: clean, no pup). Per browser.
+type Style = 'cute' | 'formal';
+const STYLE_KEY = 'mutuals-style';
+const StyleContext = createContext<{ style: Style; setStyle: (style: Style) => void }>({ style: 'cute', setStyle: () => {} });
+function loadStyle(): Style {
+  try { return localStorage.getItem(STYLE_KEY) === 'formal' ? 'formal' : 'cute'; } catch { return 'cute'; }
+}
 
 const pinIcon = (mine: boolean) => L.divIcon({
   className: `live-pin${mine ? ' live-pin-mine' : ''}`,
@@ -221,7 +231,26 @@ function AuthDialog({ onClose, authEnabled }: { onClose: () => void; authEnabled
 function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, sharing, busy, message, onToggle, onRequestSignIn, authEnabled, accountName, preview = false }: {
   pins: LocationPin[]; profileById: Map<string, PublicMapProfile>; myId: string; loaded: boolean; connected: boolean; signedIn: boolean; sharing: boolean; busy: boolean; message: string; onToggle: () => void; onRequestSignIn: () => void; authEnabled: boolean; accountName: string; preview?: boolean;
 }) {
-  return <main className="map-app">
+  // mutuals: who's near you earns points (+10 nearby, +50 found) and levels; the FREE-WILi badge mirrors it all
+  // and its YES / NO buttons work the share switch.
+  const nameOf = (id: string) => profileById.get(id)?.displayName;
+  const status = badgeStatus(pins, myId, sharing, nameOf);
+  const score = usePoints();
+  const { award } = score;
+  const nearbyKey = status.nearbyIds.join(',');
+  useEffect(() => {
+    award(nearbyKey ? nearbyKey.split(',') : [], status.closestId, id => nameOf(id) ?? 'someone');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-score only when who is near changes
+  }, [nearbyKey, status.closestId, award]);
+  const { style } = useContext(StyleContext);
+  const formal = style === 'formal';
+  const badge = useBadge(status, { points: score.points, met: score.met }, nameOf(myId) ?? '', formal,
+    score.connections.map(c => c.name), button => {
+    if (busy) return;
+    if (button === 'green' && !sharing) onToggle();
+    if (button === 'red' && sharing) onToggle();
+  }, score.adopt, score.addRadioConnection);
+  return <main className={`map-app style-${style}`}>
     <MapContainer center={DUDERSTADT} zoom={17} zoomControl={false} scrollWheelZoom className="leaflet-map">
       <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
       <ZoomControl position="bottomright" />
@@ -236,12 +265,14 @@ function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, s
       </Fragment>)}
     </MapContainer>
 
-    <header className="map-topbar"><a className="brand" href="/" aria-label="MHacks live map"><span className="brand-mark">mh<span>+</span></span><span><b>MHACKS</b><small>LIVE CAMPUS MAP</small></span></a><div className="topbar-actions"><a className="nav-link" href="/events">Events & assistants</a><a className="nav-link" href="/chat">My profile</a><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div><AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={onRequestSignIn} /></div></header>
+    <header className="map-topbar"><a className="brand" href="/" aria-label="mutuals">{formal ? <b className="brand-text">mutuals</b> : <img className="brand-word" src="/mutuals/mutuals_word.png" alt="mutuals" />}<small>{formal ? 'PROFESSIONAL NETWORKING · MHACKS 2026' : 'PEOPLE FIND PEOPLE · MHACKS 2026'}</small></a><div className="topbar-actions"><a className="nav-link" href="/events">Events & assistants</a><a className="nav-link" href="/chat">My profile</a><StyleToggle /><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div><AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={onRequestSignIn} /></div></header>
 
     <section className="map-card" aria-label="Live location sharing controls">
       <span className="eyebrow">DUDERSTADT CENTER · ANN ARBOR</span>
       <h1>Find people nearby.</h1>
       <p className="subhead">Only anonymous live locations appear here. Names and profiles stay private.</p>
+      <PointsCard {...score} formal={formal} />
+      <ConnectionsList connections={score.connections} formal={formal} />
       <div className="count-line"><span className="count-number">{loaded ? pins.length : '—'}</span><span>people sharing location</span><i className="count-live" /></div>
       <button className={`share-button${sharing ? ' sharing' : ''}`} type="button" role={signedIn || preview ? 'switch' : undefined} aria-checked={signedIn || preview ? sharing : undefined} disabled={busy || (!connected && !preview)} onClick={onToggle}>
         <span className="switch-dot" />{busy ? 'Updating…' : sharing ? 'Stop sharing my location' : preview ? 'Preview my location' : signedIn ? 'Share my live location' : 'Sign in to share your location'}
@@ -250,10 +281,98 @@ function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, s
       {sharing && <p className="sharing-status">{message || (preview ? 'Local preview: your location is not sent to anyone.' : "Waiting for your phone's location… The first fix may take a few seconds.")}</p>}
       {!sharing && message && <p className="error-message" role="alert">{message}</p>}
       {!signedIn && !preview && <button className="profile-link" type="button" onClick={onRequestSignIn}>Sign up or log in to share your location</button>}
+      <BadgeControl status={status} formal={formal} needsSignIn={!signedIn && !preview} problem={message} {...badge} />
+      {score.gain && <div className="points-toast" key={score.gain.at}>+{score.gain.points} pts · {gainText(score.gain, formal)}</div>}
     </section>
 
     <div className="map-bottom"><span>GPS accuracy shown by circles · Indoor locations may drift</span><span>Map data &copy; OpenStreetMap</span></div>
   </main>;
+}
+
+const BADGE_TEXT: Record<BadgeStatus['state'], [cute: string, formal: string]> = {
+  H: ['Not discoverable', 'Private mode'],
+  A: ['Looking… nobody near yet', 'Searching nearby'],
+  N: ["Someone's nearby!", 'Contact nearby'],
+  C: ['You found them!', 'Connection made'],
+};
+
+const BUTTON_LABEL = { gray: 'MENU', yellow: 'BACK', green: 'YES', blue: 'NEXT', red: 'NO' } as const;
+
+function pressResult(button: keyof typeof BUTTON_LABEL, status: BadgeStatus, needsSignIn: boolean): string {
+  if (button === 'green') {
+    if (status.state !== 'H') return 'already sharing';
+    return needsSignIn ? 'sign in first (sign-in box opened)' : 'turning on location sharing…';
+  }
+  if (button === 'red') return status.state === 'H' ? 'already hidden' : 'stopping location sharing';
+  return 'no action on the website';
+}
+
+function gainText(gain: Gain, formal: boolean): string {
+  if (gain.kind === 'badge') return formal ? 'synced from your badge' : 'from your badge';
+  if (gain.kind === 'found') return formal ? `Connection made: ${gain.who}` : `you found ${gain.who}!`;
+  return formal ? `Contact nearby: ${gain.who}` : `${gain.who} is nearby`;
+}
+
+function ago(at: number): string {
+  const min = Math.round((Date.now() - at) / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min} min ago`;
+  const h = Math.round(min / 60);
+  return h < 24 ? `${h} h ago` : `${Math.round(h / 24)} d ago`;
+}
+
+function ConnectionsList({ connections, formal }: { connections: Connection[]; formal: boolean }) {
+  const [open, setOpen] = useState(false);
+  if (!connections.length) return <p className="connections-empty">{formal ? 'Connections you make appear here.' : 'People you find show up here 🐾'}</p>;
+  const shown = open ? connections : connections.slice(0, 3);
+  return <div className="connections">
+    <div className="connections-head"><b>{formal ? 'Connections' : 'Your mutuals'}</b><span>{connections.length}</span></div>
+    <ul>
+      {shown.map(c => <li key={c.id}>
+        <span className="connection-avatar" aria-hidden="true">{c.name.slice(0, 1).toUpperCase()}</span>
+        <span className="connection-name">{c.name}</span>
+        <small>{c.via === 'radio' ? (formal ? 'in person (radio)' : '📡 badge') : (formal ? 'via map' : '📍 map')} · {ago(c.at)}</small>
+      </li>)}
+    </ul>
+    {connections.length > 3 && <button type="button" className="connections-more" onClick={() => setOpen(!open)}>{open ? 'Show less' : `Show all ${connections.length}`}</button>}
+  </div>;
+}
+
+function StyleToggle() {
+  const { style, setStyle } = useContext(StyleContext);
+  return <div className="style-toggle" role="radiogroup" aria-label="Event style">
+    <button type="button" role="radio" aria-checked={style === 'cute'} className={style === 'cute' ? 'on' : ''} onClick={() => setStyle('cute')} title="Clubs, university mixers">✿ Cute</button>
+    <button type="button" role="radio" aria-checked={style === 'formal'} className={style === 'formal' ? 'on' : ''} onClick={() => setStyle('formal')} title="Recruiting events">Formal</button>
+  </div>;
+}
+
+function PointsCard({ points, level, progress, met, formal }: ReturnType<typeof usePoints> & { formal: boolean }) {
+  const next = LEVEL_AT[level];
+  const unit = formal ? 'Tier' : 'Lv';
+  return <div className="points-card">
+    {formal ? <span className="points-tier" aria-hidden="true">T{level}</span> : <img className="points-pup" src={`/mutuals/lv${level}.png`} alt={`Level ${level} pup`} />}
+    <div className="points-body">
+      <div className="points-row">{!formal && <span className="points-star" aria-hidden="true">★</span>}<b>{points}</b><span>pts</span><span className="points-level">{unit} {level}</span></div>
+      <div className="points-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}><i style={{ width: `${Math.round(progress * 100)}%` }} /></div>
+      <small>{(formal ? TIER_NAME : LEVEL_NAME)[level - 1]} · {met} {formal ? 'connections' : 'met'}{next !== undefined ? ` · ${next - points} pts to ${unit} ${level + 1}` : ''}</small>
+    </div>
+  </div>;
+}
+
+function BadgeControl({ status, formal, needsSignIn, problem, connected, connect, disconnect, error, radio, lastButton }: { status: BadgeStatus; formal: boolean; needsSignIn: boolean; problem: string } & ReturnType<typeof useBadge>) {
+  if (!badgeSupported()) return null; // Web Serial: Chrome / Edge on a computer
+  return <div className={`badge-control${connected ? ' on' : ''}`}>
+    <span className="badge-icon" aria-hidden="true">{formal ? '◧' : '🐶'}</span>
+    <div className="badge-copy">
+      <b>{connected ? 'mutuals badge connected' : formal ? 'mutuals badge' : 'mutuals FREE-WILi badge'}</b>
+      {connected && lastButton && <small className="badge-press">{BUTTON_LABEL[lastButton.button]} pressed on the badge → {pressResult(lastButton.button, status, needsSignIn)}</small>}
+      {connected && needsSignIn && <small className="badge-warn">Sign up or log in first (top right). Until then, YES on the badge opens the sign-in box instead of sharing.</small>}
+      {connected && !needsSignIn && status.state === 'H' && problem && <small className="badge-warn">{problem}</small>}
+      {connected && radio && <small className="badge-radio">📡 Radio: {radio.name || 'a mutuals badge'} is {radio.rssi >= -50 ? (formal ? 'in person' : 'right here') : 'nearby'} ({radio.rssi} dBm){radio.count > 1 ? ` · ${radio.count} badges` : ''}</small>}
+      <small>{error || (connected ? `${BADGE_TEXT[status.state][formal ? 1 : 0]}${status.state === 'N' || status.state === 'C' ? ` · ${status.name} · ${status.meters} m` : ''} · YES share · NO hide · MENU stats` : (formal ? 'Plug in your badge: your score and nearby contacts on its screen' : 'Plug in your badge: your pup, points and who is near you, on its screen'))}</small>
+    </div>
+    <button type="button" onClick={() => void (connected ? disconnect() : connect())}>{connected ? 'Disconnect' : 'Connect'}</button>
+  </div>;
 }
 
 function PreviewMap() {
@@ -266,16 +385,55 @@ function PreviewMap() {
     const watcher = navigator.geolocation.watchPosition(position => setPin({ participantId: id, latitude: position.coords.latitude, longitude: position.coords.longitude, accuracyMeters: position.coords.accuracy }), () => {}, { enableHighAccuracy: true, maximumAge: 4000, timeout: 20000 });
     return () => navigator.geolocation.clearWatch(watcher);
   }, [sharing, id]);
-  return <MapExperience pins={pin ? [pin] : []} profileById={new Map()} myId={id} loaded connected={false} signedIn={false} sharing={sharing} busy={false} message="" preview onToggle={() => setSharing(value => !value)} onRequestSignIn={requestSignIn} authEnabled={false} accountName="Your account" />;
+  const demo = useDemoWalkers(pin);
+  return <MapExperience pins={pin ? [pin, ...demo.pins] : []} profileById={demo.profiles} myId={id} loaded connected={false} signedIn={false} sharing={sharing} busy={false} message="" preview onToggle={() => setSharing(value => !value)} onRequestSignIn={requestSignIn} authEnabled={false} accountName="Your account" />;
+}
+
+// Local preview with ?demo in the URL: two pretend people near your pin, one walking up to you over ~40 s, so the
+// FREE-WILi badge can show "someone's nearby!" → "they're right here!" without a second phone. Preview only.
+const DEMO_WALKERS = [
+  { participantId: 'demo-walker-alex', displayName: 'Alex', from: 140, to: 8, bearing: 40 },
+  { participantId: 'demo-walker-sam', displayName: 'Sam', from: 95, to: 95, bearing: 220 },
+];
+
+function useDemoWalkers(me: LocationPin | null) {
+  const enabled = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo');
+  const startRef = useRef<number | null>(null); // the walk starts when your own pin first appears
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!enabled) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [enabled]);
+  const profiles = new Map<string, PublicMapProfile>(DEMO_WALKERS.map(w => [w.participantId, { displayName: w.displayName, headline: 'Demo walker', interests: '' }]));
+  if (!enabled || !me) { startRef.current = null; return { pins: [] as LocationPin[], profiles }; }
+  startRef.current ??= now;
+  const progress = Math.min(1, ((now - startRef.current) / 1000) / 40);
+  const pins = DEMO_WALKERS.map(w => {
+    const meters = w.from + (w.to - w.from) * progress;
+    const rad = (w.bearing * Math.PI) / 180;
+    return {
+      participantId: w.participantId,
+      latitude: me.latitude + (meters * Math.cos(rad)) / 111_320,
+      longitude: me.longitude + (meters * Math.sin(rad)) / (111_320 * Math.cos((me.latitude * Math.PI) / 180)),
+      accuracyMeters: 6,
+    };
+  });
+  return { pins, profiles };
 }
 
 export default function App({ live, authEnabled, signedIn, accountName = 'Your account', getApiToken = noToken }: { live: boolean; authEnabled: boolean; signedIn: boolean; accountName?: string; getApiToken?: () => Promise<string | null> }) {
   const [authOpen, setAuthOpen] = useState(false);
+  const [style, setStyleState] = useState<Style>(loadStyle);
+  const setStyle = (next: Style) => {
+    setStyleState(next);
+    try { localStorage.setItem(STYLE_KEY, next); } catch { /* private mode: lasts this visit */ }
+  };
   const requestSignIn = () => setAuthOpen(true);
   useEffect(() => {
     if (signedIn) setAuthOpen(false);
   }, [signedIn]);
-  return <AuthDialogContext.Provider value={requestSignIn}>
+  return <StyleContext.Provider value={{ style, setStyle }}><AuthDialogContext.Provider value={requestSignIn}>
     <SignedInContext.Provider value={signedIn}>
       {['/events', '/assistant'].includes(window.location.pathname.replace(/\/$/, '')) && live
         ? <NetworkingWorkspace signedIn={signedIn} accountName={accountName} onSignIn={requestSignIn} accountControl={<AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={requestSignIn} />} />
@@ -285,5 +443,5 @@ export default function App({ live, authEnabled, signedIn, accountName = 'Your a
         : live ? <LiveMapContent authEnabled={authEnabled} accountName={accountName} /> : <PreviewMap />}
       {authOpen && <AuthDialog authEnabled={authEnabled} onClose={() => setAuthOpen(false)} />}
     </SignedInContext.Provider>
-  </AuthDialogContext.Provider>;
+  </AuthDialogContext.Provider></StyleContext.Provider>;
 }
