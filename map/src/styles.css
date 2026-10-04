@@ -495,3 +495,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
 .person-pin-formal.person-pin-mine .person-name { background: #1f3a68; }
 @keyframes person-pulse { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(2.6); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .person-pin-mine .person-pulse { animation: none; } }
+
+/* The map page always fills the window, whatever wraps it (providers can add plain wrapper divs that don't
+   stretch, which left white space below a 520px map on tall screens). dvh follows mobile browser bars. */
+.map-app { height: 100vh; height: 100dvh; min-height: 480px; }
