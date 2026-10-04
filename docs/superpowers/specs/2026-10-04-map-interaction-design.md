@@ -9,4 +9,4 @@ The user authorized implementation after the other chat finished, and confirmed 
 - Initial overview fits the boundary to about 56% of the available viewport's limiting dimension. Center fits to about 80%, accounting for home overlays and mobile cards. It also releases any participant focus.
 - Keep the existing Pre/Post and ASI workflows. Push the current branch and synchronize the website and affected Maincloud module using `--delete-data=never`.
 
-Verify viewport fitting, the absence of circles, profile fallbacks, the existing website suite/build, and live cloud state. Inspect the deployed map on desktop and mobile.
+Verify viewport fitting, the absence of circles, profile fallbacks, the existing website suite/build, and live cloud state. The user narrowed the scope to desktop; inspect the deployed map on desktop and leave mobile-specific layout work for later.

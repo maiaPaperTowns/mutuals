@@ -19,7 +19,7 @@
 ## Review Focus
 
 - A tiny boundary still centers without the old level-17 cap.
-- Desktop and mobile overlays do not cover the fitted boundary.
+- Desktop overlays do not cover the fitted boundary. The user deferred mobile checks and mobile layout adjustments.
 - Center remains effective after participant focus.
 - Profiles without AI headlines keep manual headlines or anonymous fallbacks.
 - Public map profiles retain explicit opt-in; event profile details remain member scoped.
@@ -40,4 +40,4 @@
 - [ ] Reuse the headline in both existing profile projections; preserve visibility/membership checks.
 - [ ] Build module and regenerate bindings; run website checks and one independent review.
 - [ ] Commit/push, publish Maincloud without deleting data, update only the confirmed MHacks boundary, and deploy existing Vercel project.
-- [ ] Verify remote SHA, deployment READY, desktop/mobile Center, dot/tooltip behavior and cloud counts; record evidence.
+- [ ] Verify remote SHA, deployment READY, desktop Center, dot/tooltip behavior and cloud counts; record evidence.

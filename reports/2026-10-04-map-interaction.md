@@ -10,7 +10,7 @@ The other chat completed its Hosted ASI changes before implementation started. B
 - People are 6px dots with 20px transparent hit targets; GPS circles and decorative halos removed. Favorites are gold.
 - Tooltip shows a name and one short headline. Manual map headlines take precedence; saved AI headlines provide the fallback. Event pins use their existing profile snapshot's headline, limited to 140 characters. No hover-time AI calls.
 - Initial boundary overview uses 22% margins. Center uses 10% margins, fitting about 80% of the limiting usable dimension. Existing focus reset is preserved.
-- Mobile cards scroll within a height limit, and Center is below the wrapped navigation. Measured overlays determine the fitted area.
+- Measured overlays determine the fitted area. The user narrowed this request to desktop, so the extra mobile card layout adjustments were reverted.
 
 ## Confirmed MHacks boundary change
 
@@ -28,7 +28,6 @@ Target: scale each offset from center `[42.29205,-83.71565]` by 0.85, reducing e
 - Website: 35 tests across 9 files pass; production build passes. Existing large bundle warning remains.
 - Native Maincloud module builds. Generated bindings change only the event pin view's headline field.
 - Desktop browser: overview boundary height 332px, Center height 471px within a 596px usable height, about 79%. Live dots are 6px without shadows; public name/headline opens on keyboard focus.
-- Mobile 390x844: header ends near y127, scrollable card starts near y456; Center places the boundary in the available gap.
-- Independent review found a mobile padding cap that could hide the boundary. Added a failing measured-overlay regression, removed the cap, and reran the full suite successfully.
+- Independent review identified a mobile padding cap; the shared fitting calculation now respects actual measured padding. Mobile-specific layout testing and changes were discontinued when the user clarified desktop-only scope.
 
 Cloud publication and boundary mutation results will be recorded after deployment verification.
