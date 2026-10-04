@@ -4,8 +4,9 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/server.ts",
+    "start:asi": "node --env-file=../.env --import tsx src/asi-chat-server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/module.test.ts test/networking.test.ts",
+    "test": "tsx --test test/module.test.ts test/networking.test.ts test/asi-chat.test.ts",
     "test:integration": "tsx test/local-integration.ts",
     "test:networking": "tsx test/networking-integration.ts"
   },

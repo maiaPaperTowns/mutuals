@@ -8,12 +8,12 @@ import { tables } from '../src/module_bindings';
 const state = vi.hoisted(() => ({
   invites: [] as any[], members: [] as any[], messages: [] as any[], notifications: [] as any[], interactions: [] as any[], exchanges: [] as any[], contacts: [] as any[],
   status: vi.fn(), list: vi.fn(), create: vi.fn(), prepare: vi.fn(), send: vi.fn(), join: vi.fn(), start: vi.fn(), star: vi.fn(),
-  noop: vi.fn().mockResolvedValue(undefined),
+  noop: vi.fn().mockResolvedValue(undefined), asiStatus: vi.fn().mockResolvedValue('{"connected":false}'),
   phase: vi.fn(), edit: vi.fn(), remove: vi.fn(), finish: vi.fn(), request: vi.fn(), respond: vi.fn(), recap: vi.fn(), contact: vi.fn(),
 }));
 vi.mock('spacetimedb/react', () => ({
   useSpacetimeDB: () => ({ isActive: true }),
-  useProcedure: (d: { accessorName: string }) => ({ networkingAccountStatus: state.status, getEventInterestList: state.list, createNetworkingEvent: state.create, prepareNetworkingEvent: state.prepare, sendAssistantMessage: state.send, deleteNetworkingEvent: state.remove, generateEventRecap: state.recap }[d.accessorName] ?? vi.fn()),
+  useProcedure: (d: { accessorName: string }) => ({ getAsiLinkStatus: state.asiStatus, networkingAccountStatus: state.status, getEventInterestList: state.list, createNetworkingEvent: state.create, prepareNetworkingEvent: state.prepare, sendAssistantMessage: state.send, deleteNetworkingEvent: state.remove, generateEventRecap: state.recap }[d.accessorName] ?? vi.fn()),
   useReducer: (d: { accessorName: string }) => ({ joinNetworkingEvent: state.join, startNetworkingEvent: state.start, setEventStar: state.star, setNetworkingEventPhase: state.phase, editNetworkingEvent: state.edit, finishEventConnection: state.finish, requestEventConnection: state.request, respondEventConnection: state.respond, setEventContact: state.contact }[d.accessorName] ?? state.noop),
   useTable: (d: unknown) => [d === tables.networkingInvitations ? state.invites : d === tables.myNetworkingMemberships ? state.members : d === tables.myAssistantMessages ? state.messages : d === tables.myAssistantNotifications ? state.notifications : d === tables.myAgentInteractions ? state.interactions : d === tables.myAgentExchanges ? state.exchanges : d === tables.myEventContacts ? state.contacts : d === tables.myProfile ? [{ displayName: 'Terry' }] : [], true],
 }));

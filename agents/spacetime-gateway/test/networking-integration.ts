@@ -8,6 +8,7 @@ import { createServer } from 'node:http';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DbConnection } from '../../../map/src/module_bindings/index.ts';
+import { dispatchChat } from '../src/asi-chat.ts';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const cli = process.env.SPACETIME_CLI ?? 'spacetime';
@@ -114,6 +115,19 @@ try {
   const event = JSON.parse(await admin.procedures.createNetworkingEvent({ title: 'Synthetic event', description: 'Local integration only', venue: 'Local test venue', startAtMs: BigInt(Date.now()) }));
   const eventId = event.event_id;
   await admin.reducers.joinNetworkingEvent({ eventId }); await peer.reducers.joinNetworkingEvent({ eventId }); await third.reducers.joinNetworkingEvent({ eventId });
+  const asi = await connect(`ws://127.0.0.1:${dbPort}`, token('asi-service'));
+  sql(`INSERT INTO asi_chat_service (identity) VALUES (0x${asi.identity.toHexString()})`, server);
+  const api = { ...asi.procedures, ...asi.reducers }, sessionKey = 'a'.repeat(64), peerSession = 'b'.repeat(64);
+  const code = JSON.parse(await admin.procedures.createAsiLinkCode()).code;
+  await assert.rejects(outsider.procedures.redeemAsiLinkCode({ code, sessionKey, requestId: 'link1' }), /dedicated ACP/);
+  assert.match((await dispatchChat(api, { sessionKey, requestId: 'link1', message: `link ${code}` })).reply, /linked/);
+  assert.match((await dispatchChat(api, { sessionKey, requestId: 'link1', message: `link ${code}` })).reply, /linked/);
+  assert.equal(JSON.parse(await admin.procedures.getAsiLinkStatus()).connected, true);
+  assert.equal(JSON.parse(await peer.procedures.getAsiLinkStatus()).connected, false);
+  assert.equal(JSON.parse(await asi.procedures.getAsiChatContext({ sessionKey })).profile.name, 'Admin');
+  assert.match((await dispatchChat(api, { sessionKey: peerSession, requestId: 'unlinked', message: 'events' })).reply, /Link your account first/);
+  const preTurn = await dispatchChat(api, { sessionKey, requestId: 'asi_pre1', message: 'Explain your role.' }); assert.ok(preTurn.reply);
+  assert.equal((await dispatchChat(api, { sessionKey, requestId: 'asi_pre1', message: 'Explain your role.' })).reply, preTurn.reply);
   await assert.rejects(outsider.reducers.startNetworkingEvent({ eventId }), /administrator/);
   await admin.reducers.startNetworkingEvent({ eventId });
   await assert.rejects(outsider.reducers.joinNetworkingEvent({ eventId }), /closed|started/);
@@ -122,6 +136,7 @@ try {
   await assert.rejects(outsider.procedures.getEventInterestList({ eventId, offset: 0, limit: 5 }), /member|join/);
   await assert.rejects(outsider.reducers.setNetworkingEventPhase({ eventId, phase: 'during' }), /administrator/);
   await admin.reducers.setNetworkingEventPhase({ eventId, phase: 'during' });
+  assert.match((await dispatchChat(api, { sessionKey, requestId: 'asi_during1', message: 'Find people here.' })).reply, /website|GPS/i);
   await admin.reducers.updateEventLocation({ eventId, latitude: 42.29, longitude: -83.71, accuracyMeters: 5 });
   await peer.reducers.updateEventLocation({ eventId, latitude: 42.2902, longitude: -83.71, accuracyMeters: 5 });
   await third.reducers.updateEventLocation({ eventId, latitude: 42.2903, longitude: -83.71, accuracyMeters: 5 });
@@ -158,6 +173,14 @@ try {
   assert.deepEqual(Array.from(admin.db.myAgentExchanges.iter()).map(row => row.toAgent).sort(), ['during','pre']);
   assert.equal(Array.from(peer.db.myAgentExchanges.iter()).length, 0); assert.equal(Array.from(outsider.db.myAgentExchanges.iter()).length, 0);
   assert.equal(JSON.parse(await admin.procedures.generateEventRecap({ eventId })).reply, recap.reply);
+  const asiRecap = await dispatchChat(api, { sessionKey, requestId: 'asi_recap1', message: 'recap' }); assert.ok(asiRecap.reply);
+  assert.equal((await dispatchChat(api, { sessionKey, requestId: 'asi_recap1', message: 'recap' })).reply, asiRecap.reply);
+  await admin.reducers.revokeAsiChatGrant();
+  await assert.rejects(asi.procedures.getAsiChatContext({ sessionKey }), /authorization/);
+  const replacementCode = JSON.parse(await admin.procedures.createAsiLinkCode()).code;
+  await asi.procedures.redeemAsiLinkCode({ code: replacementCode, sessionKey: peerSession, requestId: 'link2' });
+  await asi.reducers.unlinkAsiChat({ sessionKey: peerSession });
+  assert.equal(JSON.parse(await admin.procedures.getAsiLinkStatus()).connected, false);
   await until(() => Array.from(admin.db.myEventContacts.iter()).length === 1, 'accepted contact shared');
   assert.equal(Array.from(third.db.myEventContacts.iter()).length, 0, 'pending third participant cannot read contact');
   await peer.reducers.setEventContact({ eventId, linkedinUrl: 'https://www.linkedin.com/in/synthetic-peer', share: false });
@@ -184,7 +207,7 @@ try {
   await until(() => Array.from(admin.db.networkingInvitations.iter()).length === 0 && Array.from(admin.db.myAgentInteractions.iter()).length === 0, 'event deletion cascade');
   const countsResponse = await fetch(`${server}/v1/database/${dbName}/sql`, { method: 'POST', headers: { Authorization: `Bearer ${localToken}`, 'Content-Type': 'text/plain' }, body: "SELECT value FROM cloud_provider_config WHERE name = 'test_provider_counts'" });
   const counts = JSON.parse((await countsResponse.json())[0].rows[0][0]);
-  assert.equal(counts.query, 3); assert.equal(counts.vectors, 3); assert.equal(counts.asi, 7);
+  assert.equal(counts.query, 3); assert.equal(counts.vectors, 3); assert.equal(counts.asi, 11);
   console.log(JSON.stringify({ result: 'PASS', runtime: 'actual local SpacetimeDB + SDK', participants: 3, outsider: 1, providers: 'synthetic test adapter', checks: ['admin identity and event phases','frozen roster','cached ROI unchanged in During','member privacy','automatic GPS presence and topics','reverse duplicate request','busy acceptance blocks third person','End chat restores free and notifications','three private agent histories','Post consultations and cached recap','accepted contact sharing and withdrawal','completed follow-up','GPS stop/expiry/disconnect','admin edit/delete cascade'], provider_counts: counts }));
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);

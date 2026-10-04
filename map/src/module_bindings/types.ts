@@ -103,6 +103,31 @@ export type AgentUserLink = __Infer<typeof AgentUserLink>;
 export const AgentUserLinks = __t.object("AgentUserLinks", {});
 export type AgentUserLinks = __Infer<typeof AgentUserLinks>;
 
+export const AsiChatGrant = __t.object("AsiChatGrant", {
+  sessionKey: __t.string(),
+  userId: __t.string(),
+  ownerIdentity: __t.identity(),
+  serviceIdentity: __t.identity(),
+  expiresAtMs: __t.u64(),
+  linkRequestId: __t.string(),
+  redeemedCode: __t.string(),
+  selectedEventId: __t.string(),
+});
+export type AsiChatGrant = __Infer<typeof AsiChatGrant>;
+
+export const AsiChatService = __t.object("AsiChatService", {
+  identity: __t.identity(),
+});
+export type AsiChatService = __Infer<typeof AsiChatService>;
+
+export const AsiLinkCode = __t.object("AsiLinkCode", {
+  code: __t.string(),
+  userId: __t.string(),
+  ownerIdentity: __t.identity(),
+  expiresAtMs: __t.u64(),
+});
+export type AsiLinkCode = __Infer<typeof AsiLinkCode>;
+
 export const AssistantMessage = __t.object("AssistantMessage", {
   messageId: __t.string(),
   userId: __t.string(),

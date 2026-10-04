@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import EventBadge from './EventBadge';
+import AsiAccountLink from './AsiAccountLink';
 import { useProcedure, useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { procedures, reducers, tables } from './module_bindings';
 import EventGpsMap from './EventGpsMap';
@@ -23,6 +24,12 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
   signedIn: boolean; accountName: string; onSignIn: () => void; accountControl: ReactNode;
 }) {
   const [events, eventsLoaded] = useTable(tables.networkingInvitations);
+  const createAsiCode = useProcedure(procedures.createAsiLinkCode);
+  const asiStatus = useProcedure(procedures.getAsiLinkStatus);
+  const revokeAsi = useReducer(reducers.revokeAsiChatGrant);
+  const createCode = useCallback(() => createAsiCode(), [createAsiCode]);
+  const getAsiStatus = useCallback(() => asiStatus(), [asiStatus]);
+  const revokeAsiAccess = useCallback(() => revokeAsi(), [revokeAsi]);
   const [eventAreas] = useTable(tables.networkingEventAreas);
   const [members] = useTable(tables.myNetworkingMemberships);
   const [profiles, profilesLoaded] = useTable(tables.myProfile);
@@ -200,6 +207,7 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
     <header className="chat-topbar"><a className="brand" href="/" aria-label="MHacks live map"><span className="brand-mark">mh<span>+</span></span><span><b>MHACKS</b><small>MEET YOUR PEOPLE</small></span></a>
       <nav className="chat-nav" aria-label="Main navigation"><a className="nav-link" href="/chat">My profile</a><a className="nav-link" href="/">Live map</a>{accountControl}</nav></header>
     <main className="workspace-main">
+      <AsiAccountLink signedIn={signedIn} isActive={isActive} createCode={createCode} getStatus={getAsiStatus} revoke={revokeAsiAccess} />
       <EventBadge active={eventPhase === 'during' && Boolean(member)} checkedIn={checkedIn}
         myName={profiles[0]?.displayName ?? accountName}
         nearby={nearbyAlert ? { title: nearbyAlert.title, body: nearbyAlert.body, targetId: nearbyAlert.targetId } : undefined}

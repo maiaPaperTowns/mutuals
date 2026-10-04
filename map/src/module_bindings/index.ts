@@ -60,7 +60,9 @@ import RequestCloudConnectionReducer from "./request_cloud_connection_reducer";
 import RequestEventConnectionReducer from "./request_event_connection_reducer";
 import RespondCloudConnectionReducer from "./respond_cloud_connection_reducer";
 import RespondEventConnectionReducer from "./respond_event_connection_reducer";
+import RevokeAsiChatGrantReducer from "./revoke_asi_chat_grant_reducer";
 import SaveMyProfileReducer from "./save_my_profile_reducer";
+import SelectAsiEventReducer from "./select_asi_event_reducer";
 import SetCloudPreferencesReducer from "./set_cloud_preferences_reducer";
 import SetCloudPresenceReducer from "./set_cloud_presence_reducer";
 import SetEventAvailabilityReducer from "./set_event_availability_reducer";
@@ -72,23 +74,30 @@ import SetNetworkingEventPhaseReducer from "./set_networking_event_phase_reducer
 import StartNetworkingEventReducer from "./start_networking_event_reducer";
 import StopEventLocationReducer from "./stop_event_location_reducer";
 import StopSharingLocationReducer from "./stop_sharing_location_reducer";
+import UnlinkAsiChatReducer from "./unlink_asi_chat_reducer";
 import UpdateEventLocationReducer from "./update_event_location_reducer";
 import UpdateMyLocationReducer from "./update_my_location_reducer";
 
 // Import all procedure arg schemas
 import * as CloudBackendStatusProcedure from "./cloud_backend_status_procedure";
+import * as CreateAsiLinkCodeProcedure from "./create_asi_link_code_procedure";
 import * as CreateNetworkingEventProcedure from "./create_networking_event_procedure";
 import * as DeleteCloudAccountProcedure from "./delete_cloud_account_procedure";
 import * as DeleteNetworkingEventProcedure from "./delete_networking_event_procedure";
 import * as DraftCloudFollowupProcedure from "./draft_cloud_followup_procedure";
+import * as GenerateAsiEventRecapProcedure from "./generate_asi_event_recap_procedure";
 import * as GenerateEventRecapProcedure from "./generate_event_recap_procedure";
+import * as GetAsiChatContextProcedure from "./get_asi_chat_context_procedure";
+import * as GetAsiLinkStatusProcedure from "./get_asi_link_status_procedure";
 import * as GetCloudEventRecommendationsProcedure from "./get_cloud_event_recommendations_procedure";
 import * as GetCloudOpportunitiesProcedure from "./get_cloud_opportunities_procedure";
 import * as GetEventInterestListProcedure from "./get_event_interest_list_procedure";
 import * as LoadCloudProfileProcedure from "./load_cloud_profile_procedure";
 import * as NetworkingAccountStatusProcedure from "./networking_account_status_procedure";
 import * as PrepareNetworkingEventProcedure from "./prepare_networking_event_procedure";
+import * as RedeemAsiLinkCodeProcedure from "./redeem_asi_link_code_procedure";
 import * as SaveCloudEventProcedure from "./save_cloud_event_procedure";
+import * as SendAsiAssistantMessageProcedure from "./send_asi_assistant_message_procedure";
 import * as SendAssistantMessageProcedure from "./send_assistant_message_procedure";
 import * as SubmitCloudIntroductionProcedure from "./submit_cloud_introduction_procedure";
 import * as VerifyCloudProvidersProcedure from "./verify_cloud_providers_procedure";
@@ -356,7 +365,9 @@ const reducersSchema = __reducers(
   __reducerSchema("request_event_connection", RequestEventConnectionReducer),
   __reducerSchema("respond_cloud_connection", RespondCloudConnectionReducer),
   __reducerSchema("respond_event_connection", RespondEventConnectionReducer),
+  __reducerSchema("revoke_asi_chat_grant", RevokeAsiChatGrantReducer),
   __reducerSchema("save_my_profile", SaveMyProfileReducer),
+  __reducerSchema("select_asi_event", SelectAsiEventReducer),
   __reducerSchema("set_cloud_preferences", SetCloudPreferencesReducer),
   __reducerSchema("set_cloud_presence", SetCloudPresenceReducer),
   __reducerSchema("set_event_availability", SetEventAvailabilityReducer),
@@ -368,6 +379,7 @@ const reducersSchema = __reducers(
   __reducerSchema("start_networking_event", StartNetworkingEventReducer),
   __reducerSchema("stop_event_location", StopEventLocationReducer),
   __reducerSchema("stop_sharing_location", StopSharingLocationReducer),
+  __reducerSchema("unlink_asi_chat", UnlinkAsiChatReducer),
   __reducerSchema("update_event_location", UpdateEventLocationReducer),
   __reducerSchema("update_my_location", UpdateMyLocationReducer),
 );
@@ -375,18 +387,24 @@ const reducersSchema = __reducers(
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
 const proceduresSchema = __procedures(
   __procedureSchema("cloud_backend_status", CloudBackendStatusProcedure.params, CloudBackendStatusProcedure.returnType),
+  __procedureSchema("create_asi_link_code", CreateAsiLinkCodeProcedure.params, CreateAsiLinkCodeProcedure.returnType),
   __procedureSchema("create_networking_event", CreateNetworkingEventProcedure.params, CreateNetworkingEventProcedure.returnType),
   __procedureSchema("delete_cloud_account", DeleteCloudAccountProcedure.params, DeleteCloudAccountProcedure.returnType),
   __procedureSchema("delete_networking_event", DeleteNetworkingEventProcedure.params, DeleteNetworkingEventProcedure.returnType),
   __procedureSchema("draft_cloud_followup", DraftCloudFollowupProcedure.params, DraftCloudFollowupProcedure.returnType),
+  __procedureSchema("generate_asi_event_recap", GenerateAsiEventRecapProcedure.params, GenerateAsiEventRecapProcedure.returnType),
   __procedureSchema("generate_event_recap", GenerateEventRecapProcedure.params, GenerateEventRecapProcedure.returnType),
+  __procedureSchema("get_asi_chat_context", GetAsiChatContextProcedure.params, GetAsiChatContextProcedure.returnType),
+  __procedureSchema("get_asi_link_status", GetAsiLinkStatusProcedure.params, GetAsiLinkStatusProcedure.returnType),
   __procedureSchema("get_cloud_event_recommendations", GetCloudEventRecommendationsProcedure.params, GetCloudEventRecommendationsProcedure.returnType),
   __procedureSchema("get_cloud_opportunities", GetCloudOpportunitiesProcedure.params, GetCloudOpportunitiesProcedure.returnType),
   __procedureSchema("get_event_interest_list", GetEventInterestListProcedure.params, GetEventInterestListProcedure.returnType),
   __procedureSchema("load_cloud_profile", LoadCloudProfileProcedure.params, LoadCloudProfileProcedure.returnType),
   __procedureSchema("networking_account_status", NetworkingAccountStatusProcedure.params, NetworkingAccountStatusProcedure.returnType),
   __procedureSchema("prepare_networking_event", PrepareNetworkingEventProcedure.params, PrepareNetworkingEventProcedure.returnType),
+  __procedureSchema("redeem_asi_link_code", RedeemAsiLinkCodeProcedure.params, RedeemAsiLinkCodeProcedure.returnType),
   __procedureSchema("save_cloud_event", SaveCloudEventProcedure.params, SaveCloudEventProcedure.returnType),
+  __procedureSchema("send_asi_assistant_message", SendAsiAssistantMessageProcedure.params, SendAsiAssistantMessageProcedure.returnType),
   __procedureSchema("send_assistant_message", SendAssistantMessageProcedure.params, SendAssistantMessageProcedure.returnType),
   __procedureSchema("submit_cloud_introduction", SubmitCloudIntroductionProcedure.params, SubmitCloudIntroductionProcedure.returnType),
   __procedureSchema("verify_cloud_providers", VerifyCloudProvidersProcedure.params, VerifyCloudProvidersProcedure.returnType),

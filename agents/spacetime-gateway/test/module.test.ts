@@ -99,6 +99,7 @@ function fixture() {
   const peer = identity('b'.repeat(64));
   const service = identity('c'.repeat(64));
   const db = {
+    asiChatService: table('identity'), asiLinkCode: table('code'), asiChatGrant: table('sessionKey', ['userId']),
     networkingEvent: table('eventId'), networkingEventPhase: table('eventId'), networkingEventArea: table('eventId'), networkingMember: table('memberId'), eventInterestList: table('listId'),
     eventStar: table('starId'), eventLocation: table('locationId'), assistantMessage: table('messageId'),
     eventLocationExpiry: table('scheduledId'),
@@ -145,6 +146,87 @@ function cloudFixture() {
     } } } as any;
   return { ...f, tx, ctx, calls };
 }
+
+function asiFixture() {
+  const f = networkingFixture(2);
+  const service = identity('d'.repeat(64));
+  f.db.asiChatService.insert({ identity: service });
+  const serviceTx = { ...f.tx, sender: service, senderAuth: {} };
+  const ctx = { ...f.ctx, sender: service, withTx: (fn: any) => fn(serviceTx) };
+  let serial = 0;
+  f.ctx.newUuidV4 = () => `00000000-0000-4000-8000-${String(++serial).padStart(12, '0')}`;
+  const sessionKey = 'a'.repeat(64);
+  const code = () => JSON.parse(module.createAsiLinkCode(f.ctx)).code;
+  const redeem = (value: string, requestId = 'link-1', key = sessionKey) => JSON.parse(module.redeemAsiLinkCode(ctx, { code: value, requestId, sessionKey: key }));
+  return { ...f, serviceTx, serviceCtx: ctx, sessionKey, code, redeem };
+}
+
+test('ASI codes expire in the module, are single-use and same-message retries are idempotent', () => {
+  const f = asiFixture(), code = f.code();
+  assert.equal(f.redeem(code).linked, true);
+  assert.equal(f.redeem(code).linked, true);
+  assert.throws(() => f.redeem(code, 'link-2'), /used|invalid/i);
+  assert.throws(() => module.redeemAsiLinkCode(f.ctx, { code, sessionKey: f.sessionKey, requestId: 'bad' }), /service/i);
+  const expired = f.code();
+  f.serviceTx.timestamp = { microsSinceUnixEpoch: f.tx.timestamp.microsSinceUnixEpoch + 300_000_000n };
+  assert.throws(() => f.redeem(expired, 'expired'), /expired/i);
+});
+
+test('ASI grants isolate sessions, replace old grants, and website revocation removes access', () => {
+  const f = asiFixture(); f.redeem(f.code());
+  const context = JSON.parse(module.getAsiChatContext(f.serviceCtx, { sessionKey: f.sessionKey }));
+  assert.equal(context.events[0].event_id, f.eventId);
+  assert.equal(context.events.length, 1);
+  assert.equal('embedding' in context.profile, false);
+  assert.throws(() => module.getAsiChatContext(f.serviceCtx, { sessionKey: 'b'.repeat(64) }), /link|authorization/i);
+  f.redeem(f.code(), 'new-link', 'b'.repeat(64));
+  assert.throws(() => module.getAsiChatContext(f.serviceCtx, { sessionKey: f.sessionKey }), /link|authorization/i);
+  module.revokeAsiChatGrant(f.tx, {});
+  assert.throws(() => module.getAsiChatContext(f.serviceCtx, { sessionKey: 'b'.repeat(64) }), /link|authorization/i);
+});
+
+test('ASI Pre executes scoped favorites without GPS, blocks During, and replays completed turns', () => {
+  const f = asiFixture(); f.redeem(f.code());
+  module.startNetworkingEvent(f.tx, { eventId: f.eventId }); module.prepareNetworkingEvent(f.ctx, { eventId: f.eventId });
+  let modelCalls = 0;
+  f.serviceCtx.http.fetch = () => ({ ok: true, json: () => ({ choices: [{ message: ++modelCalls === 1
+    ? { content: null, tool_calls: [{ id: 'star', type: 'function', function: { name: 'set_star', arguments: JSON.stringify({ target_id: f.users[1].toHexString(), starred: true }) } }] }
+    : { content: 'Saved your favorite.' } }] }) });
+  const args = { sessionKey: f.sessionKey, eventId: f.eventId, message: 'Star Peer 1', requestId: 'asi-star' };
+  const result = JSON.parse(module.sendAsiAssistantMessage(f.serviceCtx, args));
+  assert.equal(result.actions[0].tool, 'set_star');
+  assert.equal([...f.db.eventStar.iter()].length, 1);
+  assert.equal(module.sendAsiAssistantMessage(f.serviceCtx, args), JSON.stringify(result));
+  assert.equal(modelCalls, 2);
+  module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'during' });
+  const during = JSON.parse(module.sendAsiAssistantMessage(f.serviceCtx, { ...args, requestId: 'during', message: 'Connect me' }));
+  assert.equal(during.stage, 'during'); assert.match(during.reply, /GPS|website/i);
+  assert.equal(modelCalls, 2); assert.equal([...f.db.agentInteraction.iter()].length, 0);
+});
+
+test('ASI rejects an in-flight private reply when its session is rebound, even to the same account', () => {
+  for (const sameAccount of [false, true]) {
+    const f = asiFixture(); f.redeem(f.code());
+    const tx = sameAccount ? f.tx : f.forUser(f.users[1]);
+    const replacement = JSON.parse(module.createAsiLinkCode({ ...f.ctx, withTx: (fn: any) => fn(tx) })).code;
+    f.serviceCtx.http.fetch = () => {
+      module.unlinkAsiChat(f.serviceTx, { sessionKey: f.sessionKey });
+      f.redeem(replacement, 'replacement-link');
+      return { ok: true, json: () => ({ choices: [{ message: { content: 'Original account private reply' } }] }) };
+    };
+    assert.throws(() => module.sendAsiAssistantMessage(f.serviceCtx, { sessionKey: f.sessionKey, eventId: f.eventId, message: 'Private request', requestId: 'rebound-turn' }), /authorization.*changed/i);
+    assert.equal([...f.db.assistantMessage.iter()].filter(row => row.role === 'assistant').length, 0);
+    assert.equal([...f.db.eventStar.iter()].length, 0);
+  }
+});
+
+test('ASI does not save tool actions after the website revokes access during a model call', () => {
+  const f = asiFixture(); f.redeem(f.code());
+  module.startNetworkingEvent(f.tx, { eventId: f.eventId }); module.prepareNetworkingEvent(f.ctx, { eventId: f.eventId });
+  f.serviceCtx.http.fetch = () => { module.revokeAsiChatGrant(f.tx, {}); return { ok: true, json: () => ({ choices: [{ message: { content: null, tool_calls: [{ id: 'star', function: { name: 'set_star', arguments: JSON.stringify({ target_id: f.users[1].toHexString(), starred: true }) } }] } }] }) }; };
+  assert.throws(() => module.sendAsiAssistantMessage(f.serviceCtx, { sessionKey: f.sessionKey, eventId: f.eventId, message: 'Star Peer 1', requestId: 'revoked-turn' }), /link|authorization/i);
+  assert.equal([...f.db.eventStar.iter()].length, 0);
+});
 
 function networkingFixture(count = 3) {
   const f = cloudFixture();

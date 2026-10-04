@@ -64,6 +64,15 @@ const agentService = table(
   { identity: t.identity().primaryKey() },
 );
 
+const asiChatService = table({ name: 'asi_chat_service' }, { identity: t.identity().primaryKey() });
+const asiLinkCode = table({ name: 'asi_link_code' }, {
+  code: t.string().primaryKey(), userId: t.string().index('btree'), ownerIdentity: t.identity(), expiresAtMs: t.u64(),
+});
+const asiChatGrant = table({ name: 'asi_chat_grant' }, {
+  sessionKey: t.string().primaryKey(), userId: t.string().unique(), ownerIdentity: t.identity(), serviceIdentity: t.identity(),
+  expiresAtMs: t.u64(), linkRequestId: t.string(), redeemedCode: t.string(), selectedEventId: t.string(),
+});
+
 const cloudProviderConfig = table({ name: 'cloud_provider_config' }, {
   name: t.string().primaryKey(), value: t.string(),
 });
@@ -250,6 +259,7 @@ const eventContact = table({ name: 'event_contact' }, {
 });
 
 const spacetimedb = schema({
+  asiChatService, asiLinkCode, asiChatGrant,
   presence, participantOwner, liveLocation, userProfile, agentService, agentAuthSubject, agentUserLink, agentProfile,
   agentLinkCode, agentPresence, agentEvent, agentInteraction, agentTranscript,
   agentFollowUpPlan, agentRoiHistoryTable, cloudProviderConfig, cloudAdmin, cloudOperation,
@@ -345,6 +355,97 @@ function ownCloudAccount(ctx: ModuleContext): { userId: string; profile: CloudPr
     embedding: null, updated_at: new Date(nowMs(ctx)).toISOString() };
   return { userId, map, profile: JSON.parse(canonicalAgentProfile(JSON.stringify({ ...defaults, ...(payload ? JSON.parse(payload) : {}) }), map)) };
 }
+
+type AccountResolver = (ctx: ModuleContext) => ReturnType<typeof ownCloudAccount>;
+
+function requireAsiService(ctx: ModuleContext) {
+  if (!ctx.db.asiChatService.identity.find(ctx.sender)) throw new SenderError('This operation requires the dedicated ACP service.');
+}
+function validateAsiKeys(sessionKey: string, requestId?: string) {
+  if (!/^[a-f0-9]{64}$/.test(sessionKey) || (requestId !== undefined && !/^[a-zA-Z0-9_-]{1,100}$/.test(requestId))) {
+    throw new SenderError('Invalid ACP session or request identifier.');
+  }
+}
+function asiAccount(sessionKey: string): AccountResolver {
+  let originalGrant: string | undefined;
+  return tx => {
+    requireAsiService(tx); validateAsiKeys(sessionKey);
+    const grant = tx.db.asiChatGrant.sessionKey.find(sessionKey);
+    if (!grant || grant.serviceIdentity.toHexString() !== tx.sender.toHexString() || Number(grant.expiresAtMs) <= nowMs(tx)) {
+      throw new SenderError('Chat authorization is unavailable or expired. Link your website account again.');
+    }
+    const generation = JSON.stringify([grant.userId, grant.ownerIdentity.toHexString(), grant.serviceIdentity.toHexString(), grant.linkRequestId, grant.redeemedCode]);
+    if (originalGrant !== undefined && originalGrant !== generation) throw new SenderError('Chat authorization changed while processing. Please retry in the linked chat.');
+    originalGrant = generation;
+    const map = tx.db.userProfile.identity.find(grant.ownerIdentity), link = tx.db.agentUserLink.ownerIdentity.find(grant.ownerIdentity);
+    if (!map || (link?.userId ?? grant.ownerIdentity.toHexString()) !== grant.userId) throw new SenderError('Your linked account changed. Link it again.');
+    const profile = profileForCloudUser(tx, grant.userId);
+    if (!profile) throw new SenderError('Save your website profile before using the Agent.');
+    return { userId: grant.userId, map, profile };
+  };
+}
+
+export const createAsiLinkCode = spacetimedb.procedure(t.string(), ctx => {
+  const code = ctx.newUuidV4().toString().replace(/-/g, '');
+  return ctx.withTx(tx => {
+    const account = ownCloudAccount(tx), expiresAtMs = nowMs(tx) + 300000;
+    for (const row of Array.from(tx.db.asiLinkCode.userId.filter(account.userId))) tx.db.asiLinkCode.code.delete(row.code);
+    tx.db.asiLinkCode.insert({ code, userId: account.userId, ownerIdentity: tx.sender, expiresAtMs: BigInt(expiresAtMs) });
+    return JSON.stringify({ code, expires_at: new Date(expiresAtMs).toISOString() });
+  });
+});
+export const getAsiLinkStatus = spacetimedb.procedure(t.string(), ctx => ctx.withTx(tx => {
+  const account = ownCloudAccount(tx), grant = tx.db.asiChatGrant.userId.find(account.userId);
+  const connected = Boolean(grant && Number(grant.expiresAtMs) > nowMs(tx));
+  return JSON.stringify({ connected, expires_at: connected ? new Date(Number(grant!.expiresAtMs)).toISOString() : null });
+}));
+export const revokeAsiChatGrant = spacetimedb.reducer((ctx) => {
+  const account = ownCloudAccount(ctx), grant = ctx.db.asiChatGrant.userId.find(account.userId);
+  if (grant) ctx.db.asiChatGrant.sessionKey.delete(grant.sessionKey);
+  for (const row of Array.from(ctx.db.asiLinkCode.userId.filter(account.userId))) ctx.db.asiLinkCode.code.delete(row.code);
+});
+export const redeemAsiLinkCode = spacetimedb.procedure(
+  { code: t.string(), sessionKey: t.string(), requestId: t.string() }, t.string(), (ctx, args) => ctx.withTx(tx => {
+    requireAsiService(tx); validateAsiKeys(args.sessionKey, args.requestId);
+    const existing = tx.db.asiChatGrant.sessionKey.find(args.sessionKey);
+    if (existing && existing.serviceIdentity.toHexString() === tx.sender.toHexString() && existing.linkRequestId === args.requestId
+      && existing.redeemedCode === args.code && Number(existing.expiresAtMs) > nowMs(tx)) {
+      asiAccount(args.sessionKey)(tx); return JSON.stringify({ linked: true });
+    }
+    const challenge = tx.db.asiLinkCode.code.find(args.code);
+    if (!challenge) throw new SenderError('Link code is invalid or already used.');
+    if (Number(challenge.expiresAtMs) <= nowMs(tx)) throw new SenderError('Link code expired. Generate another on the website.');
+    const map = tx.db.userProfile.identity.find(challenge.ownerIdentity), link = tx.db.agentUserLink.ownerIdentity.find(challenge.ownerIdentity);
+    if (!map || (link?.userId ?? challenge.ownerIdentity.toHexString()) !== challenge.userId || !profileForCloudUser(tx, challenge.userId)) {
+      throw new SenderError('Your website profile is unavailable. Save it before linking.');
+    }
+    if (existing && existing.userId !== challenge.userId) throw new SenderError('Unlink this chat before switching accounts.');
+    const previous = tx.db.asiChatGrant.userId.find(challenge.userId);
+    if (previous) tx.db.asiChatGrant.sessionKey.delete(previous.sessionKey);
+    tx.db.asiChatGrant.insert({ sessionKey: args.sessionKey, userId: challenge.userId, ownerIdentity: challenge.ownerIdentity,
+      serviceIdentity: tx.sender, expiresAtMs: BigInt(nowMs(tx) + 86400000), linkRequestId: args.requestId, redeemedCode: args.code, selectedEventId: '' });
+    tx.db.asiLinkCode.code.delete(args.code);
+    return JSON.stringify({ linked: true });
+  }));
+export const unlinkAsiChat = spacetimedb.reducer({ sessionKey: t.string() }, (ctx, { sessionKey }) => {
+  requireAsiService(ctx); validateAsiKeys(sessionKey);
+  const grant = ctx.db.asiChatGrant.sessionKey.find(sessionKey);
+  if (grant && grant.serviceIdentity.toHexString() === ctx.sender.toHexString()) ctx.db.asiChatGrant.sessionKey.delete(sessionKey);
+});
+export const getAsiChatContext = spacetimedb.procedure({ sessionKey: t.string() }, t.string(), (ctx, { sessionKey }) => ctx.withTx(tx => {
+  const account = asiAccount(sessionKey)(tx), grant = tx.db.asiChatGrant.sessionKey.find(sessionKey)!;
+  const events = Array.from(tx.db.networkingMember.userId.filter(account.userId)).flatMap(row => {
+    const event = tx.db.networkingEvent.eventId.find(row.eventId);
+    return event && event.processingId !== 'deleting' ? [{ event_id: event.eventId, title: event.title, phase: networkingPhase(tx, event.eventId) }] : [];
+  });
+  return JSON.stringify({ profile: { name: account.profile.name, headline: account.profile.headline }, events, selected_event_id: grant.selectedEventId });
+}));
+export const selectAsiEvent = spacetimedb.reducer({ sessionKey: t.string(), eventId: t.string() }, (ctx, args) => {
+  const account = asiAccount(args.sessionKey)(ctx);
+  requireEventMember(ctx, args.eventId, account.userId);
+  const grant = ctx.db.asiChatGrant.sessionKey.find(args.sessionKey)!;
+  ctx.db.asiChatGrant.sessionKey.update({ ...grant, selectedEventId: args.eventId });
+});
 
 function persistCloudProfile(ctx: ModuleContext, userId: string, profile: CloudProfile): CloudProfile {
   const map = ctx.db.userProfile.identity.find(ctx.sender);
@@ -1083,6 +1184,9 @@ export const deleteAgentRecord = spacetimedb.reducer(
 );
 
 function deleteAccountData(ctx: ModuleContext, userId: string): void {
+    const grant = ctx.db.asiChatGrant.userId.find(userId);
+    if (grant) ctx.db.asiChatGrant.sessionKey.delete(grant.sessionKey);
+    for (const row of Array.from(ctx.db.asiLinkCode.userId.filter(userId))) ctx.db.asiLinkCode.code.delete(row.code);
     const link = ctx.db.agentUserLink.userId.find(userId);
     for (const member of Array.from(ctx.db.networkingMember.userId.filter(userId))) {
       ctx.db.networkingMember.memberId.delete(member.memberId);
@@ -1274,9 +1378,10 @@ function cloudPlanView(plan: CloudProfile, userId: string) {
     rationale: plan.rationale, approved: plan.approvals?.[userId] ?? false, send_status: plan.send_status?.[userId] ?? 'not_sent' };
 }
 
-export const draftCloudFollowup = spacetimedb.procedure({ interactionId: t.string() }, t.string(), (ctx, { interactionId }) => {
+export const draftCloudFollowup = spacetimedb.procedure({ interactionId: t.string() }, t.string(), (ctx, args) => draftCloudFollowupCore(ctx, args));
+function draftCloudFollowupCore(ctx: CloudContext, { interactionId }: { interactionId: string }, resolveAccount: AccountResolver = ownCloudAccount): string {
   const snapshot = ctx.withTx(tx => {
-    const account = ownCloudAccount(tx), interaction = ownInteraction(tx, account.userId, interactionId);
+    const account = resolveAccount(tx), interaction = ownInteraction(tx, account.userId, interactionId);
     if (!['accepted', 'recorded', 'completed'].includes(interaction.status)) throw new SenderError('A follow-up requires an accepted connection.');
     const a = profileForCloudUser(tx, interaction.userId), b = profileForCloudUser(tx, interaction.targetId);
     if (!a || !b) throw new SenderError('A participant account is no longer available.');
@@ -1300,7 +1405,7 @@ export const draftCloudFollowup = spacetimedb.procedure({ interactionId: t.strin
     suggested_timing: typeof draft.suggested_timing === 'string' ? draft.suggested_timing : 'After the event', rationale: typeof draft.rationale === 'string' ? draft.rationale : '',
     negotiation_log: [`Selected mutually allowed channel: ${channel}`], approvals: {}, send_status: {}, created_at: new Date(nowMs(ctx)).toISOString() };
   return ctx.withTx(tx => {
-    const account = ownCloudAccount(tx), interaction = ownInteraction(tx, account.userId, interactionId);
+    const account = resolveAccount(tx), interaction = ownInteraction(tx, account.userId, interactionId);
     const eventId = JSON.parse(interaction.payloadJson).event_id;
     if (eventId) requireEventPhase(tx, eventId, 'post');
     if (!['accepted', 'recorded', 'completed'].includes(interaction.status) || !profileForCloudUser(tx, interaction.userId) || !profileForCloudUser(tx, interaction.targetId)) throw new SenderError('This connection changed while drafting.');
@@ -1322,7 +1427,7 @@ export const draftCloudFollowup = spacetimedb.procedure({ interactionId: t.strin
     }
     return JSON.stringify(cloudPlanView(plan, account.userId));
   });
-});
+}
 
 export const setCloudPreferences = spacetimedb.reducer({ preferencesJson: t.string() }, (ctx, { preferencesJson }) => {
   const account = ownCloudAccount(ctx);
@@ -1673,8 +1778,8 @@ export const getEventInterestList = spacetimedb.procedure({ eventId: t.string(),
   if (limit < 1 || limit > 50) throw new SenderError('Load between 1 and 50 recommendations at a time.');
   return JSON.stringify(interestPage(tx, eventId, ownCloudAccount(tx).userId, offset, limit));
 }));
-export const setEventStar = spacetimedb.reducer({ eventId: t.string(), targetId: t.string(), starred: t.bool() }, (ctx, { eventId, targetId, starred }) => {
-  const userId = ownCloudAccount(ctx).userId;
+export const setEventStar = spacetimedb.reducer({ eventId: t.string(), targetId: t.string(), starred: t.bool() }, (ctx, args) => setEventStarCore(ctx, ownCloudAccount(ctx).userId, args));
+function setEventStarCore(ctx: ModuleContext, userId: string, { eventId, targetId, starred }: { eventId: string; targetId: string; starred: boolean }) {
   requireEventMember(ctx, eventId, userId);
   const target = requireEventMember(ctx, eventId, targetId);
   if (targetId === userId || !target.discoverable) throw new SenderError('Choose another discoverable event member.');
@@ -1682,7 +1787,7 @@ export const setEventStar = spacetimedb.reducer({ eventId: t.string(), targetId:
   if (!starred) ctx.db.eventStar.starId.delete(starId);
   else if (!ctx.db.eventStar.starId.find(starId)) ctx.db.eventStar.insert({ starId, eventId, userId, targetId });
   notifyNearby(ctx, eventId);
-});
+}
 
 function gpsDistance(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }) {
   const radians = (n: number) => n * Math.PI / 180;
@@ -1899,12 +2004,12 @@ function eventConnections(ctx: ModuleContext, eventId: string, userId: string) {
 }
 const EVENT_RECAP_MESSAGE = 'Recap my event using the Pre and During agents. Explain my accepted connections, completed chats, shared interests and saved match reasons. Keep pending or declined requests separate. Suggest factual next steps without inventing conversation contents. Contact links are shown separately when shared; do not invent or repeat contact addresses.';
 
-function askEventAgent(ctx: CloudContext, fromAgent: keyof typeof ASSISTANT_AGENTS, eventId: string, turnId: string, target: string, rawQuestion: string) {
+function askEventAgent(ctx: CloudContext, fromAgent: keyof typeof ASSISTANT_AGENTS, eventId: string, turnId: string, target: string, rawQuestion: string, resolveAccount: AccountResolver = ownCloudAccount) {
   if (!Object.prototype.hasOwnProperty.call(ASSISTANT_AGENTS, target) || target === fromAgent) throw new SenderError('Choose a different event agent.');
   if (typeof rawQuestion !== 'string' || !rawQuestion.trim() || rawQuestion.trim().length > 1000) throw new SenderError('Ask a colleague a question of 1–1000 characters.');
   const toAgent = target as keyof typeof ASSISTANT_AGENTS, question = rawQuestion.trim(), exchangeId = `${turnId}__${toAgent}__${question}`;
   const snapshot = ctx.withTx(tx => {
-    const account = ownCloudAccount(tx);
+    const account = resolveAccount(tx);
     requireEventMember(tx, eventId, account.userId); requireEventPhase(tx, eventId, fromAgent);
     const turn = tx.db.assistantTurn.turnId.find(turnId);
     if (!turn || turn.userId !== account.userId || turn.eventId !== eventId || turn.stage !== fromAgent) throw new SenderError('This agent exchange is unavailable to your account.');
@@ -1921,7 +2026,7 @@ function askEventAgent(ctx: CloudContext, fromAgent: keyof typeof ASSISTANT_AGEN
   const agent = ASSISTANT_AGENTS[toAgent];
   const response = asiComplete(ctx, cloudConfig(ctx), `${ASSISTANT_POLICY}\nYou are the consulted ${agent.name}. ${agent.purpose}\nAnswer the ${ASSISTANT_AGENTS[fromAgent].name}'s question using only supplied evidence for this user and event. This is a read-only historical consultation, even if your original stage has ended. Do not request another agent, perform actions, invent meeting contents or contact addresses. Separate requested, accepted and completed connection states.`, JSON.stringify({ question, evidence: snapshot.context }), 600).trim().slice(0, 6000);
   return ctx.withTx(tx => {
-    const account = ownCloudAccount(tx);
+    const account = resolveAccount(tx);
     requireEventMember(tx, eventId, account.userId); requireEventPhase(tx, eventId, fromAgent);
     const turn = tx.db.assistantTurn.turnId.find(turnId);
     if (account.userId !== snapshot.userId || !turn || turn.userId !== account.userId) throw new SenderError('Your conversation changed while processing.');
@@ -1931,28 +2036,28 @@ function askEventAgent(ctx: CloudContext, fromAgent: keyof typeof ASSISTANT_AGEN
   });
 }
 
-function assistantTool(ctx: CloudContext, stage: keyof typeof ASSISTANT_AGENTS, eventId: string, turnId: string, name: string, args: any): unknown {
+function assistantTool(ctx: CloudContext, stage: keyof typeof ASSISTANT_AGENTS, eventId: string, turnId: string, name: string, args: any, resolveAccount: AccountResolver = ownCloudAccount): unknown {
   if (!ASSISTANT_AGENTS[stage].tools.some(tool => tool.function.name === name)) throw new SenderError('This tool is not available to this agent stage.');
-  if (name === 'ask_event_agent') return askEventAgent(ctx, stage, eventId, turnId, String(args.agent), args.question);
+  if (name === 'ask_event_agent') return askEventAgent(ctx, stage, eventId, turnId, String(args.agent), args.question, resolveAccount);
   if (name === 'prepare_followup') {
     ctx.withTx(tx => {
-      const userId = ownCloudAccount(tx).userId;
+      const userId = resolveAccount(tx).userId;
       requireEventMember(tx, eventId, userId);
       requireEventPhase(tx, eventId, stage);
       const row = ownInteraction(tx, userId, String(args.interaction_id));
       if (JSON.parse(row.payloadJson).event_id !== eventId) throw new SenderError('This connection belongs to a different event.');
     });
-    return JSON.parse(draftCloudFollowup(ctx, { interactionId: String(args.interaction_id) }));
+    return JSON.parse(draftCloudFollowupCore(ctx, { interactionId: String(args.interaction_id) }, resolveAccount));
   }
   return ctx.withTx(tx => {
-    const userId = ownCloudAccount(tx).userId;
+    const userId = resolveAccount(tx).userId;
     requireEventMember(tx, eventId, userId);
     requireEventPhase(tx, eventId, stage);
     if (name === 'get_interest_list') return interestPage(tx, eventId, userId, 0, 50);
     if (name === 'get_connections') return eventConnections(tx, eventId, userId);
     if (name === 'set_star') {
       if (typeof args.starred !== 'boolean') throw new SenderError('Specify whether to star the participant.');
-      setEventStar(tx, { eventId, targetId: String(args.target_id), starred: args.starred });
+      setEventStarCore(tx, userId, { eventId, targetId: String(args.target_id), starred: args.starred });
       return { starred: args.starred, target_id: args.target_id };
     }
     if (name === 'request_connection') {
@@ -1968,12 +2073,13 @@ function assistantTool(ctx: CloudContext, stage: keyof typeof ASSISTANT_AGENTS, 
   });
 }
 export const sendAssistantMessage = spacetimedb.procedure(
-  { eventId: t.string(), stage: t.string(), message: t.string(), requestId: t.string() }, t.string(), (ctx, args) => {
+  { eventId: t.string(), stage: t.string(), message: t.string(), requestId: t.string() }, t.string(), (ctx, args) => runAssistantMessage(ctx, args));
+function runAssistantMessage(ctx: CloudContext, args: { eventId: string; stage: string; message: string; requestId: string }, resolveAccount: AccountResolver = ownCloudAccount): string {
     if (!Object.prototype.hasOwnProperty.call(ASSISTANT_AGENTS, args.stage)) throw new SenderError('Choose a valid agent stage.');
     const stage = args.stage as keyof typeof ASSISTANT_AGENTS, agent = ASSISTANT_AGENTS[stage], input = args.message.trim();
     if (!input || input.length > 4000 || !/^[a-zA-Z0-9_-]{1,100}$/.test(args.requestId)) throw new SenderError('Add a message of at most 4000 characters and a valid request ID.');
     const snapshot = ctx.withTx(tx => {
-      const account = ownCloudAccount(tx), member = requireEventMember(tx, args.eventId, account.userId), event = requireNetworkingEvent(tx, args.eventId);
+      const account = resolveAccount(tx), member = requireEventMember(tx, args.eventId, account.userId), event = requireNetworkingEvent(tx, args.eventId);
       requireEventPhase(tx, args.eventId, stage);
       const turnId = `${account.userId}__${args.requestId}`, existing = tx.db.assistantTurn.turnId.find(turnId);
       if (existing && (existing.input !== input || existing.stage !== stage || existing.eventId !== args.eventId)) throw new SenderError('This request ID has already been used for another message.');
@@ -2004,7 +2110,7 @@ export const sendAssistantMessage = spacetimedb.procedure(
       const actions: any[] = [];
       if (stage === 'post' && input === EVENT_RECAP_MESSAGE) {
         for (const [target, question] of [['pre', 'What saved match reasons and common interests explain my connections in this event?'], ['during', 'Who did I request, who accepted, and which chats did I mark finished? Use the saved connection history.']]) {
-          actions.push({ tool: 'ask_event_agent', result: askEventAgent(ctx, stage, args.eventId, turnId, target, question) });
+          actions.push({ tool: 'ask_event_agent', result: askEventAgent(ctx, stage, args.eventId, turnId, target, question, resolveAccount) });
         }
       }
       const allowedTools = input === EVENT_RECAP_MESSAGE ? agent.tools.filter(tool => ['get_connections','ask_event_agent'].includes(tool.function.name)) : agent.tools;
@@ -2013,10 +2119,15 @@ export const sendAssistantMessage = spacetimedb.procedure(
         const request = () => providerJson(ctx, 'https://api.asi1.ai/v1/chat/completions', {
           model: 'asi1', messages, max_tokens: 1200, ...(withTools ? { tools: allowedTools, parallel_tool_calls: false } : {}),
         }, { Authorization: `Bearer ${config.asi_api_key}` }, 'ASI assistant').choices?.[0]?.message;
-        try { return request(); } catch (error) {
+        const checkedRequest = () => {
+          const answer = request();
+          ctx.withTx(tx => resolveAccount(tx));
+          return answer;
+        };
+        try { return checkedRequest(); } catch (error) {
           // Retry the model request once; tools execute outside this function.
           if (!(error instanceof Error) || !/^ASI assistant returned HTTP 5\d\d\./.test(error.message)) throw error;
-          return request();
+          return checkedRequest();
         }
       };
       let answer = completion(true);
@@ -2032,10 +2143,10 @@ export const sendAssistantMessage = spacetimedb.procedure(
             if (!allowedTools.some(tool => tool.function.name === name)) throw new SenderError('This tool is not available for this read-only recap.');
             result = snapshot.tools[key];
             if (result === undefined) {
-              result = assistantTool(ctx, stage, args.eventId, turnId, name, parameters);
+              result = assistantTool(ctx, stage, args.eventId, turnId, name, parameters, resolveAccount);
               snapshot.tools[key] = result;
               ctx.withTx(tx => {
-                ownCloudAccount(tx); requireEventMember(tx, args.eventId, userId);
+                resolveAccount(tx); requireEventMember(tx, args.eventId, userId);
                 requireEventPhase(tx, args.eventId, stage);
                 const row = tx.db.assistantTurn.turnId.find(turnId);
                 if (!row) throw new SenderError('Your conversation changed while processing.');
@@ -2051,7 +2162,7 @@ export const sendAssistantMessage = spacetimedb.procedure(
       if (typeof answer?.content !== 'string' || !answer.content.trim()) throw new SenderError('ASI returned an empty reply. Please retry.');
       const resultJson = JSON.stringify({ reply: answer.content.trim().slice(0, 12000), actions, agent: agent.name, stage, event_id: args.eventId });
       return ctx.withTx(tx => {
-        const account = ownCloudAccount(tx); requireEventMember(tx, args.eventId, account.userId);
+        const account = resolveAccount(tx); requireEventMember(tx, args.eventId, account.userId);
         requireEventPhase(tx, args.eventId, stage);
         const row = tx.db.assistantTurn.turnId.find(turnId);
         if (!row) throw new SenderError('Your conversation changed while processing.');
@@ -2063,7 +2174,7 @@ export const sendAssistantMessage = spacetimedb.procedure(
       ctx.withTx(tx => { const row = tx.db.assistantTurn.turnId.find(turnId); if (row) tx.db.assistantTurn.turnId.update({ ...row, status: 'error' }); });
       throw error;
     }
-  });
+  }
 
 export const generateEventRecap = spacetimedb.procedure({ eventId: t.string() }, t.string(), (ctx, { eventId }) => {
   const revision = ctx.withTx(tx => {
@@ -2075,3 +2186,21 @@ export const generateEventRecap = spacetimedb.procedure({ eventId: t.string() },
   });
   return sendAssistantMessage(ctx, { eventId, stage: 'post', message: EVENT_RECAP_MESSAGE, requestId: `recap-${eventId}-${revision}` });
 });
+
+export const sendAsiAssistantMessage = spacetimedb.procedure(
+  { sessionKey: t.string(), eventId: t.string(), message: t.string(), requestId: t.string() }, t.string(), (ctx, args) => {
+    validateAsiKeys(args.sessionKey, args.requestId);
+    if (!args.message.trim() || args.message.length > 4000) throw new SenderError('Add a message of at most 4000 characters.');
+    const resolveAccount = asiAccount(args.sessionKey);
+    const stage = ctx.withTx(tx => {
+      const account = resolveAccount(tx); requireEventMember(tx, args.eventId, account.userId);
+      return networkingPhase(tx, args.eventId);
+    });
+    if (stage === 'during') return JSON.stringify({ reply: 'During uses the mutuals website for live connections and GPS authorization: https://mhacks-live-map.vercel.app/events', stage, actions: [], event_id: args.eventId });
+    return runAssistantMessage(ctx, { eventId: args.eventId, message: args.message, requestId: args.requestId, stage }, resolveAccount);
+  });
+export const generateAsiEventRecap = spacetimedb.procedure(
+  { sessionKey: t.string(), eventId: t.string(), requestId: t.string() }, t.string(), (ctx, args) => {
+    validateAsiKeys(args.sessionKey, args.requestId);
+    return runAssistantMessage(ctx, { eventId: args.eventId, stage: 'post', message: EVENT_RECAP_MESSAGE, requestId: args.requestId }, asiAccount(args.sessionKey));
+  });

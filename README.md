@@ -10,6 +10,8 @@ Discoverable participants show their names and areas; accepting a request establ
 ![SpacetimeDB](https://img.shields.io/badge/live%20map-SpacetimeDB-6b4fbb)
 ![FREE-WILi](https://img.shields.io/badge/badge-FREE--WILi%20OG-e5484d)
 ![Clerk](https://img.shields.io/badge/accounts-Clerk-6c47ff)
+![tag:innovationlab](https://img.shields.io/badge/innovationlab-3D8BD3)
+![tag:hackathon](https://img.shields.io/badge/hackathon-5F43F1)
 
 > Built at MHacks 2026.
 
@@ -20,6 +22,12 @@ The [profile page](https://mhacks-live-map.vercel.app/chat) and [events and assi
 The retained Photon/iMessage prototype is a separate integration path. Photon/Agentverse transport, recording and automatic outbound delivery remain unconnected to the website. Browser notifications require permission and an open page; durable notifications stay in the private website inbox. Follow-up drafts are copied and sent manually. See the [Chinese implementation and acceptance guide](docs/活动与站内助手实施说明.md) for the current data contracts, operating steps and verification scope. Older reports describe their original release only.
 
 Completed changes must be committed, pushed and deployed to affected cloud targets under the standing instructions in [AGENTS.md](AGENTS.md).
+
+## Fetch.ai Pre/Post agent
+
+**mutuals Networking** (`agent1qt6xhqsn53g4fj4w35d45avhlzns79t6qujx2cupyqxjncyp96prc60nfsn`) exposes the existing native Pre/Post assistants through signed ACP and Agentverse Mailbox. Website users authorize a chat with a five-minute single-use code; permissions expire after 24 hours and can be revoked. Pre can save favorites, and Post can consult event roles and save private follow-up drafts. During continues on the website with GPS. The public ACP entry point is one Agent; the three native roles are not separately published agents.
+
+See [setup, tests, demo and submission checklist](docs/FETCH_SUBMISSION.md). Agentverse connection and live ASI:One routing must be verified before private backend access is enabled. The local test suite alone does not prove discovery, a shared chat, or a submitted entry.
 
 ## The problem
 

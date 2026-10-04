@@ -32,7 +32,9 @@ import RequestCloudConnectionReducer from "../request_cloud_connection_reducer";
 import RequestEventConnectionReducer from "../request_event_connection_reducer";
 import RespondCloudConnectionReducer from "../respond_cloud_connection_reducer";
 import RespondEventConnectionReducer from "../respond_event_connection_reducer";
+import RevokeAsiChatGrantReducer from "../revoke_asi_chat_grant_reducer";
 import SaveMyProfileReducer from "../save_my_profile_reducer";
+import SelectAsiEventReducer from "../select_asi_event_reducer";
 import SetCloudPreferencesReducer from "../set_cloud_preferences_reducer";
 import SetCloudPresenceReducer from "../set_cloud_presence_reducer";
 import SetEventAvailabilityReducer from "../set_event_availability_reducer";
@@ -44,6 +46,7 @@ import SetNetworkingEventPhaseReducer from "../set_networking_event_phase_reduce
 import StartNetworkingEventReducer from "../start_networking_event_reducer";
 import StopEventLocationReducer from "../stop_event_location_reducer";
 import StopSharingLocationReducer from "../stop_sharing_location_reducer";
+import UnlinkAsiChatReducer from "../unlink_asi_chat_reducer";
 import UpdateEventLocationReducer from "../update_event_location_reducer";
 import UpdateMyLocationReducer from "../update_my_location_reducer";
 
@@ -73,7 +76,9 @@ export type RequestCloudConnectionParams = __Infer<typeof RequestCloudConnection
 export type RequestEventConnectionParams = __Infer<typeof RequestEventConnectionReducer>;
 export type RespondCloudConnectionParams = __Infer<typeof RespondCloudConnectionReducer>;
 export type RespondEventConnectionParams = __Infer<typeof RespondEventConnectionReducer>;
+export type RevokeAsiChatGrantParams = __Infer<typeof RevokeAsiChatGrantReducer>;
 export type SaveMyProfileParams = __Infer<typeof SaveMyProfileReducer>;
+export type SelectAsiEventParams = __Infer<typeof SelectAsiEventReducer>;
 export type SetCloudPreferencesParams = __Infer<typeof SetCloudPreferencesReducer>;
 export type SetCloudPresenceParams = __Infer<typeof SetCloudPresenceReducer>;
 export type SetEventAvailabilityParams = __Infer<typeof SetEventAvailabilityReducer>;
@@ -85,6 +90,7 @@ export type SetNetworkingEventPhaseParams = __Infer<typeof SetNetworkingEventPha
 export type StartNetworkingEventParams = __Infer<typeof StartNetworkingEventReducer>;
 export type StopEventLocationParams = __Infer<typeof StopEventLocationReducer>;
 export type StopSharingLocationParams = __Infer<typeof StopSharingLocationReducer>;
+export type UnlinkAsiChatParams = __Infer<typeof UnlinkAsiChatReducer>;
 export type UpdateEventLocationParams = __Infer<typeof UpdateEventLocationReducer>;
 export type UpdateMyLocationParams = __Infer<typeof UpdateMyLocationReducer>;
 
