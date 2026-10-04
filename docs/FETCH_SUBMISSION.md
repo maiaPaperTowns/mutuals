@@ -35,7 +35,7 @@ Codes, raw chats, private drafts and service credentials are excluded from trans
 
 ## Deploy on Agentverse Hosted
 
-The active Hosted Agent is **mutuals Networking**, handle `@mutuals-mhacks2026`. Its public probe has replied successfully in ASI:One. Two turns in the same chat had a stable session hash; a separate chat had a different hash. The second-account gate and private business demonstration are still pending.
+The active Hosted Agent is **mutuals Networking**, handle `@mutuals-mhacks2026`. Live probes from two consenting ASI accounts had distinct signed senders/session hashes and stable hashes across turns within each chat. A separate chat also had a different hash. Dedicated private access is enabled with user approval. Website-to-ASI binding, authorized event queries, Pre recommendations and saved favorites passed live verification. An unbound chat still receives an authorization prompt instead of event data. Actual platform message replay was not induced; deterministic request IDs and replay safety were verified in tests and native SDK integration.
 
 Profile: https://agentverse.ai/agents/details/agent1q0jxrkgqv7qw75w0z3taze7dl05cpe0s6xcl0ddw0l0vkhvgxr8eccl74h2/profile
 
@@ -89,25 +89,43 @@ Suggested primary **Post** conversation after authorization:
 
 For Pre, use an event in Pre with a prepared interest list: `Who should I meet and why?`, then `Favorite <person>`. Check the saved favorite on the website. This needs no GPS.
 
+**Verified primary demonstration (2026-10-04):** the user approved a dedicated `mutuals Fetch Hosted demo` event (`6897a464-75b2-40d3-8dc0-d0c698d0b272`). Two consenting participants joined, the roster was locked and real matches were prepared. The linked ASI chat listed this event, retrieved and explained the actual recommendation, then saved the requested favorite. After a website reload, the favorite checkbox remained selected and both conversation turns appeared in the same account's Pre history. The workflow completed through ASI; the website reload was verification, not a step needed to execute the favorite. Post was not demonstrated because this event has no real completed connections.
+
 | Official mandatory requirement | Evidence to collect |
 | --- | --- |
 | At least one Agentverse agent | Verified public profile URL for mutuals Networking |
 | ACP | Published chat protocol plus real signed request, acknowledgement and response |
 | Discoverable and usable through ASI:One | Find/select the actual Agent and receive its reply in ASI:One |
-| Meaningful tool execution/orchestration | Post role consultations and a persisted private draft, or Pre persisted favorite |
-| Primary workflow entirely in ASI conversation | Completed Post review -> prioritization -> saved draft in one chat after disclosed account authorization; no frontend needed to finish these actions |
+| Meaningful tool execution/orchestration | Live Pre recommendation retrieval and persisted favorite verified; Post role consultations and private drafts covered by integration tests |
+| Primary workflow entirely in ASI conversation | Live event query -> recommendation -> saved favorite in one chat after disclosed account authorization; no frontend needed to finish these actions |
 | Public source with run/test instructions | Public repo containing the corresponding implementation and this guide |
 
-Website account authorization is a prerequisite. Our interpretation is that the primary Post task then completes in ASI:One; organizers determine whether this satisfies their rule. A profile or an ASI API call alone is insufficient evidence. Interactive cards, payment and additional published agents are optional and are not claimed here.
+Website account authorization and joining/preparing the event are prerequisites. Our interpretation is that the primary Pre recommendation/favorite task then completes in ASI:One; organizers determine whether this satisfies their rule. A profile or an ASI API call alone is insufficient evidence. Interactive cards, payment and additional published agents are optional and are not claimed here.
 
 Official requirements: https://www.fetch.ai/events/hackathons/mhacks-2026/hackpack
 
 ## Final submission checklist
 
+Submission-ready project fields:
+
+| Field | Value |
+| --- | --- |
+| Project name | mutuals |
+| Public GitHub | https://github.com/maiaPaperTowns/mutuals |
+| Published agents | 1 |
+| Agent profile URL | https://agentverse.ai/agents/details/agent1q0jxrkgqv7qw75w0z3taze7dl05cpe0s6xcl0ddw0l0vkhvgxr8eccl74h2/profile |
+
+Problem description to paste: **mutuals helps event participants decide who to meet and turn conversations into useful next steps. Its ASI:One agent retrieves personalized event matches, explains recommendations and saves favorites to the participant's authorized website account. The same native backend also supports private post-event follow-up drafts for completed connections.**
+
+Use the actual team's lead name/email and size (1-4 including the lead), not the two-person test event's participant count. Table number and the form's video/profile/shared-chat fields are optional. The user chose to keep the existing private test transcript, including authorization messages; no public shared-chat URL has been generated. Leave uncreated URLs empty rather than supplying placeholders.
+
+Suggested 3-5 minute recording: introduce the event-networking problem (30 seconds); show the Hosted profile and briefly explain the account-authorization prerequisite without displaying the code (45 seconds); in ASI query the event, request a recommendation and save a favorite (90 seconds); reload the website to show persistence (45 seconds); explain the single ACP entry point, native tools and tested privacy boundaries (30 seconds). Use actual actions and disclose that Post requires real completed connections.
+
 - [x] Agentverse Hosted profile published, ACP manifest present, ASI Available; direct ASI:One invocation replies. Actual profile link is above.
-- [ ] Live routing isolation gate passed; enable Hosted private access and verify two accounts cannot read each other's data.
-- [ ] Successful ASI:One Pre/Post conversations; share actual chats and copy `https://asi1.ai/shared-chat/...` links.
-- [ ] Public GitHub contains corresponding code, agent name/address, setup instructions and both badges.
+- [x] Live routing isolation passed; enable Hosted private access with a dedicated secret. Website binding and unbound-chat denial verified; native tests cover cross-account read/write denial and grant replacement.
+- [x] Successful live ASI:One Pre recommendation and favorite, with website persistence verified. Live Post draft demonstration remains separate.
+- [ ] Share a successful demonstration with consent and no binding-code messages; copy its actual `https://asi1.ai/shared-chat/...` link.
+- [x] Public GitHub contains corresponding code, agent name/address, setup instructions and both badges.
 - [ ] Record/upload a 3-5 minute video showing actual actions and account persistence. The Submission Agent form marks its video field optional; the Hackpack requests a video.
 - [ ] Submit the project on Devpost.
 - [ ] Team lead opens the MHacks Submission Agent, creates a team, fills project/name/email/team size/problem/public GitHub and useful demo/profile/shared-chat links, reviews, and confirms.

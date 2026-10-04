@@ -25,4 +25,4 @@ Sign in on the website, save your profile and join an event. In **Use mutuals in
 
 Send `events` to list your own events and `event <id>` to choose one. Then ask `Who should I meet and why?` in Pre, or `recap` and `Prepare and save a follow-up draft for <completed connection>` in Post. All results use your existing mutuals account.
 
-This is one ACP Agent with native internal assistant roles. Agentverse Hosted executes requests in its cloud; your computer does not need to stay online. Private access is disabled until live ASI routing and session isolation are verified. No successful link/draft is claimed while that gate is pending.
+This is one ACP Agent with native internal assistant roles. Agentverse Hosted executes requests in its cloud; your computer does not need to stay online. Two consenting ASI accounts passed live routing isolation checks. Private access uses a dedicated service identity and still requires your one-time website authorization. Live account binding, event queries, Pre recommendations and saved favorites are verified through ASI:One and the website. Post still needs real completed connections for a live draft demonstration.

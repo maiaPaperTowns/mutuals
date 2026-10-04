@@ -21,7 +21,7 @@ Discoverable participants show their names and areas; accepting a request establ
 
 The [profile page](https://mutuals.tech/chat) and [events and assistants](https://mutuals.tech/events) use Clerk login and native SpacetimeDB procedures/reducers. Terry's provisioned administrator account can publish invitations and lock the participant roster by starting an event. Pre compares the frozen members using Pinecone and stores complete personal interest lists, initially displayed five or ten at a time. During manages favorites, voluntary event GPS, nearby notifications and connection requests. Post prepares private follow-up drafts. Each assistant has its own policy, permitted tools and personal stage history; all chat calls the ASI:One API from SpacetimeDB.
 
-The retained Photon/iMessage prototype is a separate integration path. Photon transport, recording and automatic outbound delivery remain unconnected to the website. The separate mutuals Networking ACP entry point is deployed on Agentverse Hosted; private account access awaits live ASI session verification. Browser notifications require permission and an open page; durable notifications stay in the private website inbox. Follow-up drafts are copied and sent manually. See the [Chinese implementation and acceptance guide](docs/活动与站内助手实施说明.md) for the current data contracts, operating steps and verification scope. Older reports describe their original release only.
+The retained Photon/iMessage prototype is a separate integration path. Photon transport, recording and automatic outbound delivery remain unconnected to the website. The separate mutuals Networking ACP entry point runs on Agentverse Hosted, with verified live routing isolation and one-time website account binding. Browser notifications require permission and an open page; durable notifications stay in the private website inbox. Follow-up drafts are copied and sent manually. See the [Chinese implementation and acceptance guide](docs/活动与站内助手实施说明.md) for the current data contracts, operating steps and verification scope. Older reports describe their original release only.
 
 Completed changes must be committed, pushed and deployed to affected cloud targets under the standing instructions in [AGENTS.md](AGENTS.md).
 
@@ -29,7 +29,7 @@ Completed changes must be committed, pushed and deployed to affected cloud targe
 
 **mutuals Networking** (`agent1q0jxrkgqv7qw75w0z3taze7dl05cpe0s6xcl0ddw0l0vkhvgxr8eccl74h2`) exposes the existing native Pre/Post assistants through signed ACP on Agentverse Hosted. Website users authorize a chat with a five-minute single-use code; permissions expire after 24 hours and can be revoked. Pre can save favorites, and Post can consult event roles and save private follow-up drafts. During continues on the website with GPS. The public ACP entry point is one Agent; the three native roles are not separately published agents.
 
-See [setup, tests, demo and submission checklist](docs/FETCH_SUBMISSION.md). Live ASI:One routing must be verified before private backend access is enabled. The local test suite alone does not prove discovery, a shared chat, or a submitted entry.
+See [setup, tests, demo and submission checklist](docs/FETCH_SUBMISSION.md). Live ASI:One routing, two-account session separation, website binding and Pre recommendation/favorite persistence are verified; private access is enabled for authorized chats. Public shared chat, video, live Post draft demonstration and actual entry submission still need completion.
 
 ## The problem
 
