@@ -23,10 +23,11 @@
 | Maincloud live provider probe | ASI 与 Pinecone write/fetch/query/cleanup 通过 |
 | 数据保留 | 11 个地图资料、9 个私人资料和 9 个资料向量均保留 |
 | 原始授权改绑竞态 | 审查复现后修复，同账号和跨账号改绑回归均通过 |
+| Hosted -> ASI:One 实际消息 | 3 条 public probe 成功回复；同聊天两次哈希一致，新聊天哈希不同；第二个账号待验证 |
 
 实际 SDK 联调也覆盖绑定码重复消息兑换、无授权会话、Pre 消息重试、Post recap 重试、网站撤销、聊天解绑及 During 跳转。单元测试另覆盖有效期、工具范围和模型处理中撤销。
 
-网站和原生模块基础实现：私有 `mhacks-2026/main` 的 `c2a5874`；公共 `mutuals/main` 的 `fcce9d8`。Hosted 变更随后单独同步；以 Git 历史中的 `feat(agents): run ASI entry point on Agentverse Hosted` 为准。
+网站和原生模块基础实现：私有 `mhacks-2026/main` 的 `c2a5874`；公共 `mutuals/main` 的 `fcce9d8`。Hosted 改造：私有 `c8be7b5`、公共 `fa55bf1`，均核对远端 SHA；保留公共仓库队友的 `7b766fc`。
 
 Vercel 部署 `dpl_2Yo6yZ45iukTiEaSqqwNZCQ62PZ9` 为 **READY**，入口 https://mutuals.tech/events 。Maincloud 使用 `--delete-data=never` 发布，只增加三个私有 ASI 表。
 
@@ -38,14 +39,14 @@ Vercel 部署 `dpl_2Yo6yZ45iukTiEaSqqwNZCQ62PZ9` 为 **READY**，入口 https://
 
 [Agentverse profile](https://agentverse.ai/agents/details/agent1q0jxrkgqv7qw75w0z3taze7dl05cpe0s6xcl0ddw0l0vkhvgxr8eccl74h2/profile) 已保存名称、介绍、README、两个 badge 和三条 starter prompts，公开 AgentChatProtocol v0.3.0。保存后重新载入编辑器、复制完整文本，确认与 `agents/hosted/agent.py` 一致，再启动。日志确认 Successfully started agent 和 Almanac 注册；页面显示 **Active / ASI Available / Hosted**。
 
-[ASI:One 页面](https://asi1.ai/ai/agent1q0jxrkgqv7qw75w0z3taze7dl05cpe0s6xcl0ddw0l0vkhvgxr8eccl74h2) 已显示实际 Agent 名称、handle 和介绍。**公开页面和 ASI Available 不等于完成真实聊天/私人业务演示。** 当前 Edge 尚未登录 ASI:One；已打开登录页面请用户完成。旧 Mailbox 探测进程已停止，本机权限问题不再是部署依赖。
+[ASI:One 页面](https://asi1.ai/ai/agent1q0jxrkgqv7qw75w0z3taze7dl05cpe0s6xcl0ddw0l0vkhvgxr8eccl74h2) 已显示实际 Agent 名称、handle 和介绍。用户登录后，已实际调用 Hosted Agent 三次并收到 public probe 回复。同一个聊天的两次消息使用相同 session hash、不同 request hash；新聊天使用不同 session hash。**这些证明云端消息往返，不等于已完成私人 Pre/Post 业务演示。** 旧 Mailbox 探测进程已停止，本机权限问题不再是部署依赖。
 
 因此目前 `asi_chat_service` 仍为空，Hosted private access 关闭。还不能在 ASI:One 中兑换真实网站授权码或执行私人 Pre/Post 工作流。按批准方案，必须先用两个同意参与测试的 ASI 账号验证 sender/session 隔离，然后才配置独立服务 token 和开启私人访问。
 
 下一步依次完成：
 
-1. 用户登录 ASI:One；同意参与的第二个账号协助路由测试。
-2. ASI:One 两账号/两会话路由验证，确认会话间隔离和同会话连续性。
+1. 同意参与的第二个 ASI 账号协助发送两条 public probe；无需绑定网站或发送私人资料。
+2. 核对两账号隔离，同账号同聊天连续性已验证。离线测试覆盖相同消息 ID 的稳定 request ID 和幂等性；真实平台重试行为另行核对。
 3. 配置独立服务身份和 Hosted Agent Secrets，开启私人后端。网站生成码 -> ASI 绑定 -> Pre 收藏/Post 回顾与保存草稿 -> 网站核对持久化。
 4. 用同意公开的合成演示资料创建真正成功的 Shared Chat，录制 3-5 分钟视频。
 5. Devpost 提交；Team Lead 在 MHacks Submission Agent 中填写真实资料、仓库和演示链接；其他队员自行用 Team ID 加入，核对 **Submitted**。

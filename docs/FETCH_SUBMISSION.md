@@ -35,7 +35,7 @@ Codes, raw chats, private drafts and service credentials are excluded from trans
 
 ## Deploy on Agentverse Hosted
 
-The active Hosted Agent is **mutuals Networking**, handle `@mutuals-mhacks2026`.
+The active Hosted Agent is **mutuals Networking**, handle `@mutuals-mhacks2026`. Its public probe has replied successfully in ASI:One. Two turns in the same chat had a stable session hash; a separate chat had a different hash. The second-account gate and private business demonstration are still pending.
 
 Profile: https://agentverse.ai/agents/details/agent1q0jxrkgqv7qw75w0z3taze7dl05cpe0s6xcl0ddw0l0vkhvgxr8eccl74h2/profile
 
@@ -104,7 +104,7 @@ Official requirements: https://www.fetch.ai/events/hackathons/mhacks-2026/hackpa
 
 ## Final submission checklist
 
-- [ ] Agentverse profile connected, published and discoverable; copy the actual `/agents/details/agent1.../profile` link.
+- [x] Agentverse Hosted profile published, ACP manifest present, ASI Available; direct ASI:One invocation replies. Actual profile link is above.
 - [ ] Live routing isolation gate passed; enable Hosted private access and verify two accounts cannot read each other's data.
 - [ ] Successful ASI:One Pre/Post conversations; share actual chats and copy `https://asi1.ai/shared-chat/...` links.
 - [ ] Public GitHub contains corresponding code, agent name/address, setup instructions and both badges.
