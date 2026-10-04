@@ -275,8 +275,12 @@ function MapExperience({ myName = '', pins, profileById, myId, loaded, connected
   }, [nearbyKey, status.closestId, award]);
   const { style } = useContext(StyleContext);
   const formal = style === 'formal';
+  // Connections saved while someone's profile was hidden say "someone": swap in their real name once it's public.
+  const { repairNames } = score;
+  const profileKey = [...profileById.entries()].map(([id, p]) => `${id}:${p.displayName}`).join('|');
+  useEffect(() => { repairNames(id => profileById.get(id)?.displayName); }, [profileKey, repairNames]);  // eslint-disable-line react-hooks/exhaustive-deps
   const badge = useBadge(status, { points: score.points, met: score.met }, myName || nameOf(myId) || '', formal,
-    score.connections.map(c => c.name), button => {
+    score.connections.map(c => nameOf(c.id) || c.name), button => {
     if (busy) return;
     if (button === 'green' && !sharing) onToggle();
     if (button === 'red' && sharing) onToggle();
@@ -304,7 +308,7 @@ function MapExperience({ myName = '', pins, profileById, myId, loaded, connected
       <h1>Find people nearby.</h1>
       <p className="subhead">Only anonymous live locations appear here. Names and profiles stay private.</p>
       <PointsCard {...score} formal={formal} />
-      <ConnectionsList connections={score.connections} formal={formal} />
+      <ConnectionsList connections={score.connections.map(c => ({ ...c, name: nameOf(c.id) || c.name }))} formal={formal} />
       <div className="count-line"><span className="count-number">{loaded ? pins.length : '—'}</span><span>people sharing location</span><i className="count-live" /></div>
       <button className={`share-button${sharing ? ' sharing' : ''}`} type="button" role={signedIn || preview ? 'switch' : undefined} aria-checked={signedIn || preview ? sharing : undefined} disabled={busy || (!connected && !preview)} onClick={onToggle}>
         <span className="switch-dot" />{busy ? 'Updating…' : sharing ? 'Stop sharing my location' : preview ? 'Preview my location' : signedIn ? 'Share my live location' : 'Sign in to share your location'}

@@ -39,6 +39,9 @@ function save(saved: Saved) {
   try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch { /* private mode: points last this visit */ }
 }
 
+/** Names we store when we don't know the real one yet. */
+export const isPlaceholderName = (name: string) => !name || ['someone', 'a mutuals badge', 'participant'].includes(name.trim().toLowerCase());
+
 export type Gain = { points: number; kind: 'found' | 'nearby' | 'badge'; who: string; at: number };
 
 export function usePoints() {
@@ -107,6 +110,18 @@ export function usePoints() {
     update({ ...cur, connections: [{ id, name: name || 'a mutuals badge', via: 'radio', at: Date.now() }, ...(cur.connections ?? [])] });
   }, [update]);
 
+  /** Fill in real names for connections saved as "someone" (their profile was hidden when you found them). */
+  const repairNames = useCallback((nameOf: (id: string) => string | undefined) => {
+    const cur = savedRef.current;
+    let changed = false;
+    const connections = (cur.connections ?? []).map(c => {
+      const real = nameOf(c.id);
+      if (real && real !== c.name && isPlaceholderName(c.name)) { changed = true; return { ...c, name: real }; }
+      return c;
+    });
+    if (changed) update({ ...cur, connections });
+  }, [update]);
+
   // Gains fade out after a few seconds.
   useEffect(() => {
     if (!gain) return;
@@ -116,5 +131,5 @@ export function usePoints() {
 
   const level = levelOf(saved.points);
   const connections = saved.connections ?? [];
-  return { connections, addRadioConnection, addEventConnection, points: saved.points, met: Math.max(saved.met.length, saved.badgeMet ?? 0, connections.length), caught: saved.caught, level, progress: levelProgress(saved.points), gain, award, adopt };
+  return { connections, repairNames, addRadioConnection, addEventConnection, points: saved.points, met: Math.max(saved.met.length, saved.badgeMet ?? 0, connections.length), caught: saved.caught, level, progress: levelProgress(saved.points), gain, award, adopt };
 }
