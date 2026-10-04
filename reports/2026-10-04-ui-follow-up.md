@@ -1,6 +1,6 @@
 # UI clarification follow-up
 
-Branch: `feat/figma-ui-migration`, based on the current `main` used for the initial redesign. The website deployment target remains an independent Preview.
+Branch: `feat/figma-ui-migration`, initially based on `main` at `10f350a`. The website deployment target remains an independent Preview. A fresh fetch found that another contributor has since merged the initial UI migration into `main` (`5df31e7`); remote main currently points to `ece1eed`. This follow-up did not modify or push main.
 
 ## Clarifications applied
 
@@ -18,10 +18,16 @@ Branch: `feat/figma-ui-migration`, based on the current `main` used for the init
 - Actual SpacetimeDB module build and binding generation passed; generated bindings were unchanged.
 - Actual isolated local SpacetimeDB + generated SDK integration passed, including separate 50-message role histories, physical storage trimming, retry safety, phase guards and privacy. Providers in this test are synthetic; live provider verification is separate.
 - Read-only code review identified three timing/pagination issues; all were fixed and re-reviewed without further actionable findings.
-- Local browser verified the demo photo, introduction and existing event description from Maincloud.
+- Local browser verified Cute -> Formal -> refresh (Formal remains selected) -> Cute; appearance and wording change as expected, and the initial Cute preference was restored.
+- New Preview browser verified the demo photo, introduction and existing event description from Maincloud. At a 390px viewport, the 1600px image loads and the document remains within viewport width; the temporary viewport override was reset.
 
 ## Deployment and remaining checks
 
-Runtime deployment results and browser checks will be appended after publication. Main and the production website alias remain outside the requested UI migration target. The message retention rule will apply to the existing shared Maincloud backend when published.
+- Runtime commit `52a29043e61018bca7aed070f161bf49056d7413` was pushed and the remote branch SHA matched.
+- SpacetimeDB published to existing Maincloud `mhacks-live-map` with `--delete-data=never`; no schema migration was required. The 50-message rule applies to this shared backend.
+- Live `verify_cloud_providers` passed: ASI, 1024-dimensional embeddings, Pinecone write/fetch/query, similarity and probe cleanup.
+- [New Preview](https://mhacks-live-x9oc2o7it-terryzhu2024-8185.vercel.app/events?event=6897a464-75b2-40d3-8dc0-d0c698d0b272): deployment `dpl_85mewYmYh25jwKwoxzZBrv2Zc57V`, independently inspected as READY with target preview. The first CLI attempt returned a transient authorization error; account/project checks passed and the explicit deploy retry succeeded.
+- `mutuals.tech` still aliases production deployment `dpl_CFLWpVNtdpF64HtjeFBL8ZDJfkmD`. The follow-up did not promote this UI to production.
+- Figma education reauthorization and the previously quota-blocked expanded design comparison remain incomplete pending manual school-account login. No credentials, private screenshots or temporary runtime files were committed.
 
 Remaining clarification: what opening an Event match card should show (profile details, connection details, or another existing feature). The distinct Home favorite-card action can be specified separately if desired.
