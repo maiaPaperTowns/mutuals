@@ -301,6 +301,12 @@ export const NetworkingEvent = __t.object("NetworkingEvent", {
 });
 export type NetworkingEvent = __Infer<typeof NetworkingEvent>;
 
+export const NetworkingEventPhase = __t.object("NetworkingEventPhase", {
+  eventId: __t.string(),
+  phase: __t.string(),
+});
+export type NetworkingEventPhase = __Infer<typeof NetworkingEventPhase>;
+
 export const NetworkingInvitation = __t.object("NetworkingInvitation", {
   eventId: __t.string(),
   title: __t.string(),
@@ -308,6 +314,7 @@ export const NetworkingInvitation = __t.object("NetworkingInvitation", {
   venue: __t.string(),
   startAtMs: __t.u64(),
   status: __t.string(),
+  phase: __t.string(),
   matchingStatus: __t.string(),
   memberCount: __t.u32(),
   preparedCount: __t.u32(),

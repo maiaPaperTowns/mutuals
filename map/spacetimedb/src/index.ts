@@ -204,6 +204,9 @@ const networkingEvent = table({ name: 'networking_event' }, {
   matchingStatus: t.string(), memberCount: t.u32(), preparedCount: t.u32(), vectorsReady: t.bool(),
   processingId: t.string(), processingAtMs: t.u64(),
 });
+const networkingEventPhase = table({ name: 'networking_event_phase' }, {
+  eventId: t.string().primaryKey(), phase: t.string(),
+});
 const networkingMember = table({ name: 'networking_member' }, {
   memberId: t.string().primaryKey(), eventId: t.string().index('btree'), userId: t.string().index('btree'),
   joinedAt: t.timestamp(), profileSnapshotJson: t.string(), discoverable: t.bool(), zoneId: t.string(), availabilityStatus: t.string(),
@@ -240,7 +243,7 @@ const spacetimedb = schema({
   presence, participantOwner, liveLocation, userProfile, agentService, agentAuthSubject, agentUserLink, agentProfile,
   agentLinkCode, agentPresence, agentEvent, agentInteraction, agentTranscript,
   agentFollowUpPlan, agentRoiHistoryTable, cloudProviderConfig, cloudAdmin, cloudOperation,
-  networkingEvent, networkingMember, eventInterestList, eventStar, eventLocation, eventLocationExpiry, assistantMessage, assistantNotification, assistantTurn,
+  networkingEvent, networkingEventPhase, networkingMember, eventInterestList, eventStar, eventLocation, eventLocationExpiry, assistantMessage, assistantNotification, assistantTurn,
 });
 export default spacetimedb;
 
@@ -1238,13 +1241,19 @@ function ownInteraction(ctx: ModuleContext, userId: string, interactionId: strin
   return interaction;
 }
 
-export const respondCloudConnection = spacetimedb.reducer({ interactionId: t.string(), accept: t.bool() }, (ctx, { interactionId, accept }) => {
+function respondCloudConnectionCore(ctx: ModuleContext, interactionId: string, accept: boolean) {
   const account = ownCloudAccount(ctx);
   const row = ownInteraction(ctx, account.userId, interactionId);
   if (row.targetId !== account.userId) throw new SenderError('Only the target can respond to this connection.');
   if (row.status !== 'requested') throw new SenderError('This request has already been answered.');
   const status = accept ? 'accepted' : 'declined';
   ctx.db.agentInteraction.interactionId.update({ ...row, status, payloadJson: JSON.stringify({ ...JSON.parse(row.payloadJson), status }) });
+}
+export const respondCloudConnection = spacetimedb.reducer({ interactionId: t.string(), accept: t.bool() }, (ctx, args) => {
+  const row = ownInteraction(ctx, ownCloudAccount(ctx).userId, args.interactionId);
+  const eventId = JSON.parse(row.payloadJson).event_id;
+  if (eventId) respondEventConnection(ctx, { ...args, eventId });
+  else respondCloudConnectionCore(ctx, args.interactionId, args.accept);
 });
 
 function cloudPlanView(plan: CloudProfile, userId: string) {
@@ -1256,10 +1265,11 @@ function cloudPlanView(plan: CloudProfile, userId: string) {
 export const draftCloudFollowup = spacetimedb.procedure({ interactionId: t.string() }, t.string(), (ctx, { interactionId }) => {
   const snapshot = ctx.withTx(tx => {
     const account = ownCloudAccount(tx), interaction = ownInteraction(tx, account.userId, interactionId);
-    if (!['accepted', 'recorded'].includes(interaction.status)) throw new SenderError('A follow-up requires an accepted connection.');
+    if (!['accepted', 'recorded', 'completed'].includes(interaction.status)) throw new SenderError('A follow-up requires an accepted connection.');
     const a = profileForCloudUser(tx, interaction.userId), b = profileForCloudUser(tx, interaction.targetId);
     if (!a || !b) throw new SenderError('A participant account is no longer available.');
     const eventId = JSON.parse(interaction.payloadJson).event_id;
+    if (eventId) requireEventPhase(tx, eventId, 'post');
     const planId = [interaction.userId, interaction.targetId].sort().join('__') + (eventId ? `__${eventId}` : '');
     const stored = tx.db.agentFollowUpPlan.planId.find(planId);
     return { account, interaction, a, b, planId, existing: stored ? JSON.parse(stored.payloadJson) : null };
@@ -1279,7 +1289,9 @@ export const draftCloudFollowup = spacetimedb.procedure({ interactionId: t.strin
     negotiation_log: [`Selected mutually allowed channel: ${channel}`], approvals: {}, send_status: {}, created_at: new Date(nowMs(ctx)).toISOString() };
   return ctx.withTx(tx => {
     const account = ownCloudAccount(tx), interaction = ownInteraction(tx, account.userId, interactionId);
-    if (!['accepted', 'recorded'].includes(interaction.status) || !profileForCloudUser(tx, interaction.userId) || !profileForCloudUser(tx, interaction.targetId)) throw new SenderError('This connection changed while drafting.');
+    const eventId = JSON.parse(interaction.payloadJson).event_id;
+    if (eventId) requireEventPhase(tx, eventId, 'post');
+    if (!['accepted', 'recorded', 'completed'].includes(interaction.status) || !profileForCloudUser(tx, interaction.userId) || !profileForCloudUser(tx, interaction.targetId)) throw new SenderError('This connection changed while drafting.');
     if (channel !== 'none') {
       const currentA = profileForCloudUser(tx, interaction.userId), currentB = profileForCloudUser(tx, interaction.targetId);
       if (!(currentA?.followup_prefs?.allowed_channels ?? ['linkedin', 'email']).includes(channel)
@@ -1354,7 +1366,22 @@ function requireCloudAdmin(ctx: ModuleContext) {
 function requireNetworkingEvent(ctx: ModuleContext, eventId: string) {
   const event = ctx.db.networkingEvent.eventId.find(eventId);
   if (!event) throw new SenderError('This event is unavailable.');
+  if (event.processingId === 'deleting') throw new SenderError('This event is being deleted.');
   return event;
+}
+function networkingPhase(ctx: { db: {
+  networkingEventPhase: { eventId: { find(id: string): { phase: string } | undefined | null } };
+  networkingEvent: { eventId: { find(id: string): { status: string } | undefined | null } };
+} }, eventId: string): string {
+  return ctx.db.networkingEventPhase.eventId.find(eventId)?.phase
+    ?? (ctx.db.networkingEvent.eventId.find(eventId)?.status === 'open' ? 'pre' : 'during');
+}
+function requireDuring(ctx: ModuleContext, eventId: string) {
+  if (networkingPhase(ctx, eventId) !== 'during') throw new SenderError('This event is not in During.');
+}
+function requireEventPhase(ctx: ModuleContext, eventId: string, phase: string) {
+  requireNetworkingEvent(ctx, eventId);
+  if (networkingPhase(ctx, eventId) !== phase) throw new SenderError('The event phase changed. Use its current stage.');
 }
 function requireEventMember(ctx: ModuleContext, eventId: string, userId: string) {
   requireNetworkingEvent(ctx, eventId);
@@ -1369,11 +1396,11 @@ function callerUserId(ctx: { sender: ModuleContext['sender']; db: {
 }
 const invitation = t.row('NetworkingInvitation', {
   eventId: t.string().primaryKey(), title: t.string(), description: t.string(), venue: t.string(),
-  startAtMs: t.u64(), status: t.string(), matchingStatus: t.string(), memberCount: t.u32(), preparedCount: t.u32(),
+  startAtMs: t.u64(), status: t.string(), phase: t.string(), matchingStatus: t.string(), memberCount: t.u32(), preparedCount: t.u32(),
 });
 export const networkingInvitations = spacetimedb.anonymousView({ name: 'networking_invitations', public: true }, t.array(invitation), ctx =>
   Array.from(ctx.db.networkingEvent.iter()).map(({ eventId, title, description, venue, startAtMs, status, matchingStatus, memberCount, preparedCount }) =>
-    ({ eventId, title, description, venue, startAtMs, status, matchingStatus, memberCount, preparedCount })));
+    ({ eventId, title, description, venue, startAtMs, status, phase: networkingPhase(ctx, eventId), matchingStatus, memberCount, preparedCount })));
 const membershipView = t.row('NetworkingMembership', {
   memberId: t.string().primaryKey(), eventId: t.string(), userId: t.string(), discoverable: t.bool(), zoneId: t.string(), availabilityStatus: t.string(),
 });
@@ -1395,7 +1422,7 @@ export const myEventMapPins = spacetimedb.view({ name: 'my_event_map_pins', publ
   return Array.from(ctx.db.eventLocation.iter()).filter(row => events.has(row.eventId) && row.accuracyMeters <= 100)
     .flatMap(row => {
       const member = ctx.db.networkingMember.memberId.find(eventKey(row.eventId, row.userId));
-      if (!member?.discoverable || ctx.db.networkingEvent.eventId.find(row.eventId)?.status !== 'started') return [];
+      if (!member?.discoverable || !ctx.db.networkingEvent.eventId.find(row.eventId) || networkingPhase(ctx, row.eventId) !== 'during') return [];
       const profile = JSON.parse(member.profileSnapshotJson || '{}');
       return [{ ...row, name: profile.name || 'Participant', zoneId: member.zoneId }];
     });
@@ -1416,6 +1443,7 @@ export const createNetworkingEvent = spacetimedb.procedure(
     const eventId = ctx.newUuidV4().toString();
     tx.db.networkingEvent.insert({ eventId, title, description, venue, startAtMs: args.startAtMs, createdBy: tx.sender,
       createdAt: tx.timestamp, status: 'open', matchingStatus: 'waiting', memberCount: 0, preparedCount: 0, vectorsReady: false, processingId: '', processingAtMs: 0n });
+    tx.db.networkingEventPhase.insert({ eventId, phase: 'pre' });
     return JSON.stringify({ event_id: eventId });
   }));
 export const joinNetworkingEvent = spacetimedb.reducer({ eventId: t.string() }, (ctx, { eventId }) => {
@@ -1449,6 +1477,69 @@ export const startNetworkingEvent = spacetimedb.reducer({ eventId: t.string() },
   });
   for (const member of snapshots) ctx.db.networkingMember.memberId.update(member);
   ctx.db.networkingEvent.eventId.update({ ...event, status: 'started', matchingStatus: members.length ? 'pending' : 'ready', memberCount: members.length });
+});
+
+export const editNetworkingEvent = spacetimedb.reducer(
+  { eventId: t.string(), title: t.string(), description: t.string(), venue: t.string(), startAtMs: t.u64() }, (ctx, args) => {
+    requireCloudAdmin(ctx);
+    const event = requireNetworkingEvent(ctx, args.eventId);
+    const title = args.title.trim(), venue = args.venue.trim(), description = args.description.trim();
+    if (!title || title.length > 120 || !venue || venue.length > 200 || description.length > 3000 || Number(args.startAtMs) <= 0 || Number(args.startAtMs) > 8.64e15) throw new SenderError('Provide a valid title, venue, description and date.');
+    ctx.db.networkingEvent.eventId.update({ ...event, title, venue, description, startAtMs: args.startAtMs });
+  });
+
+export const setNetworkingEventPhase = spacetimedb.reducer({ eventId: t.string(), phase: t.string() }, (ctx, { eventId, phase }) => {
+  requireCloudAdmin(ctx);
+  const event = requireNetworkingEvent(ctx, eventId);
+  if (!['pre', 'during', 'post'].includes(phase)) throw new SenderError('Choose Pre, During or Post.');
+  if (phase !== 'pre' && (event.status !== 'started' || event.matchingStatus !== 'ready')) throw new SenderError('Prepare the Pre lists before entering During or Post.');
+  const row = { eventId, phase };
+  if (ctx.db.networkingEventPhase.eventId.find(eventId)) ctx.db.networkingEventPhase.eventId.update(row);
+  else ctx.db.networkingEventPhase.insert(row);
+  if (phase !== 'during') {
+    for (const location of Array.from(ctx.db.eventLocation.eventId.filter(eventId))) removeEventLocation(ctx, location.locationId);
+    for (const member of ctx.db.networkingMember.eventId.filter(eventId)) ctx.db.networkingMember.memberId.update({ ...member, availabilityStatus: 'offline', presenceUpdatedAt: undefined });
+    for (const notification of Array.from(ctx.db.assistantNotification.iter())) if (notification.eventId === eventId && notification.kind === 'nearby') ctx.db.assistantNotification.notificationId.delete(notification.notificationId);
+  }
+});
+
+export const deleteNetworkingEvent = spacetimedb.procedure({ eventId: t.string() }, t.string(), (ctx, { eventId }) => {
+  const snapshot = ctx.withTx(tx => {
+    requireCloudAdmin(tx);
+    const event = requireNetworkingEvent(tx, eventId);
+    if (event.processingId && nowMs(tx) - Number(event.processingAtMs) < 180000) throw new SenderError('Wait for Pre preparation to finish before deleting.');
+    if (Array.from(tx.db.assistantTurn.iter()).some(row => row.eventId === eventId && row.status === 'pending' && nowMs(tx) - Number(row.startedAtMs) < 180000)) throw new SenderError('Wait for the assistant reply before deleting.');
+    tx.db.networkingEvent.eventId.update({ ...event, processingId: 'deleting', processingAtMs: BigInt(nowMs(tx)) });
+    return event;
+  });
+  try {
+    if (snapshot.vectorsReady) {
+      const config = cloudConfig(ctx);
+      providerJson(ctx, `${config.pinecone_host}/vectors/delete`, { namespace: `networking-${eventId}`, deleteAll: true }, pineconeHeaders(config), 'Pinecone event cleanup');
+    }
+    return ctx.withTx(tx => {
+      const interactions = Array.from(tx.db.agentInteraction.iter()).filter(row => JSON.parse(row.payloadJson).event_id === eventId);
+      for (const interaction of interactions) {
+        for (const plan of Array.from(tx.db.agentFollowUpPlan.iter())) if (plan.interactionId === interaction.interactionId) tx.db.agentFollowUpPlan.planId.delete(plan.planId);
+        for (const entry of Array.from(tx.db.agentRoiHistoryTable.iter())) if (entry.interactionId === interaction.interactionId) tx.db.agentRoiHistoryTable.entryId.delete(entry.entryId);
+        tx.db.agentTranscript.interactionId.delete(interaction.interactionId);
+        tx.db.agentInteraction.interactionId.delete(interaction.interactionId);
+      }
+      for (const location of Array.from(tx.db.eventLocation.eventId.filter(eventId))) removeEventLocation(tx, location.locationId);
+      for (const row of Array.from(tx.db.networkingMember.eventId.filter(eventId))) tx.db.networkingMember.memberId.delete(row.memberId);
+      for (const row of Array.from(tx.db.eventInterestList.eventId.filter(eventId))) tx.db.eventInterestList.listId.delete(row.listId);
+      for (const row of Array.from(tx.db.eventStar.eventId.filter(eventId))) tx.db.eventStar.starId.delete(row.starId);
+      for (const row of Array.from(tx.db.assistantMessage.iter())) if (row.eventId === eventId) tx.db.assistantMessage.messageId.delete(row.messageId);
+      for (const row of Array.from(tx.db.assistantNotification.iter())) if (row.eventId === eventId) tx.db.assistantNotification.notificationId.delete(row.notificationId);
+      for (const row of Array.from(tx.db.assistantTurn.iter())) if (row.eventId === eventId) tx.db.assistantTurn.turnId.delete(row.turnId);
+      tx.db.networkingEventPhase.eventId.delete(eventId);
+      tx.db.networkingEvent.eventId.delete(eventId);
+      return JSON.stringify({ deleted: eventId });
+    });
+  } catch (error) {
+    ctx.withTx(tx => { const event = tx.db.networkingEvent.eventId.find(eventId); if (event?.processingId === 'deleting') tx.db.networkingEvent.eventId.update({ ...event, processingId: '', processingAtMs: 0n }); });
+    throw error;
+  }
 });
 
 function vectorSimilarity(a: number[], b: number[]) {
@@ -1524,7 +1615,7 @@ function interestPage(ctx: ModuleContext, eventId: string, userId: string, offse
     const profile = JSON.parse(member.profileSnapshotJson || '{}'), position = freshEventPosition(ctx, eventId, member.userId);
     const ownPosition = freshEventPosition(ctx, eventId, userId);
     return [{ ...item, target_name: profile.name || 'Participant', role: profile.role || 'Participant', headline: profile.headline || '',
-      location: { zone: member.zoneId || 'Not checked in' }, availability: freshEventMember(ctx, member) ? member.availabilityStatus : 'offline',
+      location: { zone: member.zoneId || 'Event venue' }, availability: freshEventMember(ctx, member) ? activeEventConnection(ctx, eventId, member.userId) ? 'busy' : 'free' : 'offline',
       starred: Boolean(ctx.db.eventStar.starId.find(`${eventKey(eventId, userId)}__${member.userId}`)),
       distance_meters: ownPosition && position ? Math.round(gpsDistance(ownPosition, position)) : null }];
   });
@@ -1554,14 +1645,18 @@ function freshEventPosition(ctx: ModuleContext, eventId: string, userId: string)
   const row = ctx.db.eventLocation.locationId.find(eventKey(eventId, userId));
   return row && row.accuracyMeters <= 100 && nowMs(ctx) - Number(row.updatedAt.microsSinceUnixEpoch / 1000n) <= 120000 ? row : null;
 }
-function freshEventMember(ctx: ModuleContext, member: { discoverable: boolean; availabilityStatus: string; presenceUpdatedAt?: { microsSinceUnixEpoch: bigint } }) {
-  return member.discoverable && member.availabilityStatus !== 'offline' && member.presenceUpdatedAt
-    && nowMs(ctx) - Number(member.presenceUpdatedAt.microsSinceUnixEpoch / 1000n) <= 300000;
+function freshEventMember(ctx: ModuleContext, member: { eventId: string; userId: string; discoverable: boolean; availabilityStatus: string }) {
+  return member.discoverable && member.availabilityStatus !== 'offline' && Boolean(freshEventPosition(ctx, member.eventId, member.userId));
 }
 function removeEventLocation(ctx: ModuleContext, locationId: string) {
+  const location = ctx.db.eventLocation.locationId.find(locationId);
   ctx.db.eventLocation.locationId.delete(locationId);
   const expiry = ctx.db.eventLocationExpiry.locationId.find(locationId);
   if (expiry) ctx.db.eventLocationExpiry.scheduledId.delete(expiry.scheduledId);
+  if (location) {
+    const member = ctx.db.networkingMember.memberId.find(eventKey(location.eventId, location.userId));
+    if (member) ctx.db.networkingMember.memberId.update({ ...member, availabilityStatus: 'offline', presenceUpdatedAt: undefined });
+  }
 }
 export const expireEventLocation = spacetimedb.reducer({ onSchedule: eventLocationExpiry }, { arg: eventLocationExpiry.rowType }, (ctx, { arg }) => {
   const location = ctx.db.eventLocation.locationId.find(arg.locationId);
@@ -1574,51 +1669,68 @@ function pushAssistantNotification(ctx: ModuleContext, args: {
   if (ctx.db.assistantNotification.notificationId.find(args.notificationId)) ctx.db.assistantNotification.notificationId.update(row);
   else ctx.db.assistantNotification.insert(row);
 }
+function activeEventConnection(ctx: ModuleContext, eventId: string, userId: string): boolean {
+  return Array.from(ctx.db.agentInteraction.userId.filter(userId)).concat(Array.from(ctx.db.agentInteraction.targetId.filter(userId)))
+    .some(row => ['accepted', 'recorded'].includes(row.status) && JSON.parse(row.payloadJson).event_id === eventId);
+}
+function syncEventConnectionState(ctx: ModuleContext, eventId: string, userId: string) {
+  const member = ctx.db.networkingMember.memberId.find(eventKey(eventId, userId));
+  if (!member) return;
+  const availabilityStatus = activeEventConnection(ctx, eventId, userId) ? 'busy' : freshEventPosition(ctx, eventId, userId) ? 'free' : 'offline';
+  ctx.db.networkingMember.memberId.update({ ...member, availabilityStatus, presenceUpdatedAt: ctx.timestamp });
+}
 function notifyNearby(ctx: ModuleContext, eventId: string) {
+  if (networkingPhase(ctx, eventId) !== 'during') return;
   const members = Array.from(ctx.db.networkingMember.eventId.filter(eventId));
   for (const me of members) {
-    if (!freshEventMember(ctx, me) || me.availabilityStatus !== 'free') continue;
+    if (!freshEventMember(ctx, me) || activeEventConnection(ctx, eventId, me.userId)) continue;
     const position = freshEventPosition(ctx, eventId, me.userId);
     if (!position) continue;
     const list = ctx.db.eventInterestList.listId.find(me.memberId);
-    const interested = new Set<string>((list ? JSON.parse(list.itemsJson) : []).slice(0, 10).map((x: any) => x.target_id));
+    const savedItems: any[] = list ? JSON.parse(list.itemsJson) : [];
+    const interested = new Set<string>(savedItems.filter(item => item.fit_score >= 35).map(item => item.target_id));
     for (const star of ctx.db.eventStar.userId.filter(me.userId)) if (star.eventId === eventId) interested.add(star.targetId);
     for (const target of members) {
-      if (!interested.has(target.userId) || !freshEventMember(ctx, target) || target.availabilityStatus !== 'free') continue;
+      if (!interested.has(target.userId) || !freshEventMember(ctx, target) || activeEventConnection(ctx, eventId, target.userId)) continue;
       const theirPosition = freshEventPosition(ctx, eventId, target.userId);
       if (!theirPosition || gpsDistance(position, theirPosition) > 100) continue;
       const notificationId = `nearby__${me.memberId}__${target.userId}`;
       const previous = ctx.db.assistantNotification.notificationId.find(notificationId);
       if (previous && nowMs(ctx) - Number(previous.createdAt.microsSinceUnixEpoch / 1000n) < 300000) continue;
       const connected = Array.from(ctx.db.agentInteraction.userId.filter(me.userId)).concat(Array.from(ctx.db.agentInteraction.targetId.filter(me.userId)))
-        .some(row => [row.userId, row.targetId].includes(target.userId) && ['requested', 'accepted', 'recorded', 'declined'].includes(row.status)
+        .some(row => [row.userId, row.targetId].includes(target.userId) && ['requested', 'accepted', 'recorded', 'completed', 'declined'].includes(row.status)
           && JSON.parse(row.payloadJson).event_id === eventId);
       if (connected) continue;
-      const name = JSON.parse(target.profileSnapshotJson).name || 'A participant';
+      const profile = JSON.parse(target.profileSnapshotJson), ownProfile = JSON.parse(me.profileSnapshotJson);
+      const name = profile.name || 'A participant', saved = savedItems.find(item => item.target_id === target.userId);
+      const topics = [...new Set<string>([...(profile.skills ?? []).filter((topic: string) => (ownProfile.skills ?? []).some((own: string) => own.toLowerCase() === topic.toLowerCase())), ...(profile.interests ?? []), ...(profile.skills ?? [])])].slice(0, 3);
       pushAssistantNotification(ctx, { notificationId, userId: me.userId, eventId, stage: 'during', kind: 'nearby', targetId: target.userId, interactionId: '',
-        title: `${name} is nearby`, body: `Someone on your interest list or favorites is about ${Math.round(gpsDistance(position, theirPosition))} m away in ${target.zoneId}. You can request a connection.` });
+        title: `${name} is nearby and free`, body: `${name} is about ${Math.round(gpsDistance(position, theirPosition))} m away. Pre fit ${saved?.fit_score ?? 'favorite'}/100. ${saved?.reason_for_connection ?? ''} Talk about: ${topics.join(', ') || profile.headline || 'your projects'}.` });
     }
   }
 }
 export const setEventAvailability = spacetimedb.reducer({ eventId: t.string(), zoneId: t.string(), availabilityStatus: t.string(), discoverable: t.bool() }, (ctx, args) => {
   const account = ownCloudAccount(ctx), member = requireEventMember(ctx, args.eventId, account.userId);
-  if (requireNetworkingEvent(ctx, args.eventId).status !== 'started') throw new SenderError('During check-in starts when the event begins.');
+  requireDuring(ctx, args.eventId);
   assertZone(args.zoneId);
   if (!['free', 'busy', 'in_session', 'offline'].includes(args.availabilityStatus)) throw new SenderError('Choose a valid availability.');
-  ctx.db.networkingMember.memberId.update({ ...member, zoneId: args.zoneId, availabilityStatus: args.availabilityStatus, discoverable: args.discoverable, presenceUpdatedAt: ctx.timestamp });
+  const derivedStatus = args.availabilityStatus === 'offline' || !args.discoverable || !freshEventPosition(ctx, args.eventId, account.userId) ? 'offline' : activeEventConnection(ctx, args.eventId, account.userId) ? 'busy' : 'free';
+  ctx.db.networkingMember.memberId.update({ ...member, zoneId: args.zoneId, availabilityStatus: derivedStatus, discoverable: args.discoverable, presenceUpdatedAt: ctx.timestamp });
   if (args.availabilityStatus === 'offline' || !args.discoverable) {
     removeEventLocation(ctx, member.memberId); ctx.db.agentPresence.userId.delete(account.userId);
     persistCloudProfile(ctx, account.userId, { ...account.profile, discoverable: false });
   }
-  else setCloudPresence(ctx, { zoneId: args.zoneId, availabilityStatus: args.availabilityStatus, discoverable: args.discoverable });
+  else if (derivedStatus === 'offline') ctx.db.agentPresence.userId.delete(account.userId);
+  else setCloudPresence(ctx, { zoneId: args.zoneId, availabilityStatus: derivedStatus, discoverable: args.discoverable });
   notifyNearby(ctx, args.eventId);
 });
 export const updateEventLocation = spacetimedb.reducer({ eventId: t.string(), latitude: t.f64(), longitude: t.f64(), accuracyMeters: t.f64() }, (ctx, args) => {
   const userId = ownCloudAccount(ctx).userId, member = requireEventMember(ctx, args.eventId, userId);
-  if (requireNetworkingEvent(ctx, args.eventId).status !== 'started' || !freshEventMember(ctx, member)) throw new SenderError('Check in and enable discoverability before sharing event GPS.');
+  requireDuring(ctx, args.eventId);
   if (!Number.isFinite(args.latitude) || Math.abs(args.latitude) > 90 || !Number.isFinite(args.longitude) || Math.abs(args.longitude) > 180 || !Number.isFinite(args.accuracyMeters) || args.accuracyMeters < 0 || args.accuracyMeters > 10000) throw new SenderError('Invalid GPS coordinates.');
   const row = { ...args, locationId: member.memberId, userId, updatedAt: ctx.timestamp };
   if (ctx.db.eventLocation.locationId.find(member.memberId)) ctx.db.eventLocation.locationId.update(row); else ctx.db.eventLocation.insert(row);
+  ctx.db.networkingMember.memberId.update({ ...member, discoverable: true, zoneId: member.zoneId || 'main-hall', availabilityStatus: args.accuracyMeters > 100 ? 'offline' : activeEventConnection(ctx, args.eventId, userId) ? 'busy' : 'free', presenceUpdatedAt: ctx.timestamp });
   const expiry = ctx.db.eventLocationExpiry.locationId.find(member.memberId);
   const scheduledAt = ScheduleAt.time(ctx.timestamp.microsSinceUnixEpoch + 120_000_000n);
   if (expiry) ctx.db.eventLocationExpiry.scheduledId.update({ ...expiry, scheduledAt });
@@ -1629,6 +1741,8 @@ export const stopEventLocation = spacetimedb.reducer({ eventId: t.string() }, (c
   const userId = ownCloudAccount(ctx).userId;
   requireEventMember(ctx, eventId, userId);
   removeEventLocation(ctx, eventKey(eventId, userId));
+  const member = requireEventMember(ctx, eventId, userId);
+  ctx.db.networkingMember.memberId.update({ ...member, availabilityStatus: 'offline', presenceUpdatedAt: undefined });
 });
 export const markAssistantNotificationRead = spacetimedb.reducer({ notificationId: t.string() }, (ctx, { notificationId }) => {
   const userId = ownCloudAccount(ctx).userId, row = ctx.db.assistantNotification.notificationId.find(notificationId);
@@ -1638,28 +1752,57 @@ export const markAssistantNotificationRead = spacetimedb.reducer({ notificationI
 
 export const requestEventConnection = spacetimedb.reducer({ eventId: t.string(), targetId: t.string() }, (ctx, { eventId, targetId }) => {
   const account = ownCloudAccount(ctx), me = requireEventMember(ctx, eventId, account.userId), target = requireEventMember(ctx, eventId, targetId);
-  if (requireNetworkingEvent(ctx, eventId).status !== 'started' || targetId === account.userId || !freshEventMember(ctx, me) || !freshEventMember(ctx, target)) throw new SenderError('Both participants must be checked in and discoverable in this started event. Inactive check-ins expire after five minutes.');
+  requireDuring(ctx, eventId);
+  if (targetId === account.userId || !freshEventMember(ctx, me) || !freshEventMember(ctx, target)) throw new SenderError('Both participants need current event presence.');
   const existing = Array.from(ctx.db.agentInteraction.userId.filter(account.userId)).concat(Array.from(ctx.db.agentInteraction.targetId.filter(account.userId)))
     .find(row => [row.userId, row.targetId].includes(targetId) && JSON.parse(row.payloadJson).event_id === eventId);
   if (existing) return;
+  if (activeEventConnection(ctx, eventId, account.userId) || activeEventConnection(ctx, eventId, targetId)) throw new SenderError('One participant is busy in another chat.');
   const myProfile = JSON.parse(me.profileSnapshotJson), targetProfile = JSON.parse(target.profileSnapshotJson);
-  const result = scoreNetworking(profileSubject(myProfile, me), profileSubject(targetProfile, target), { now: new Date(nowMs(ctx)).toISOString() });
+  const saved = JSON.parse(ctx.db.eventInterestList.listId.find(me.memberId)?.itemsJson ?? '[]').find((item: any) => item.target_id === targetId);
+  if (!saved) throw new SenderError('Pre must prepare this pair before a connection can be requested.');
   const interactionId = ctx.newUuidV4().toString();
   const payload = { interaction_id: interactionId, event_id: eventId, user_id: account.userId, target_id: targetId, user_name: myProfile.name,
-    target_name: targetProfile.name, status: 'requested', reason: result.reason, roi_score_at_match: result.score };
-  ctx.db.agentInteraction.insert({ interactionId, userId: account.userId, targetId, status: 'requested', roiScoreAtMatch: result.score, reason: result.reason,
+    target_name: targetProfile.name, status: 'requested', reason: saved.reason_for_connection, roi_score_at_match: saved.roi_score };
+  ctx.db.agentInteraction.insert({ interactionId, userId: account.userId, targetId, status: 'requested', roiScoreAtMatch: saved.roi_score, reason: saved.reason_for_connection,
     recordingConsentJson: '{}', recordingActive: false, audioRef: undefined, transcriptRef: undefined, createdAt: ctx.timestamp, payloadJson: JSON.stringify(payload), agentScope: 'agent' });
   pushAssistantNotification(ctx, { notificationId: `request__${interactionId}`, userId: targetId, eventId, stage: 'during', kind: 'connection_request', targetId: account.userId,
-    interactionId, title: `${myProfile.name} wants to connect`, body: result.reason });
+    interactionId, title: `${myProfile.name} wants to connect`, body: saved.reason_for_connection });
 });
 export const respondEventConnection = spacetimedb.reducer({ eventId: t.string(), interactionId: t.string(), accept: t.bool() }, (ctx, args) => {
   const userId = ownCloudAccount(ctx).userId;
   requireEventMember(ctx, args.eventId, userId);
   const row = ownInteraction(ctx, userId, args.interactionId);
   if (JSON.parse(row.payloadJson).event_id !== args.eventId) throw new SenderError('This connection belongs to a different event.');
-  respondCloudConnection(ctx, { interactionId: args.interactionId, accept: args.accept });
+  requireDuring(ctx, args.eventId);
+  if (args.accept && [row.userId, row.targetId].some(id => !freshEventMember(ctx, requireEventMember(ctx, args.eventId, id)))) throw new SenderError('Both participants need current event presence.');
+  if (args.accept && (activeEventConnection(ctx, args.eventId, row.userId) || activeEventConnection(ctx, args.eventId, row.targetId))) throw new SenderError('One participant is busy in another chat. End that chat first.');
+  respondCloudConnectionCore(ctx, args.interactionId, args.accept);
+  if (args.accept) {
+    for (const id of [row.userId, row.targetId]) syncEventConnectionState(ctx, args.eventId, id);
+    for (const notification of Array.from(ctx.db.assistantNotification.iter())) {
+      if (notification.eventId === args.eventId && notification.kind === 'nearby' && [row.userId, row.targetId].some(id => notification.userId === id || notification.targetId === id)) ctx.db.assistantNotification.notificationId.delete(notification.notificationId);
+    }
+  }
   pushAssistantNotification(ctx, { notificationId: `response__${row.interactionId}`, userId: row.userId, eventId: args.eventId, stage: 'during', kind: 'connection_response',
-    targetId: userId, interactionId: row.interactionId, title: args.accept ? 'Connection accepted' : 'Connection declined', body: args.accept ? 'Your connection is established. You can now prepare a follow-up.' : 'The participant declined this request.' });
+    targetId: userId, interactionId: row.interactionId, title: args.accept ? 'Connection accepted' : 'Connection declined', body: args.accept ? 'You are both busy. Tap End chat when you finish.' : 'The participant declined this request.' });
+});
+
+export const finishEventConnection = spacetimedb.reducer({ eventId: t.string(), interactionId: t.string() }, (ctx, { eventId, interactionId }) => {
+  const userId = ownCloudAccount(ctx).userId, row = ownInteraction(ctx, userId, interactionId);
+  requireEventMember(ctx, eventId, userId);
+  if (JSON.parse(row.payloadJson).event_id !== eventId) throw new SenderError('This connection belongs to a different event.');
+  if (row.status === 'completed') return;
+  if (!['accepted', 'recorded'].includes(row.status)) throw new SenderError('Only an active chat can be ended.');
+  ctx.db.agentInteraction.interactionId.update({ ...row, status: 'completed', payloadJson: JSON.stringify({ ...JSON.parse(row.payloadJson), status: 'completed', ended_at: new Date(nowMs(ctx)).toISOString() }) });
+  for (const id of [row.userId, row.targetId]) syncEventConnectionState(ctx, eventId, id);
+  for (const notification of Array.from(ctx.db.assistantNotification.iter())) {
+    if (notification.eventId === eventId && notification.kind === 'nearby' && [row.userId, row.targetId].some(id => notification.userId === id || notification.targetId === id)) ctx.db.assistantNotification.notificationId.delete(notification.notificationId);
+  }
+  for (const [id, targetId] of [[row.userId, row.targetId], [row.targetId, row.userId]]) pushAssistantNotification(ctx, {
+    notificationId: `finished__${interactionId}__${id}`, userId: id, targetId, interactionId, eventId, stage: 'during', kind: 'chat_finished', title: 'Chat ended', body: 'Your chat has ended. Nearby matching resumes when you are free and sharing location.',
+  });
+  notifyNearby(ctx, eventId);
 });
 
 function eventConnections(ctx: ModuleContext, eventId: string, userId: string) {
@@ -1674,6 +1817,7 @@ function assistantTool(ctx: CloudContext, stage: keyof typeof ASSISTANT_AGENTS, 
     ctx.withTx(tx => {
       const userId = ownCloudAccount(tx).userId;
       requireEventMember(tx, eventId, userId);
+      requireEventPhase(tx, eventId, stage);
       const row = ownInteraction(tx, userId, String(args.interaction_id));
       if (JSON.parse(row.payloadJson).event_id !== eventId) throw new SenderError('This connection belongs to a different event.');
     });
@@ -1682,6 +1826,7 @@ function assistantTool(ctx: CloudContext, stage: keyof typeof ASSISTANT_AGENTS, 
   return ctx.withTx(tx => {
     const userId = ownCloudAccount(tx).userId;
     requireEventMember(tx, eventId, userId);
+    requireEventPhase(tx, eventId, stage);
     if (name === 'get_interest_list') return interestPage(tx, eventId, userId, 0, 50);
     if (name === 'get_connections') return eventConnections(tx, eventId, userId);
     if (name === 'set_star') {
@@ -1708,6 +1853,7 @@ export const sendAssistantMessage = spacetimedb.procedure(
     if (!input || input.length > 4000 || !/^[a-zA-Z0-9_-]{1,100}$/.test(args.requestId)) throw new SenderError('Add a message of at most 4000 characters and a valid request ID.');
     const snapshot = ctx.withTx(tx => {
       const account = ownCloudAccount(tx), member = requireEventMember(tx, args.eventId, account.userId), event = requireNetworkingEvent(tx, args.eventId);
+      requireEventPhase(tx, args.eventId, stage);
       const turnId = `${account.userId}__${args.requestId}`, existing = tx.db.assistantTurn.turnId.find(turnId);
       if (existing && (existing.input !== input || existing.stage !== stage || existing.eventId !== args.eventId)) throw new SenderError('This request ID has already been used for another message.');
       if (existing?.status === 'completed') return { completed: existing.resultJson };
@@ -1761,6 +1907,7 @@ export const sendAssistantMessage = spacetimedb.procedure(
               snapshot.tools[key] = result;
               ctx.withTx(tx => {
                 ownCloudAccount(tx); requireEventMember(tx, args.eventId, userId);
+                requireEventPhase(tx, args.eventId, stage);
                 const row = tx.db.assistantTurn.turnId.find(turnId);
                 if (!row) throw new SenderError('Your conversation changed while processing.');
                 tx.db.assistantTurn.turnId.update({ ...row, resultJson: JSON.stringify({ tools: snapshot.tools }) });
@@ -1776,6 +1923,7 @@ export const sendAssistantMessage = spacetimedb.procedure(
       const resultJson = JSON.stringify({ reply: answer.content.trim().slice(0, 12000), actions, agent: agent.name, stage, event_id: args.eventId });
       return ctx.withTx(tx => {
         const account = ownCloudAccount(tx); requireEventMember(tx, args.eventId, account.userId);
+        requireEventPhase(tx, args.eventId, stage);
         const row = tx.db.assistantTurn.turnId.find(turnId);
         if (!row) throw new SenderError('Your conversation changed while processing.');
         tx.db.assistantMessage.insert({ messageId: `${turnId}__assistant`, userId, eventId: args.eventId, stage, role: 'assistant', content: JSON.parse(resultJson).reply, createdAt: tx.timestamp });

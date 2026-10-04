@@ -77,7 +77,7 @@ function fixture() {
   const peer = identity('b'.repeat(64));
   const service = identity('c'.repeat(64));
   const db = {
-    networkingEvent: table('eventId'), networkingMember: table('memberId'), eventInterestList: table('listId'),
+    networkingEvent: table('eventId'), networkingEventPhase: table('eventId'), networkingMember: table('memberId'), eventInterestList: table('listId'),
     eventStar: table('starId'), eventLocation: table('locationId'), assistantMessage: table('messageId'),
     eventLocationExpiry: table('scheduledId'),
     assistantNotification: table('notificationId'), assistantTurn: table('turnId'),
@@ -142,6 +142,128 @@ function networkingFixture(count = 3) {
   return { ...f, eventId: event.event_id, users, forUser: (id: any) => ({ ...f.tx, sender: id, senderAuth: { jwt: { ...f.tx.senderAuth.jwt, subject: `clerk-${users.indexOf(id)}` } } }) };
 }
 
+function automaticDuringFixture(count = 3) {
+  const f = networkingFixture(count);
+  let serial = 0;
+  f.tx.newUuidV4 = () => `interaction-${++serial}`;
+  module.startNetworkingEvent(f.tx, { eventId: f.eventId });
+  module.prepareNetworkingEvent(f.ctx, { eventId: f.eventId });
+  module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'during' });
+  for (const [index, id] of f.users.entries()) module.updateEventLocation(f.forUser(id), {
+    eventId: f.eventId, latitude: 42.29 + index * .0001, longitude: -83.71, accuracyMeters: 5,
+  });
+  return f;
+}
+
+test('GPS automatically joins During and requests reuse the exact saved Pre ROI and reason', () => {
+  const f = automaticDuringFixture(2), targetId = f.users[1].toHexString();
+  const list = f.db.eventInterestList.listId.find(`${f.eventId}__${f.owner.toHexString()}`);
+  const items = JSON.parse(list.itemsJson);
+  items[0].roi_score = 73.2; items[0].reason_for_connection = 'Discuss Python mapping projects';
+  f.db.eventInterestList.listId.update({ ...list, itemsJson: JSON.stringify(items) });
+  module.requestEventConnection(f.tx, { eventId: f.eventId, targetId });
+  const connection = [...f.db.agentInteraction.iter()][0];
+  assert.equal(connection.roiScoreAtMatch, 73.2);
+  assert.equal(connection.reason, 'Discuss Python mapping projects');
+  assert.equal(f.db.networkingMember.memberId.find(`${f.eventId}__${targetId}`).availabilityStatus, 'free');
+  assert.match([...f.db.assistantNotification.iter()].find(row => row.kind === 'nearby').body, /Talk about|Discuss/);
+});
+
+test('three people: acceptance makes both busy, blocks overlapping acceptance, and ending notifies both ways', () => {
+  const f = automaticDuringFixture(), [a,b,c] = f.users, bId = b.toHexString();
+  module.setEventStar(f.tx, { eventId: f.eventId, targetId: c.toHexString(), starred: true });
+  module.setEventStar(f.forUser(c), { eventId: f.eventId, targetId: a.toHexString(), starred: true });
+  module.requestEventConnection(f.tx, { eventId: f.eventId, targetId: bId });
+  module.requestEventConnection(f.forUser(b), { eventId: f.eventId, targetId: a.toHexString() });
+  assert.equal([...f.db.agentInteraction.iter()].length, 1, 'reversed request is idempotent');
+  module.requestEventConnection(f.forUser(c), { eventId: f.eventId, targetId: bId });
+  const pair = [...f.db.agentInteraction.iter()].find(row => row.userId === a.toHexString());
+  const other = [...f.db.agentInteraction.iter()].find(row => row.userId === c.toHexString());
+  module.respondEventConnection(f.forUser(b), { eventId: f.eventId, interactionId: pair.interactionId, accept: true });
+  for (const id of [a,b]) assert.equal(f.db.networkingMember.memberId.find(`${f.eventId}__${id.toHexString()}`).availabilityStatus, 'busy');
+  assert.throws(() => module.respondEventConnection(f.forUser(b), { eventId: f.eventId, interactionId: other.interactionId, accept: true }), /busy|chat/);
+  assert.equal(f.db.agentInteraction.interactionId.find(other.interactionId).status, 'requested');
+  module.setEventAvailability(f.tx, { eventId: f.eventId, zoneId: 'main-hall', availabilityStatus: 'free', discoverable: true });
+  assert.equal(f.db.networkingMember.memberId.find(`${f.eventId}__${a.toHexString()}`).availabilityStatus, 'busy', 'client cannot override active chat');
+  for (const row of [...f.db.assistantNotification.iter()]) f.db.assistantNotification.notificationId.update({ ...row, read: true });
+  assert.throws(() => module.finishEventConnection(f.forUser(c), { eventId: f.eventId, interactionId: pair.interactionId }), /account|interaction/);
+  module.finishEventConnection(f.tx, { eventId: f.eventId, interactionId: pair.interactionId });
+  assert.equal(f.db.agentInteraction.interactionId.find(pair.interactionId).status, 'completed');
+  for (const id of [a,b]) assert.equal(f.db.networkingMember.memberId.find(`${f.eventId}__${id.toHexString()}`).availabilityStatus, 'free');
+  const unread = [...f.db.assistantNotification.iter()].filter(row => row.kind === 'nearby' && !row.read);
+  assert.ok(unread.some(row => row.userId === c.toHexString() && row.targetId === a.toHexString()), 'others hear that A is free');
+  assert.ok(unread.some(row => row.userId === a.toHexString() && row.targetId === c.toHexString()), 'A hears about nearby free people');
+  module.finishEventConnection(f.tx, { eventId: f.eventId, interactionId: pair.interactionId });
+});
+
+test('admin controls phase and metadata, Post stops GPS, and delete isolates event data', () => {
+  const f = automaticDuringFixture(2);
+  assert.throws(() => module.editNetworkingEvent(f.forUser(f.users[1]), { eventId: f.eventId, title: 'Changed', description: '', venue: 'Hall', startAtMs: 1n }), /administrator/);
+  assert.throws(() => module.setNetworkingEventPhase(f.forUser(f.users[1]), { eventId: f.eventId, phase: 'post' }), /administrator/);
+  module.editNetworkingEvent(f.tx, { eventId: f.eventId, title: 'Changed', description: 'New description', venue: 'Hall', startAtMs: 1n });
+  assert.equal(f.db.networkingEvent.eventId.find(f.eventId).title, 'Changed');
+  module.requestEventConnection(f.tx, { eventId: f.eventId, targetId: f.users[1].toHexString() });
+  const connection = [...f.db.agentInteraction.iter()][0];
+  module.respondEventConnection(f.forUser(f.users[1]), { eventId: f.eventId, interactionId: connection.interactionId, accept: true });
+  module.finishEventConnection(f.tx, { eventId: f.eventId, interactionId: connection.interactionId });
+  module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'post' });
+  assert.equal(module.networkingInvitations(f.tx)[0].phase, 'post');
+  assert.equal([...f.db.eventLocation.iter()].length, 0);
+  assert.throws(() => module.updateEventLocation(f.tx, { eventId: f.eventId, latitude: 42, longitude: -83, accuracyMeters: 5 }), /During|during/);
+  // Use a separate model adapter to verify completed connections reach Post.
+  f.ctx.http.fetch = () => ({ ok: true, json: () => ({ choices: [{ message: { content: '{"draft_a":"Thanks for chatting","draft_b":"Great meeting","rationale":"Common goals"}' } }] }) });
+  module.draftCloudFollowup(f.ctx, { interactionId: connection.interactionId });
+  f.db.assistantMessage.insert({ messageId: 'unrelated', eventId: 'another-event', userId: f.owner.toHexString() });
+  module.deleteNetworkingEvent(f.ctx, { eventId: f.eventId });
+  assert.equal(f.db.networkingEvent.eventId.find(f.eventId), undefined);
+  for (const table of [f.db.networkingMember, f.db.eventInterestList, f.db.eventLocation, f.db.assistantNotification, f.db.agentInteraction, f.db.agentFollowUpPlan, f.db.agentRoiHistoryTable]) assert.equal([...table.iter()].length, 0);
+  assert.ok(f.db.userProfile.identity.find(f.owner));
+  assert.ok(f.db.assistantMessage.messageId.find('unrelated'));
+});
+
+test('legacy response calls preserve event busy and phase rules', () => {
+  const f = automaticDuringFixture(), [a,b,c] = f.users;
+  module.requestEventConnection(f.tx, { eventId: f.eventId, targetId: b.toHexString() });
+  module.requestEventConnection(f.forUser(c), { eventId: f.eventId, targetId: b.toHexString() });
+  const rows = [...f.db.agentInteraction.iter()];
+  const pair = rows.find(row => row.userId === a.toHexString());
+  const other = rows.find(row => row.userId === c.toHexString());
+  module.respondCloudConnection(f.forUser(b), { interactionId: pair.interactionId, accept: true });
+  assert.equal(f.db.networkingMember.memberId.find(`${f.eventId}__${b.toHexString()}`).availabilityStatus, 'busy');
+  assert.throws(() => module.respondCloudConnection(f.forUser(b), { interactionId: other.interactionId, accept: true }), /busy/);
+  module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'post' });
+  assert.throws(() => module.respondCloudConnection(f.forUser(b), { interactionId: other.interactionId, accept: true }), /During/);
+});
+
+test('expired or disconnected GPS clears free presence and blocks connections', () => {
+  const f = automaticDuringFixture(2), peer = f.users[1];
+  const later = { ...f.tx, timestamp: { microsSinceUnixEpoch: f.tx.timestamp.microsSinceUnixEpoch + 121_000_000n } };
+  assert.throws(() => module.requestEventConnection(later, { eventId: f.eventId, targetId: peer.toHexString() }), /presence/);
+  module.expireEventLocation(later, { arg: { locationId: `${f.eventId}__${f.owner.toHexString()}` } } as any);
+  assert.equal(f.db.networkingMember.memberId.find(`${f.eventId}__${f.owner.toHexString()}`).availabilityStatus, 'offline');
+  module.clientDisconnected(f.forUser(peer));
+  assert.equal(f.db.networkingMember.memberId.find(`${f.eventId}__${peer.toHexString()}`).availabilityStatus, 'offline');
+});
+
+test('assistant and follow-up writes honor persisted phase even when it changes during a model call', () => {
+  const f = automaticDuringFixture(2);
+  assert.throws(() => module.sendAssistantMessage(f.ctx, { eventId: f.eventId, stage: 'post', message: 'Follow up', requestId: 'wrong-phase' }), /phase/);
+  module.requestEventConnection(f.tx, { eventId: f.eventId, targetId: f.users[1].toHexString() });
+  const pair = [...f.db.agentInteraction.iter()][0];
+  module.respondEventConnection(f.forUser(f.users[1]), { eventId: f.eventId, interactionId: pair.interactionId, accept: true });
+  module.finishEventConnection(f.tx, { eventId: f.eventId, interactionId: pair.interactionId });
+  module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'post' });
+  f.ctx.http.fetch = () => {
+    module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'pre' });
+    return { ok: true, json: () => ({ choices: [{ message: { content: '{"draft_a":"Draft","draft_b":"Peer draft","rationale":"Shared skills"}' } }] }) };
+  };
+  assert.throws(() => module.draftCloudFollowup(f.ctx, { interactionId: pair.interactionId }), /phase/);
+  assert.equal([...f.db.agentFollowUpPlan.iter()].length, 0);
+  module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'during' });
+  assert.throws(() => module.sendAssistantMessage(f.ctx, { eventId: f.eventId, stage: 'during', message: 'Hello', requestId: 'changed-phase' }), /phase/);
+  assert.equal([...f.db.assistantMessage.iter()].filter(row => row.role === 'assistant').length, 0);
+});
+
 test('event creation requires provisioned admin identity, never a display name', () => {
   const f = cloudFixture();
   f.db.userProfile.identity.update({ ...f.db.userProfile.identity.find(f.owner), displayName: 'Terry' });
@@ -187,6 +309,7 @@ test('GPS proximity alerts require opted-in fresh accurate positions and respect
   const f = networkingFixture();
   module.startNetworkingEvent(f.tx, { eventId: f.eventId });
   module.prepareNetworkingEvent(f.ctx, { eventId: f.eventId });
+  module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'during' });
   for (const id of f.users.slice(0, 2)) module.setEventAvailability(f.forUser(id), { eventId: f.eventId, zoneId: 'lounge', availabilityStatus: 'free', discoverable: true });
   module.updateEventLocation(f.tx, { eventId: f.eventId, latitude: 42.29, longitude: -83.71, accuracyMeters: 5 });
   const peerTx = f.forUser(f.users[1]);
@@ -249,7 +372,10 @@ test('assistant retries a transient ASI server error without repeating an applie
 test('event connections are idempotent, scoped to members, and only the receiver can answer', () => {
   const f = networkingFixture();
   module.startNetworkingEvent(f.tx, { eventId: f.eventId });
+  module.prepareNetworkingEvent(f.ctx, { eventId: f.eventId });
+  module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'during' });
   for (const id of f.users) module.setEventAvailability(f.forUser(id), { eventId: f.eventId, zoneId: 'lounge', availabilityStatus: 'free', discoverable: true });
+  for (const [index, id] of f.users.entries()) module.updateEventLocation(f.forUser(id), { eventId: f.eventId, latitude: 42.29, longitude: -83.71 + index, accuracyMeters: 5 });
   const args = { eventId: f.eventId, targetId: f.users[1].toHexString() };
   module.requestEventConnection(f.tx, args); module.requestEventConnection(f.tx, args);
   assert.equal([...f.db.agentInteraction.iter()].length, 1);
@@ -303,6 +429,8 @@ test('account deletion cleans event snapshots, private conversations and GPS', (
 test('a During agent can read live data then execute a requested action in the same turn', () => {
   const f = networkingFixture();
   module.startNetworkingEvent(f.tx, { eventId: f.eventId });
+  module.prepareNetworkingEvent(f.ctx, { eventId: f.eventId });
+  module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'during' });
   const fetch = f.ctx.http.fetch;
   let round = 0;
   f.ctx.http.fetch = (url: string, options: any) => {
@@ -318,6 +446,8 @@ test('a During agent can read live data then execute a requested action in the s
 test('event GPS is removed on disconnect and by server expiration even without browser cleanup', () => {
   const f = networkingFixture();
   module.startNetworkingEvent(f.tx, { eventId: f.eventId });
+  module.prepareNetworkingEvent(f.ctx, { eventId: f.eventId });
+  module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'during' });
   module.setEventAvailability(f.tx, { eventId: f.eventId, zoneId: 'lounge', availabilityStatus: 'free', discoverable: true });
   module.updateEventLocation(f.tx, { eventId: f.eventId, latitude: 42.29, longitude: -83.71, accuracyMeters: 5 });
   const expiry = [...f.db.eventLocationExpiry.iter()][0];
@@ -333,6 +463,8 @@ test('event GPS is removed on disconnect and by server expiration even without b
 test('checkout revokes legacy discovery and activity in another event cannot renew an old check-in', () => {
   const f = networkingFixture();
   module.startNetworkingEvent(f.tx, { eventId: f.eventId });
+  module.prepareNetworkingEvent(f.ctx, { eventId: f.eventId });
+  module.setNetworkingEventPhase(f.tx, { eventId: f.eventId, phase: 'during' });
   for (const id of f.users.slice(0,2)) module.setEventAvailability(f.forUser(id), { eventId: f.eventId, zoneId: 'lounge', availabilityStatus: 'free', discoverable: true });
   module.setEventAvailability(f.tx, { eventId: f.eventId, zoneId: 'lounge', availabilityStatus: 'offline', discoverable: false });
   assert.equal(f.db.agentPresence.userId.find(f.owner.toHexString()), undefined);
@@ -341,9 +473,11 @@ test('checkout revokes legacy discovery and activity in another event cannot ren
   const second = JSON.parse(module.createNetworkingEvent(f.ctx, { title: 'Second event', description: '', venue: 'Hall', startAtMs: 1_790_000_000_000n }));
   for (const id of f.users.slice(0,2)) module.joinNetworkingEvent(f.forUser(id), { eventId: second.event_id });
   module.startNetworkingEvent(f.tx, { eventId: second.event_id });
+  module.prepareNetworkingEvent(f.ctx, { eventId: second.event_id });
+  module.setNetworkingEventPhase(f.tx, { eventId: second.event_id, phase: 'during' });
   const timestamp = { microsSinceUnixEpoch: f.tx.timestamp.microsSinceUnixEpoch + 600_000_000n };
   for (const id of f.users.slice(0,2)) module.setEventAvailability({ ...f.forUser(id), timestamp }, { eventId: second.event_id, zoneId: 'lounge', availabilityStatus: 'free', discoverable: true });
-  assert.throws(() => module.requestEventConnection({ ...f.tx, timestamp }, { eventId: f.eventId, targetId: f.users[1].toHexString() }), /expire|checked/);
+  assert.throws(() => module.requestEventConnection({ ...f.tx, timestamp }, { eventId: f.eventId, targetId: f.users[1].toHexString() }), /presence|expire|checked/);
 });
 
 test('cloud configuration stays private and status never returns secret values', () => {

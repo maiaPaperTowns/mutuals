@@ -39,6 +39,8 @@ import CreateAgentLinkCodeReducer from "./create_agent_link_code_reducer";
 import DeleteAgentPresenceReducer from "./delete_agent_presence_reducer";
 import DeleteAgentRecordReducer from "./delete_agent_record_reducer";
 import DeleteMyAgentDataReducer from "./delete_my_agent_data_reducer";
+import EditNetworkingEventReducer from "./edit_networking_event_reducer";
+import FinishEventConnectionReducer from "./finish_event_connection_reducer";
 import JoinNetworkingEventReducer from "./join_networking_event_reducer";
 import LeaveCloudEventReducer from "./leave_cloud_event_reducer";
 import LeaveMapReducer from "./leave_map_reducer";
@@ -64,6 +66,7 @@ import SetCloudPresenceReducer from "./set_cloud_presence_reducer";
 import SetEventAvailabilityReducer from "./set_event_availability_reducer";
 import SetEventStarReducer from "./set_event_star_reducer";
 import SetMyPresenceReducer from "./set_my_presence_reducer";
+import SetNetworkingEventPhaseReducer from "./set_networking_event_phase_reducer";
 import StartNetworkingEventReducer from "./start_networking_event_reducer";
 import StopEventLocationReducer from "./stop_event_location_reducer";
 import StopSharingLocationReducer from "./stop_sharing_location_reducer";
@@ -74,6 +77,7 @@ import UpdateMyLocationReducer from "./update_my_location_reducer";
 import * as CloudBackendStatusProcedure from "./cloud_backend_status_procedure";
 import * as CreateNetworkingEventProcedure from "./create_networking_event_procedure";
 import * as DeleteCloudAccountProcedure from "./delete_cloud_account_procedure";
+import * as DeleteNetworkingEventProcedure from "./delete_networking_event_procedure";
 import * as DraftCloudFollowupProcedure from "./draft_cloud_followup_procedure";
 import * as GetCloudEventRecommendationsProcedure from "./get_cloud_event_recommendations_procedure";
 import * as GetCloudOpportunitiesProcedure from "./get_cloud_opportunities_procedure";
@@ -304,6 +308,8 @@ const reducersSchema = __reducers(
   __reducerSchema("delete_agent_presence", DeleteAgentPresenceReducer),
   __reducerSchema("delete_agent_record", DeleteAgentRecordReducer),
   __reducerSchema("delete_my_agent_data", DeleteMyAgentDataReducer),
+  __reducerSchema("edit_networking_event", EditNetworkingEventReducer),
+  __reducerSchema("finish_event_connection", FinishEventConnectionReducer),
   __reducerSchema("join_networking_event", JoinNetworkingEventReducer),
   __reducerSchema("leave_cloud_event", LeaveCloudEventReducer),
   __reducerSchema("leave_map", LeaveMapReducer),
@@ -329,6 +335,7 @@ const reducersSchema = __reducers(
   __reducerSchema("set_event_availability", SetEventAvailabilityReducer),
   __reducerSchema("set_event_star", SetEventStarReducer),
   __reducerSchema("set_my_presence", SetMyPresenceReducer),
+  __reducerSchema("set_networking_event_phase", SetNetworkingEventPhaseReducer),
   __reducerSchema("start_networking_event", StartNetworkingEventReducer),
   __reducerSchema("stop_event_location", StopEventLocationReducer),
   __reducerSchema("stop_sharing_location", StopSharingLocationReducer),
@@ -341,6 +348,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("cloud_backend_status", CloudBackendStatusProcedure.params, CloudBackendStatusProcedure.returnType),
   __procedureSchema("create_networking_event", CreateNetworkingEventProcedure.params, CreateNetworkingEventProcedure.returnType),
   __procedureSchema("delete_cloud_account", DeleteCloudAccountProcedure.params, DeleteCloudAccountProcedure.returnType),
+  __procedureSchema("delete_networking_event", DeleteNetworkingEventProcedure.params, DeleteNetworkingEventProcedure.returnType),
   __procedureSchema("draft_cloud_followup", DraftCloudFollowupProcedure.params, DraftCloudFollowupProcedure.returnType),
   __procedureSchema("get_cloud_event_recommendations", GetCloudEventRecommendationsProcedure.params, GetCloudEventRecommendationsProcedure.returnType),
   __procedureSchema("get_cloud_opportunities", GetCloudOpportunitiesProcedure.params, GetCloudOpportunitiesProcedure.returnType),

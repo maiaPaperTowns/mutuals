@@ -9,6 +9,7 @@ import { type Infer as __Infer } from "spacetimedb";
 import * as CloudBackendStatusProcedure from "../cloud_backend_status_procedure";
 import * as CreateNetworkingEventProcedure from "../create_networking_event_procedure";
 import * as DeleteCloudAccountProcedure from "../delete_cloud_account_procedure";
+import * as DeleteNetworkingEventProcedure from "../delete_networking_event_procedure";
 import * as DraftCloudFollowupProcedure from "../draft_cloud_followup_procedure";
 import * as GetCloudEventRecommendationsProcedure from "../get_cloud_event_recommendations_procedure";
 import * as GetCloudOpportunitiesProcedure from "../get_cloud_opportunities_procedure";
@@ -27,6 +28,8 @@ export type CreateNetworkingEventArgs = __Infer<typeof CreateNetworkingEventProc
 export type CreateNetworkingEventResult = __Infer<typeof CreateNetworkingEventProcedure.returnType>;
 export type DeleteCloudAccountArgs = __Infer<typeof DeleteCloudAccountProcedure.params>;
 export type DeleteCloudAccountResult = __Infer<typeof DeleteCloudAccountProcedure.returnType>;
+export type DeleteNetworkingEventArgs = __Infer<typeof DeleteNetworkingEventProcedure.params>;
+export type DeleteNetworkingEventResult = __Infer<typeof DeleteNetworkingEventProcedure.returnType>;
 export type DraftCloudFollowupArgs = __Infer<typeof DraftCloudFollowupProcedure.params>;
 export type DraftCloudFollowupResult = __Infer<typeof DraftCloudFollowupProcedure.returnType>;
 export type GetCloudEventRecommendationsArgs = __Infer<typeof GetCloudEventRecommendationsProcedure.params>;

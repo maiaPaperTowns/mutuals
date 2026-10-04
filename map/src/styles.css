@@ -341,3 +341,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
   .chat-footer { margin-top: 28px; font-size: 7px; }
   .map-topbar .connection { display: none; }
 }
+.nearby-popup { position: fixed; z-index: 1200; right: 20px; bottom: 20px; width: min(420px, calc(100vw - 40px)); box-sizing: border-box; padding: 24px; background: #fff; color: #25341e; border: 1px solid #c6d9b3; border-radius: 18px; box-shadow: 0 12px 48px #24331d30; }
+.nearby-popup h2 { margin: 10px 0; }
+.nearby-popup p { line-height: 1.6; overflow-wrap: anywhere; }
+.nearby-popup .workspace-actions { flex-wrap: wrap; }

@@ -17,7 +17,7 @@ export default function EventGpsMap({ eventId, userId, pins, checkedIn, focusedI
 }) {
   const update = useReducer(reducers.updateEventLocation);
   const stop = useReducer(reducers.stopEventLocation);
-  const [sharing, setSharing] = useState(false);
+  const [sharing, setSharing] = useState(true);
   const [gpsStatus, setGpsStatus] = useState('');
   const latest = useRef({ update, stop, onError }); latest.current = { update, stop, onError };
   const inFlight = useRef<Promise<void> | null>(null);
@@ -25,6 +25,7 @@ export default function EventGpsMap({ eventId, userId, pins, checkedIn, focusedI
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => {
     if (!sharing || !checkedIn) return;
+    if (!navigator.geolocation) { setGpsStatus('This browser does not support location. Nearby alerts need location permission.'); return; }
     let active = true, lastSent = 0;
     const receive = (position: GeolocationPosition) => {
       if (!active || inFlight.current || Date.now() - lastSent < 5000) return;
@@ -62,7 +63,7 @@ export default function EventGpsMap({ eventId, userId, pins, checkedIn, focusedI
   return <section className="event-map-section" aria-label="Event GPS map">
     <div className="section-heading"><div><span className="eyebrow">DURING / FIND YOUR PEOPLE</span><h3>People nearby</h3></div>
       <button className={sharing && checkedIn ? 'workspace-button active' : 'workspace-button'} disabled={!checkedIn} onClick={() => void toggle()}>{sharing && checkedIn ? 'Stop sharing GPS' : 'Share event GPS'}</button></div>
-    <p className="workspace-muted">Share voluntarily with members of this event. Alerts need both people within 100 m, GPS accuracy within 100 m, and positions updated in the last two minutes. Sharing stops when you leave this page.</p>
+    <p className="workspace-muted">Allow location to find free people within 100 m using your saved Pre matches. Your location is shared with event members while this page is open. You can stop sharing at any time.</p>
     {gpsStatus && <p role="status" className="gps-status">{gpsStatus}</p>}
     <div className="event-map"><MapContainer center={mine ? [mine.latitude, mine.longitude] : [42.2912, -83.7157]} zoom={17} scrollWheelZoom={false}>
       <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -70,6 +71,6 @@ export default function EventGpsMap({ eventId, userId, pins, checkedIn, focusedI
       {visible.map(pin => <Marker key={pin.locationId} position={[pin.latitude, pin.longitude]} icon={marker(pin.userId === userId, stars.has(pin.userId))}><Tooltip><b>{pin.userId === userId ? 'You' : pin.name}</b>{stars.has(pin.userId) ? ' · ★ Favorite' : ''}</Tooltip></Marker>)}
       {mine && <Circle center={[mine.latitude, mine.longitude]} radius={100} pathOptions={{ color: '#729f48', fillOpacity: .08, weight: 1 }} />}
     </MapContainer></div>
-    <p className="workspace-muted">{visible.length} current GPS pin{visible.length === 1 ? '' : 's'} · Starred people show ★. Indoor GPS may be imprecise; area labels help you find each other.</p>
+    <p className="workspace-muted">{visible.length} current GPS pin{visible.length === 1 ? '' : 's'} · Starred people show ★. Indoor GPS may be imprecise.</p>
   </section>;
 }

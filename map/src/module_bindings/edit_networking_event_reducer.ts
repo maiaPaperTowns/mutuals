@@ -10,15 +10,10 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default __t.row({
-  eventId: __t.string().primaryKey().name("event_id"),
+export default {
+  eventId: __t.string(),
   title: __t.string(),
   description: __t.string(),
   venue: __t.string(),
-  startAtMs: __t.u64().name("start_at_ms"),
-  status: __t.string(),
-  phase: __t.string(),
-  matchingStatus: __t.string().name("matching_status"),
-  memberCount: __t.u32().name("member_count"),
-  preparedCount: __t.u32().name("prepared_count"),
-});
+  startAtMs: __t.u64(),
+};

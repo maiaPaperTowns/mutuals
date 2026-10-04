@@ -6,22 +6,24 @@ import NetworkingWorkspace from '../src/NetworkingWorkspace';
 import { tables } from '../src/module_bindings';
 
 const state = vi.hoisted(() => ({
-  invites: [] as any[], members: [] as any[], messages: [] as any[], notifications: [] as any[],
+  invites: [] as any[], members: [] as any[], messages: [] as any[], notifications: [] as any[], interactions: [] as any[],
   status: vi.fn(), list: vi.fn(), create: vi.fn(), prepare: vi.fn(), send: vi.fn(), join: vi.fn(), start: vi.fn(), star: vi.fn(),
   noop: vi.fn().mockResolvedValue(undefined),
+  phase: vi.fn(), edit: vi.fn(), remove: vi.fn(), finish: vi.fn(), request: vi.fn(), respond: vi.fn(),
 }));
 vi.mock('spacetimedb/react', () => ({
   useSpacetimeDB: () => ({ isActive: true }),
-  useProcedure: (d: { accessorName: string }) => ({ networkingAccountStatus: state.status, getEventInterestList: state.list, createNetworkingEvent: state.create, prepareNetworkingEvent: state.prepare, sendAssistantMessage: state.send }[d.accessorName] ?? vi.fn()),
-  useReducer: (d: { accessorName: string }) => ({ joinNetworkingEvent: state.join, startNetworkingEvent: state.start, setEventStar: state.star }[d.accessorName] ?? state.noop),
-  useTable: (d: unknown) => [d === tables.networkingInvitations ? state.invites : d === tables.myNetworkingMemberships ? state.members : d === tables.myAssistantMessages ? state.messages : d === tables.myAssistantNotifications ? state.notifications : d === tables.myProfile ? [{ displayName: 'Terry' }] : [], true],
+  useProcedure: (d: { accessorName: string }) => ({ networkingAccountStatus: state.status, getEventInterestList: state.list, createNetworkingEvent: state.create, prepareNetworkingEvent: state.prepare, sendAssistantMessage: state.send, deleteNetworkingEvent: state.remove }[d.accessorName] ?? vi.fn()),
+  useReducer: (d: { accessorName: string }) => ({ joinNetworkingEvent: state.join, startNetworkingEvent: state.start, setEventStar: state.star, setNetworkingEventPhase: state.phase, editNetworkingEvent: state.edit, finishEventConnection: state.finish, requestEventConnection: state.request, respondEventConnection: state.respond }[d.accessorName] ?? state.noop),
+  useTable: (d: unknown) => [d === tables.networkingInvitations ? state.invites : d === tables.myNetworkingMemberships ? state.members : d === tables.myAssistantMessages ? state.messages : d === tables.myAssistantNotifications ? state.notifications : d === tables.myAgentInteractions ? state.interactions : d === tables.myProfile ? [{ displayName: 'Terry' }] : [], true],
 }));
 const props = { signedIn: true, accountName: 'Terry', onSignIn: vi.fn(), accountControl: null };
 beforeEach(() => {
   window.history.replaceState({}, '', '/events?event=e1');
   for (const fn of [state.status, state.list, state.create, state.prepare, state.send, state.join, state.start, state.star]) fn.mockReset();
   state.invites = [{ eventId: 'e1', title: 'Builders meetup', description: 'Meet engineers', venue: 'Duderstadt', startAtMs: 1790000000000n, status: 'open', matchingStatus: 'waiting', memberCount: 2, preparedCount: 0 }];
-  state.members = []; state.messages = []; state.notifications = [];
+  state.members = []; state.messages = []; state.notifications = []; state.interactions = [];
+  for (const fn of [state.phase, state.edit, state.remove, state.finish, state.request, state.respond]) fn.mockReset().mockResolvedValue(undefined);
   state.status.mockResolvedValue('{"user_id":"me","is_admin":false,"profile_ready":true}');
   state.join.mockResolvedValue(undefined); state.start.mockResolvedValue(undefined); state.star.mockResolvedValue(undefined);
   state.list.mockResolvedValue('{"ready":true,"total":0,"items":[]}');
@@ -29,6 +31,41 @@ beforeEach(() => {
   state.send.mockResolvedValue('{"reply":"Start with Alex.","actions":[]}');
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+it('During follows the event phase, shows a nearby conversation popup, and ends an active chat without a model call', async () => {
+  state.invites[0] = { ...state.invites[0], phase: 'during', status: 'started', matchingStatus: 'ready' };
+  state.members = [{ eventId: 'e1', userId: 'me', memberId: 'e1__me', availabilityStatus: 'free', discoverable: true }];
+  state.notifications = [{ notificationId: 'n1', eventId: 'e1', stage: 'during', kind: 'nearby', targetId: 'alex', title: 'Alex is nearby and free', body: 'Talk about: Python mapping projects.', read: false, createdAt: { microsSinceUnixEpoch: BigInt(Date.now()) * 1000n } }];
+  const { rerender } = render(<NetworkingWorkspace {...props} />);
+  const popup = await screen.findByRole('dialog', { name: 'Nearby connection' });
+  expect(popup.textContent).toContain('Python mapping projects');
+  expect(screen.queryByRole('combobox', { name: 'Event area' })).toBeNull();
+  expect(screen.queryByRole('combobox', { name: 'Event availability' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Check in' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Connect with nearby person' }));
+  await waitFor(() => expect(state.request).toHaveBeenCalledWith({ eventId: 'e1', targetId: 'alex' }));
+  state.interactions = [{ interactionId: 'i1', userId: 'me', targetId: 'alex', status: 'accepted', payloadJson: '{"event_id":"e1","target_name":"Alex"}' }];
+  state.members[0].availabilityStatus = 'busy';
+  rerender(<NetworkingWorkspace {...props} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'End chat with Alex' }));
+  await waitFor(() => expect(state.finish).toHaveBeenCalledWith({ eventId: 'e1', interactionId: 'i1' }));
+  expect(state.send).not.toHaveBeenCalled();
+});
+
+it('admin can switch the real event phase, edit metadata and delete through event tools', async () => {
+  state.status.mockResolvedValue('{"user_id":"me","is_admin":true,"profile_ready":true}');
+  state.invites[0] = { ...state.invites[0], phase: 'pre', status: 'started', matchingStatus: 'ready' };
+  render(<NetworkingWorkspace {...props} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Set event to During' }));
+  await waitFor(() => expect(state.phase).toHaveBeenCalledWith({ eventId: 'e1', phase: 'during' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Edit event' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Edit event title' }), { target: { value: 'New meetup name' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save event changes' }));
+  await waitFor(() => expect(state.edit).toHaveBeenCalledWith(expect.objectContaining({ eventId: 'e1', title: 'New meetup name' })));
+  fireEvent.click(screen.getByRole('button', { name: 'Delete event' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm delete event' }));
+  await waitFor(() => expect(state.remove).toHaveBeenCalledWith({ eventId: 'e1' }));
+});
 
 it('public invitation requires sign-in, then joining is explicit and roster closure disables it', async () => {
   const { rerender } = render(<NetworkingWorkspace {...props} signedIn={false} />);
