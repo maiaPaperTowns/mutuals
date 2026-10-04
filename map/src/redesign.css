@@ -188,3 +188,10 @@
   .agent-event-list h2 { margin-bottom: 8px; }
   .chat-footer { flex-wrap: wrap; }
 }
+
+.event-demo-introduction { margin: 24px 0 32px; }
+.event-demo-introduction > img { display: block; width: 100%; height: auto; border-radius: 16px; }
+.event-demo-introduction > small { display: block; margin-top: 8px; color: var(--muted); font-size: 11px; }
+.event-demo-introduction h3 { margin-top: 24px; }
+.event-demo-introduction p { line-height: 1.6; }
+.reserve-people { margin-top: 20px; width: 100%; }

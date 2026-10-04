@@ -89,6 +89,13 @@ try {
     const expiry = ctx.db.eventLocationExpiry.locationId.find(locationId)!;
     ctx.db.eventLocationExpiry.scheduledId.update({ ...expiry, scheduledAt: ScheduleAt.time(ctx.timestamp.microsSinceUnixEpoch + 50000n) });
   });\n`;
+  source += `\nexport const seedNetworkingTestHistory = spacetimedb.reducer({ eventId: t.string() }, (ctx, { eventId }) => {
+    const userId = ctx.sender.toHexString();
+    for (const stage of ['pre','during','post']) for (let i = 1; i <= 52; i++) ctx.db.assistantMessage.insert({
+      messageId: 'history__' + eventId + '__' + stage + '__' + i, userId, eventId, stage,
+      role: i % 2 ? 'user' : 'assistant', content: 'History ' + i, createdAt: new Timestamp(ctx.timestamp.microsSinceUnixEpoch + BigInt(i)),
+    });
+  });\n`;
   await writeFile(join(moduleDir, 'src/index.ts'), source);
   for (const name of ['networking.ts','assistantAgents.ts','mapProfile.ts']) await writeFile(join(moduleDir, 'src', name), await readFile(join(repo, 'map/spacetimedb/src', name)));
   for (const name of ['package.json','tsconfig.json']) await writeFile(join(moduleDir, name), await readFile(join(repo, 'map/spacetimedb', name)));
@@ -210,6 +217,16 @@ try {
   await until(() => Array.from(admin.db.myEventMapPins.iter()).length === 3, 'GPS before disconnect');
   peer.disconnect();
   await until(() => Array.from(admin.db.myEventMapPins.iter()).length === 2, 'GPS disconnect cleanup');
+  const historySeed = await fetch(`${server}/v1/database/${dbName}/call/seed_networking_test_history`, { method: 'POST', headers: { Authorization: `Bearer ${token('admin')}`, 'Content-Type': 'application/json' }, body: JSON.stringify([eventId]) });
+  assert.equal(historySeed.ok, true);
+  await until(() => ['pre','during','post'].every(stage => Array.from(admin.db.myAssistantMessages.iter()).filter(row => row.eventId === eventId && row.stage === stage).length === 50), '50 messages per event agent');
+  await admin.procedures.networkingAccountStatus();
+  assert.match(sql(`SELECT COUNT(*) AS message_count FROM assistant_message WHERE user_id = '${admin.identity.toHexString()}'`, server), /150/);
+  const retainedRequest = { eventId, stage: 'pre', message: 'Check my newest saved history.', requestId: randomUUID() };
+  const retainedReply = JSON.parse(await admin.procedures.sendAssistantMessage(retainedRequest));
+  assert.equal(JSON.parse(await admin.procedures.sendAssistantMessage(retainedRequest)).reply, retainedReply.reply);
+  await until(() => Array.from(admin.db.myAssistantMessages.iter()).some(row => row.messageId === `${admin.identity.toHexString()}__${retainedRequest.requestId}__assistant`), 'newest reply retained');
+  assert.match(sql(`SELECT COUNT(*) AS message_count FROM assistant_message WHERE user_id = '${admin.identity.toHexString()}'`, server), /150/);
   await admin.reducers.editNetworkingEvent({ eventId, title: 'Edited synthetic event', description: 'Local only', venue: 'Test hall', startAtMs: BigInt(Date.now()) });
   await admin.reducers.setNetworkingEventPhase({ eventId, phase: 'post' });
   await until(() => Array.from(admin.db.myEventMapPins.iter()).length === 0, 'Post stops GPS discovery');
@@ -219,8 +236,8 @@ try {
   await until(() => Array.from(admin.db.networkingInvitations.iter()).length === 0 && Array.from(admin.db.myAgentInteractions.iter()).length === 0, 'event deletion cascade');
   const countsResponse = await fetch(`${server}/v1/database/${dbName}/sql`, { method: 'POST', headers: { Authorization: `Bearer ${localToken}`, 'Content-Type': 'text/plain' }, body: "SELECT value FROM cloud_provider_config WHERE name = 'test_provider_counts'" });
   const counts = JSON.parse((await countsResponse.json())[0].rows[0][0]);
-  assert.equal(counts.query, 3); assert.equal(counts.vectors, 3); assert.equal(counts.asi, 12);
-  console.log(JSON.stringify({ result: 'PASS', runtime: 'actual local SpacetimeDB + SDK', participants: 3, outsider: 1, providers: 'synthetic test adapter', checks: ['admin identity and event phases','frozen roster','cached ROI unchanged in During','member privacy','automatic GPS presence and topics','reverse duplicate request','busy acceptance blocks third person','End chat restores free and notifications','three private agent histories','Post consultations and cached recap','accepted contact sharing and withdrawal','completed follow-up','GPS stop/expiry/disconnect','admin edit/delete cascade'], provider_counts: counts }));
+  assert.equal(counts.query, 3); assert.equal(counts.vectors, 3); assert.equal(counts.asi, 13);
+  console.log(JSON.stringify({ result: 'PASS', runtime: 'actual local SpacetimeDB + SDK', participants: 3, outsider: 1, providers: 'synthetic test adapter', checks: ['admin identity and event phases','frozen roster','cached ROI unchanged in During','member privacy','automatic GPS presence and topics','reverse duplicate request','busy acceptance blocks third person','End chat restores free and notifications','three private agent histories','50 messages per event agent and user with storage trimming','Post consultations and cached recap','accepted contact sharing and withdrawal','completed follow-up','GPS stop/expiry/disconnect','admin edit/delete cascade'], provider_counts: counts }));
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   if (error && typeof error === 'object' && 'stderr' in error) console.error(String(error.stderr).slice(-5000));

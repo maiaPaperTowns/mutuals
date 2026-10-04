@@ -74,19 +74,19 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
   const [notice, setNotice] = useState('');
   const [matches, setMatches] = useState<Match[]>([]);
   const [total, setTotal] = useState(0);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageOffset, setPageOffset] = useState(0);
   const [ready, setReady] = useState(false);
   const [chatDraft, setChatDraft] = useState('');
   const [focusedId, setFocusedId] = useState('');
   const [inboxOpen, setInboxOpen] = useState(false);
   const [browserNotifications, setBrowserNotifications] = useState(false);
   const [, setTick] = useState(0);
-  const [localReplies, setLocalReplies] = useState<Array<{ key: string; eventId: string; stage: Stage; content: string }>>([]);
+  const [localReplies, setLocalReplies] = useState<Array<{ key: string; userId: string; eventId: string; stage: Stage; content: string }>>([]);
   const pendingChat = useRef<{ eventId: string; stage: Stage; message: string; requestId: string } | null>(null);
   const refreshEpoch = useRef(0);
   const [dismissedAlerts, setDismissedAlerts] = useState(new Set<string>());
   const seenNotifications = useRef(new Set<string>());
-  const listCount = useRef(pageSize);
+  const pageOffsetRef = useRef(0);
   const event = events.find(row => row.eventId === eventId);
   const areaPoints = readEventArea(eventAreas.find(row => row.eventId === eventId)?.areaJson);
   const eventPhase = (event?.phase || (event?.status === 'started' ? 'during' : 'pre')) as Stage;
@@ -108,6 +108,15 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
   const conversation = messages.filter(row => row.eventId === eventId && row.stage === stage && !(row.role === 'user' && row.messageId.startsWith(`${account?.user_id}__recap-${eventId}`)))
     .sort((a,b) => Number(a.createdAt.microsSinceUnixEpoch - b.createdAt.microsSinceUnixEpoch) || (a.messageId.split('__').slice(0,-1).join('__') === b.messageId.split('__').slice(0,-1).join('__') ? (a.role === 'user' ? -1 : 1) : a.messageId.localeCompare(b.messageId)));
 
+  const pendingReplies = localReplies.filter(row => row.userId === account?.user_id && row.eventId === eventId && row.stage === stage && !conversation.some(saved => saved.messageId === `${account?.user_id}__${row.key}__assistant`));
+  const threadMessages = [...conversation, ...pendingReplies.map(row => ({ messageId: row.key, role: 'assistant', content: row.content }))].slice(-50);
+  useEffect(() => {
+    setLocalReplies(value => {
+      const pending = value.filter(row => row.userId === account?.user_id && !messages.some(saved => saved.messageId === `${row.userId}__${row.key}__assistant`));
+      return pending.length === value.length ? value : pending;
+    });
+  }, [messages, account?.user_id, localReplies]);
+
   useEffect(() => {
     if (!signedIn || !isActive || !profilesLoaded) { setAccount(null); return; }
     let cancelled = false;
@@ -127,24 +136,29 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
     if (!assistantsOnly) { setChatDraft(''); pendingChat.current = null; }
     window.history.replaceState({}, '', `${window.location.pathname}?${new URLSearchParams({ event: eventId, stage: assistantsOnly ? stage : eventPhase })}`);
   }, [eventId, eventPhase, assistantsOnly]);
-  const refresh = useCallback(async (count: number) => {
+  const refresh = useCallback(async (offset = pageOffsetRef.current) => {
     if (!eventId || !account || !member) return;
-    const epoch = refreshEpoch.current;
-    const pages: Match[] = []; let result: { total: number; ready: boolean; items: Match[] } | undefined;
-    for (let offset = 0; offset < count; offset += 50) {
-      result = JSON.parse(await list({ eventId, offset, limit: Math.min(50, count - offset) }));
-      pages.push(...result!.items);
-      if (offset + 50 >= result!.total) break;
+    const epoch = ++refreshEpoch.current;
+    pageOffsetRef.current = offset;
+    let result = JSON.parse(await list({ eventId, offset, limit: 5 }));
+    if (epoch !== refreshEpoch.current) return;
+    if (offset > 0 && offset >= result.total) {
+      offset = 0; pageOffsetRef.current = 0;
+      result = JSON.parse(await list({ eventId, offset, limit: 5 }));
     }
-    if (epoch === refreshEpoch.current && result) { setMatches(pages); setTotal(result.total); setReady(result.ready); listCount.current = count; }
+    if (epoch === refreshEpoch.current) {
+      setMatches(result.items); setTotal(result.total); setReady(result.ready);
+      pageOffsetRef.current = offset; setPageOffset(offset);
+    }
   }, [eventId, account?.user_id, Boolean(member), list]);
   useEffect(() => {
-    refreshEpoch.current++; setMatches([]); setTotal(0); setReady(false); listCount.current = pageSize;
-    void refresh(pageSize).catch(err => setError(err instanceof Error ? err.message : String(err)));
-  }, [refresh, event?.matchingStatus, pageSize]);
+    refreshEpoch.current++; setMatches([]); setTotal(0); setReady(false);
+    pageOffsetRef.current = 0; setPageOffset(0);
+    void refresh(0).catch(err => setError(err instanceof Error ? err.message : String(err)));
+  }, [refresh, event?.matchingStatus]);
   useEffect(() => {
     if (eventPhase !== 'during' || !member || !isActive) return;
-    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(listCount.current).catch(err => setError(String(err.message ?? err))); }, 15000);
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh().catch(err => setError(String(err.message ?? err))); }, 15000);
     return () => window.clearInterval(timer);
   }, [eventPhase, Boolean(member), isActive, refresh]);
   useEffect(() => { const timer = window.setInterval(() => setTick(value => value + 1), 15000); return () => window.clearInterval(timer); }, []);
@@ -180,20 +194,20 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
     pendingChat.current = args;
     try {
       const result = JSON.parse(await send(args));
-      setLocalReplies(value => [...value, { key: args.requestId, eventId, stage: selectedStage, content: result.reply }]);
+      setLocalReplies(value => [...value, { key: args.requestId, userId: account!.user_id, eventId, stage: selectedStage, content: result.reply }]);
       pendingChat.current = null; setChatDraft('');
-      await refresh(listCount.current);
+      await refresh();
       return result;
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
     finally { setChatBusy(false); }
   };
-  const request = (targetId: string, _name: string) => void act(async () => { await requestConnection({ eventId, targetId }); setNotice('Connection request sent.'); await refresh(listCount.current); });
-  const respond = (interactionId: string, accept: boolean) => void act(async () => { await respondConnection({ eventId, interactionId, accept }); setNotice(accept ? 'Connected. You are both busy until the chat ends.' : 'Request declined.'); await refresh(listCount.current); });
+  const request = (targetId: string, _name: string) => void act(async () => { await requestConnection({ eventId, targetId }); setNotice('Connection request sent.'); await refresh(); });
+  const respond = (interactionId: string, accept: boolean) => void act(async () => { await respondConnection({ eventId, interactionId, accept }); setNotice(accept ? 'Connected. You are both busy until the chat ends.' : 'Request declined.'); await refresh(); });
   const dismissAlert = () => { if (nearbyAlert) { setDismissedAlerts(value => new Set(value).add(`${nearbyAlert.notificationId}:${nearbyAlert.createdAt.microsSinceUnixEpoch}`)); void markRead({ notificationId: nearbyAlert.notificationId }).catch(() => {}); } };
   const prepareAll = async (id: string) => {
     let result;
     do { result = JSON.parse(await prepare({ eventId: id })); setNotice(`Preparing personal lists: ${result.prepared_count} / ${result.member_count}`); } while (result.matching_status !== 'ready');
-    setNotice('All personal interest lists are ready.'); await refresh(pageSize);
+    setNotice('All personal interest lists are ready.'); await refresh();
   };
 
   // The mutuals badge (FREE-WILi) mirrors During: AI nearby alerts, incoming requests, accepted connections.
@@ -206,18 +220,18 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
   const badgeConnections = eventInteractions.filter(row => ['accepted', 'recorded', 'completed'].includes(row.status)).map(named);
   const badgeChatting = eventInteractions.filter(row => ['accepted', 'recorded'].includes(row.status)).map(named)[0];
 
-  const peoplePanel = <section className="interest-section" aria-label="Your interest list"><div className="section-heading"><div><span className="eyebrow">PRE MATCHES / PERSONAL INTEREST LIST</span><h3>People</h3></div><label className="page-size">Show<select aria-label="People per page" value={pageSize} onChange={e => setPageSize(Number(e.target.value))}><option value={5}>5</option><option value={10}>10</option></select></label></div>
+  const peoplePanel = <section className="interest-section" aria-label="Your interest list"><div className="section-heading"><div><span className="eyebrow">PRE MATCHES / PERSONAL INTEREST LIST</span><h3>People</h3></div></div>
               <p className="workspace-muted">Fit combines Pinecone profile similarity with goals and complementary skills. Star someone to keep them in your During alerts.</p>
-              {!ready ? <p className="workspace-empty">Your personal list will appear after the event starts and Pre finishes preparing it.</p> : !matches.length ? <p className="workspace-empty">No other discoverable members yet. Matching needs at least two people.</p> : <div className="interest-cards">{[...matches].sort((a,b) => b.fit_score - a.fit_score).map((person,i) => <article className="interest-card" key={person.target_id}><span className="person-rank">{String(i + 1).padStart(2,'0')}</span><div className="person-info"><h4>{person.target_name}</h4><small>{person.role} · {zoneLabel(person.location.zone)}{person.distance_meters != null ? ` · ${person.distance_meters} m away` : ''}</small><p>{person.reason_for_connection}</p><div className="workspace-actions">
+              {!ready ? <p className="workspace-empty">Your personal list will appear after the event starts and Pre finishes preparing it.</p> : !matches.length ? <p className="workspace-empty">No other discoverable members yet. Matching needs at least two people.</p> : <div className="interest-cards">{[...matches].sort((a,b) => b.fit_score - a.fit_score).map((person,i) => <article className="interest-card" key={person.target_id}><span className="person-rank">{String(pageOffset + i + 1).padStart(2,'0')}</span><div className="person-info"><h4>{person.target_name}</h4><small>{person.role} · {zoneLabel(person.location.zone)}{person.distance_meters != null ? ` · ${person.distance_meters} m away` : ''}</small><p>{person.reason_for_connection}</p><div className="workspace-actions">
                 {eventPhase === 'during' && <><span>{person.availability === 'busy' ? 'Busy chatting' : person.availability === 'free' ? 'Free to talk' : 'Location unavailable'}</span><button disabled={busy || chatting || !checkedIn || person.availability !== 'free'} onClick={() => request(person.target_id, person.target_name)}>Request connection</button><button disabled={!pins.some(pin => pin.userId === person.target_id && pin.eventId === eventId && Date.now() - Number(pin.updatedAt.microsSinceUnixEpoch / 1000n) <= 120000)} onClick={() => setFocusedId(person.target_id)}>Find on map</button></>}
-              </div></div><div className="person-score"><b>{person.fit_score}%</b><small>FIT</small><button className="star-button" aria-label={`${stars.has(person.target_id) || person.starred ? 'Unstar' : 'Star'} ${person.target_name}`} aria-pressed={stars.has(person.target_id) || person.starred} disabled={busy} onClick={() => void act(async () => { await setStar({ eventId, targetId: person.target_id, starred: !(stars.has(person.target_id) || person.starred) }); await refresh(listCount.current); })}>{stars.has(person.target_id) || person.starred ? '★' : <img src="/redesign/favorite-star.svg" alt="" />}</button></div></article>)}</div>}
-              {matches.length < total && <button className="workspace-button load-more" disabled={busy} onClick={() => void act(async () => { const next = JSON.parse(await list({ eventId, offset: matches.length, limit: pageSize })); setMatches(value => [...value, ...next.items]); setTotal(next.total); listCount.current += pageSize; })}>Load more people</button>}
-              {ready && <p className="workspace-muted">Showing {matches.length} of {total} people. During uses these saved Pre scores and live distance.</p>}
+              </div></div><div className="person-score"><b>{person.fit_score}%</b><small>FIT</small><button className="star-button" aria-label={`${stars.has(person.target_id) || person.starred ? 'Unstar' : 'Star'} ${person.target_name}`} aria-pressed={stars.has(person.target_id) || person.starred} disabled={busy} onClick={() => void act(async () => { await setStar({ eventId, targetId: person.target_id, starred: !(stars.has(person.target_id) || person.starred) }); await refresh(); })}>{stars.has(person.target_id) || person.starred ? '★' : <img src="/redesign/favorite-star.svg" alt="" />}</button></div></article>)}</div>}
+              {ready && total > 5 && <button className="workspace-button reserve-people" disabled={busy} title="Show the next five matches" onClick={() => void act(async () => { await refresh(pageOffset + 5 < total ? pageOffset + 5 : 0); })}>Reserve</button>}
+              {ready && <p className="workspace-muted">Showing {matches.length ? pageOffset + 1 : 0}–{pageOffset + matches.length} of {total} people.</p>}
+
             </section>;
   const assistantPanel = <aside className="assistant-panel" aria-label={`${stageNames[stage]} agent chat`}><div className="assistant-heading"><span className="intake-avatar">AI</span><div><h2>{stageNames[stage]} agent</h2><small>Your personal event assistant</small></div><i className={isActive ? 'agent-online' : ''} /></div>
             <div className="assistant-thread" role="log" aria-label={`${stageNames[stage]} conversation`} aria-live="polite"><div className="assistant-bubble"><small>{stageNames[stage].toUpperCase()} AGENT</small><p>{stage === 'pre' ? 'I can help you prepare, prioritize your matches, and save favorites. Tell me what you hope to get out of this event.' : stage === 'during' ? 'I can help you find people, explain nearby alerts, send a connection request, and accept or decline your incoming requests.' : 'I can help you follow up on your accepted connections, prepare a private draft, and refine its wording.'}</p></div>
-              {conversation.map(row => <div className={row.role === 'user' ? 'assistant-bubble user' : 'assistant-bubble'} key={row.messageId}><small>{row.role === 'user' ? 'YOU' : `${stageNames[stage].toUpperCase()} AGENT`}</small><p>{row.content}</p></div>)}
-              {localReplies.filter(row => row.eventId === eventId && row.stage === stage && !conversation.some(saved => saved.role === 'assistant' && saved.content === row.content)).map(row => <div className="assistant-bubble" key={row.key}><small>{stageNames[stage].toUpperCase()} AGENT</small><p>{row.content}</p></div>)}
+              {threadMessages.map(row => <div className={row.role === 'user' ? 'assistant-bubble user' : 'assistant-bubble'} key={row.messageId}><small>{row.role === 'user' ? 'YOU' : `${stageNames[stage].toUpperCase()} AGENT`}</small><p>{row.content}</p></div>)}
               {chatBusy && <p className="workspace-muted" role="status">Your agent is working…</p>}
             </div>
             {!!eventExchanges.length && <details className="agent-exchanges"><summary>Agent exchange · {eventExchanges.length}</summary>{eventExchanges.map(exchange => <article key={exchange.exchangeId}><b>{stageNames[exchange.fromAgent as Stage] || exchange.fromAgent} → {stageNames[exchange.toAgent as Stage] || exchange.toAgent}</b><p>{exchange.question}</p><p>{exchange.response}</p></article>)}</details>}
@@ -270,6 +284,7 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
           else await setPhase({ eventId, phase });
           setNotice(`Event is now in ${stageNames[phase]}.`);
         })} onEdit={values => act(async () => { await editEvent({ eventId, ...values }); setNotice('Event updated.'); })} onDelete={() => act(async () => { await deleteEvent({ eventId }); setEventId(''); setNotice('Event deleted. Personal profiles are preserved.'); })} />}
+        {eventId === '6897a464-75b2-40d3-8dc0-d0c698d0b272' && <section className="event-demo-introduction" aria-label="About MHacks"><img src="/redesign/mhacks-demo.jpg" width={1600} height={1066} alt="MHacks participants and organizers talking at Pierpont Commons" /><small>Photo: <a href="https://www.mhacks.org/" target="_blank" rel="noreferrer">MHacks</a> · previous edition</small><h3>Introduction</h3><p>MHacks brings student builders together at the University of Michigan to create projects, exchange ideas and meet future collaborators. This demo lets you try mutuals event recommendations and your personal Pre, During and Post agents.</p></section>}
         {(account?.is_admin || !member || eventPhase !== 'during') && <EventAreaMap key={eventId} eventId={eventId} title={event.title} points={areaPoints} canEdit={account?.is_admin} busy={busy || chatBusy} onSave={async points => {
           await setEventArea({ eventId, areaJson: JSON.stringify(points) }); setNotice(points.length ? 'Event area saved.' : 'Event area cleared.');
         }} />}
@@ -290,7 +305,7 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
                 {eventPhase === 'post' && contact?.linkedinUrl && ['accepted','recorded','completed'].includes(row.status) && <a href={contact.linkedinUrl} target="_blank" rel="noopener noreferrer" aria-label={`${name || 'Participant'}'s LinkedIn`}>LinkedIn ↗</a>}
               </div><div className="workspace-actions">
                 {eventPhase === 'during' && incoming && row.status === 'requested' && <><button disabled={busy || chatting} onClick={() => respond(row.interactionId, true)}>Accept</button><button disabled={busy} onClick={() => respond(row.interactionId, false)}>Decline</button></>}
-                {['accepted','recorded'].includes(row.status) && <button className="intake-submit" aria-label={`End chat with ${name || 'Participant'}`} disabled={busy} onClick={() => void act(async () => { await finishConnection({ eventId, interactionId: row.interactionId }); setNotice('Chat ended. Nearby matching resumes.'); await refresh(listCount.current); })}>End chat</button>}
+                {['accepted','recorded'].includes(row.status) && <button className="intake-submit" aria-label={`End chat with ${name || 'Participant'}`} disabled={busy} onClick={() => void act(async () => { await finishConnection({ eventId, interactionId: row.interactionId }); setNotice('Chat ended. Nearby matching resumes.'); await refresh(); })}>End chat</button>}
                 {eventPhase === 'post' && ['accepted','recorded','completed'].includes(row.status) && <button disabled={chatBusy || busy} onClick={() => void submitChat(`Prepare my follow-up draft for connection ${row.interactionId}.`, 'post')}>Prepare follow-up</button>}
               </div></article>;
             }) : <p className="workspace-empty">Your accepted connections and requests will appear here.</p>}

@@ -998,3 +998,41 @@ test('account deletion also cleans orphan plans, transcripts and peer ROI', () =
   assert.equal(db.agentRoiHistoryTable.entryId.find('r-b'), undefined);
   assert.ok(db.agentProfile.userId.find('bob'));
 });
+
+
+test('interest pages are globally ranked by saved Fit before slicing', () => {
+  const f = networkingFixture(4), userId = f.owner.toHexString();
+  f.db.eventInterestList.insert({ listId: `${f.eventId}__${userId}`, eventId: f.eventId, userId,
+    itemsJson: JSON.stringify(f.users.slice(1).map((id, i) => ({ target_id: id.toHexString(), fit_score: [60,95,80][i], roi_score: 99 - i }))) });
+  const first = JSON.parse(module.getEventInterestList(f.ctx, { eventId: f.eventId, offset: 0, limit: 2 }));
+  const next = JSON.parse(module.getEventInterestList(f.ctx, { eventId: f.eventId, offset: 2, limit: 2 }));
+  assert.deepEqual(first.items.map((row: any) => row.fit_score), [95,80]);
+  assert.deepEqual(next.items.map((row: any) => row.fit_score), [60]);
+});
+
+test('each user event and agent retains its own latest 50 messages and writes trim older rows', () => {
+  const f = networkingFixture(2), userId = f.owner.toHexString(), peerId = f.users[1].toHexString();
+  const seed = (userId: string, eventId: string, stage: string) => {
+    for (let i = 1; i <= 52; i++) f.db.assistantMessage.insert({ messageId: `${userId}_${eventId}_${stage}_${i}`, userId, eventId, stage,
+      role: i % 2 ? 'user' : 'assistant', content: `Message ${i}`, createdAt: { microsSinceUnixEpoch: BigInt(i) } });
+  };
+  for (const stage of ['pre','during','post']) seed(userId,f.eventId,stage);
+  seed(userId,'other-event','pre'); seed(peerId,f.eventId,'pre');
+  const thread = (rows: any[], stage = 'pre', eventId = f.eventId) => rows.filter(row => row.stage === stage && row.eventId === eventId);
+  const visible = module.myAssistantMessages(f.tx);
+  assert.equal(visible.length, 200);
+  assert.equal(thread(visible)[0].content, 'Message 3');
+  assert.equal(module.myAssistantMessages(f.forUser(f.users[1])).length, 50);
+  module.networkingAccountStatus(f.ctx);
+  assert.equal([...f.db.assistantMessage.userId.filter(userId)].length, 200);
+  assert.equal([...f.db.assistantMessage.userId.filter(peerId)].length, 52);
+  const request = { eventId: f.eventId, stage: 'pre', message: 'My next message', requestId: 'retained-turn' };
+  module.sendAssistantMessage(f.ctx, request);
+  const after = module.myAssistantMessages(f.tx);
+  assert.equal(thread(after).length, 50); assert.equal(thread(after)[0].content, 'Message 5');
+  for (const stage of ['during','post']) assert.equal(thread(after,stage)[0].content, 'Message 3');
+  assert.equal(thread(after,'pre','other-event')[0].content, 'Message 3');
+  assert.equal([...f.db.assistantMessage.userId.filter(userId)].length, 200);
+  module.sendAssistantMessage(f.ctx,request);
+  assert.equal(module.myAssistantMessages(f.tx).length, 200);
+});

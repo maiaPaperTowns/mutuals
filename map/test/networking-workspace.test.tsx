@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import NetworkingWorkspace from '../src/NetworkingWorkspace';
 import { tables } from '../src/module_bindings';
 
@@ -160,17 +160,24 @@ it('public invitation requires sign-in, then joining is explicit and roster clos
   expect(screen.getByRole('button', { name: 'Joining closed' }).hasAttribute('disabled')).toBe(true);
 });
 
-it('loads five recommendations then more without losing favorites', async () => {
+it('Reserve replaces five ranked people at a time, preserves stars and wraps the final group', async () => {
   state.invites[0].status = 'started'; state.invites[0].matchingStatus = 'ready';
-  state.members = [{ eventId: 'e1', userId: 'me', memberId: 'e1__me', availabilityStatus: 'offline', discoverable: true, zoneId: '' }];
-  const card = (i: number) => ({ target_id: `u${i}`, target_name: `Person ${i}`, role: 'Engineer', location: { zone: 'lounge' }, fit_score: 85, reason_for_connection: 'Shared interests', starred: false, availability: 'free' });
-  state.list.mockImplementation(async ({ offset }: { offset: number }) => JSON.stringify({ ready: true, total: 7, items: offset === 0 ? [1,2,3,4,5].map(card) : [6,7].map(card) }));
+  state.members = [{ eventId: 'e1', userId: 'me', memberId: 'e1__me' }];
+  const card = (i: number) => ({ target_id: `u${i}`, target_name: `Person ${i}`, role: 'Engineer', location: { zone: 'lounge' }, fit_score: 100 - i, reason_for_connection: 'Shared interests', starred: i === 1, availability: 'free' });
+  state.list.mockImplementation(async ({ offset, limit }: { offset: number; limit: number }) => JSON.stringify({ ready: true, total: 12, items: Array.from({ length: 12 }, (_, i) => card(i + 1)).slice(offset, offset + limit) }));
   render(<NetworkingWorkspace {...props} />);
   await screen.findByText('Person 1');
-  fireEvent.click(screen.getByRole('button', { name: 'Load more people' }));
-  await screen.findByText('Person 7'); expect(screen.getByText('Person 1')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Star Person 1' }));
-  await waitFor(() => expect(state.star).toHaveBeenCalledWith({ eventId: 'e1', targetId: 'u1', starred: true }));
+  expect(screen.getByRole('button', { name: 'Unstar Person 1' })).toBeTruthy();
+  expect(screen.queryByRole('combobox', { name: 'People per page' })).toBeNull();
+  for (const [first, last, offset] of [[6,10,5],[11,12,10],[1,5,0]]) {
+    fireEvent.click(screen.getByRole('button', { name: 'Reserve' }));
+    await screen.findByText(`Person ${first}`);
+    expect(screen.getByText(`Person ${last}`)).toBeTruthy();
+    expect(screen.queryByText(`Person ${first === 1 ? 11 : 1}`)).toBeNull();
+    expect(state.list).toHaveBeenLastCalledWith({ eventId: 'e1', offset, limit: 5 });
+  }
+  fireEvent.click(screen.getByRole('button', { name: 'Unstar Person 1' }));
+  await waitFor(() => expect(state.star).toHaveBeenCalledWith({ eventId: 'e1', targetId: 'u1', starred: false }));
 });
 
 it('an ASI failure preserves the typed message and retry uses the same request id', async () => {
@@ -187,4 +194,73 @@ it('an ASI failure preserves the typed message and retry uses the same request i
   await waitFor(() => expect(state.send).toHaveBeenCalledTimes(2));
   expect(state.send.mock.calls[1][0].requestId).toBe(id);
   await waitFor(() => expect((input as HTMLTextAreaElement).value).toBe(''));
+});
+
+
+it.each([false, true])('does not resurrect an expired reply when subscription arrives first: %s', async (subscriptionFirst) => {
+  window.history.replaceState({}, '', '/assistant?event=e1&stage=pre');
+  state.members = [{ eventId: 'e1', userId: 'me', memberId: 'e1__me' }];
+  let resolveSend!: (reply: string) => void;
+  if (subscriptionFirst) state.send.mockImplementation(() => new Promise<string>(resolve => { resolveSend = resolve; }));
+  const { rerender } = render(<NetworkingWorkspace {...props} />);
+  const input = await screen.findByRole('textbox', { name: 'Message your Pre agent' });
+  fireEvent.change(input, { target: { value: 'Advice please' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+  await waitFor(() => expect(state.send).toHaveBeenCalledOnce());
+  if (!subscriptionFirst) await screen.findByText('Start with Alex.');
+  const id = state.send.mock.calls[0][0].requestId;
+  state.messages = [{ messageId: `me__${id}__assistant`, eventId: 'e1', stage: 'pre', role: 'assistant', content: 'Start with Alex.', createdAt: { microsSinceUnixEpoch: 1n } }];
+  rerender(<NetworkingWorkspace {...props} />);
+  if (subscriptionFirst) await act(async () => resolveSend('{"reply":"Start with Alex.","actions":[]}'));
+  await waitFor(() => expect(screen.getAllByText('Start with Alex.').length).toBe(1));
+  state.messages = Array.from({ length: 51 }, (_, i) => ({ messageId: `saved-${i}`, eventId: 'e1', stage: 'pre', role: 'assistant', content: `Saved reply ${i}`, createdAt: { microsSinceUnixEpoch: BigInt(i + 2) } }));
+  rerender(<NetworkingWorkspace {...props} />);
+  expect(screen.queryByText('Start with Alex.')).toBeNull();
+  expect(screen.queryByText('Saved reply 0')).toBeNull();
+  expect(screen.getByText('Saved reply 50')).toBeTruthy();
+});
+
+it('polling during Reserve uses the requested page and ignores an older response', async () => {
+  state.invites[0] = { ...state.invites[0], status: 'started', matchingStatus: 'ready', phase: 'during' };
+  state.members = [{ eventId: 'e1', userId: 'me', memberId: 'e1__me' }];
+  const callbacks: Array<() => void> = [];
+  const interval = window.setInterval;
+  vi.spyOn(window, 'setInterval').mockImplementation(((callback: () => void, delay: number) => {
+    callbacks.push(callback);
+    return interval(callback, delay);
+  }) as typeof window.setInterval);
+  const card = (i: number) => ({ target_id: `u${i}`, target_name: `Person ${i}`, fit_score: 100 - i, location: { zone: '' } });
+  const page = (offset: number) => JSON.stringify({ ready: true, total: 10, items: Array.from({ length: 5 }, (_, i) => card(offset + i + 1)) });
+  state.list.mockResolvedValue(page(0));
+  render(<NetworkingWorkspace {...props} />);
+  await screen.findByText('Person 1');
+  const poll = callbacks[callbacks.length - 1];
+  let oldPoll!: (value: string) => void;
+  let reserveReply!: (value: string) => void;
+  state.list.mockImplementationOnce(() => new Promise<string>(resolve => { oldPoll = resolve; }))
+    .mockImplementationOnce(() => new Promise<string>(resolve => { reserveReply = resolve; })).mockResolvedValue(page(5));
+  act(() => poll());
+  fireEvent.click(screen.getByRole('button', { name: 'Reserve' }));
+  await act(async () => { poll(); });
+  await screen.findByText('Person 6');
+  expect(state.list).toHaveBeenLastCalledWith({ eventId: 'e1', offset: 5, limit: 5 });
+  await act(async () => oldPoll(page(0)));
+  await act(async () => reserveReply(page(5)));
+  expect(screen.getByText('Person 6')).toBeTruthy();
+  expect(screen.queryByText('Person 1')).toBeNull();
+});
+
+it('returns to the first group when the remaining recommendations shrink below the current offset', async () => {
+  state.members = [{ eventId: 'e1', userId: 'me', memberId: 'e1__me' }];
+  let total = 7;
+  state.list.mockImplementation(async ({ offset }: { offset: number }) => JSON.stringify({ ready: true, total, items: Array.from({ length: total }, (_, i) => ({ target_id: `u${i}`, target_name: `Person ${i + 1}`, fit_score: 100 - i, location: { zone: '' } })).slice(offset, offset + 5) }));
+  render(<NetworkingWorkspace {...props} />);
+  await screen.findByText('Person 1');
+  fireEvent.click(screen.getByRole('button', { name: 'Reserve' }));
+  await screen.findByText('Person 6');
+  total = 5;
+  fireEvent.click(screen.getByRole('button', { name: 'Star Person 6' }));
+  await screen.findByText('Person 1');
+  expect(screen.getByText('Person 5')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Reserve' })).toBeNull();
 });
