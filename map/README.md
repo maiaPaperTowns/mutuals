@@ -17,6 +17,14 @@ Tests cover duplicate requests, overlapping acceptance with three participants, 
 
 The public map at `/` has the separate location behavior described below.
 
+### Agent collaboration and Post recap
+
+Entering Post automatically generates a personal recap. Post asks the ASI Pre agent about saved match reasons and the ASI During agent about connection history, then combines their replies. All three roles can also use `ask_event_agent` for read-only questions to another role. Exchanges have separate ASI calls, stage-specific evidence and private persisted records visible under **Agent exchange**. They run within the existing SpacetimeDB backend; independent Agentverse registration is not required or configured by this feature.
+
+During records request, acceptance, decline and **End chat** events in the person's private history. Recaps distinguish pending requests, accepted connections and chats marked finished; actual conversation contents are not inferred. Completed recaps are reused for unchanged connection history, and retries reuse completed colleague exchanges. Automatic recap cannot execute mutating tools.
+
+Members can optionally save their own LinkedIn profile URL and explicitly share it with accepted connections in that event. Links are read from current caller-scoped permissions and shown alongside connection cards, separately from the generated text. Withdrawing consent removes the live link; the shared-contact table is not sent to colleague models. Event/account deletion removes owned exchange/contact data.
+
 ### Event areas and map reset
 
 On `/events`, an administrator can use **Draw event area**, click 3–50 boundary points in order, undo points and save. Each event keeps its own public shaded boundary. Everyone can view the area before joining; During also shows it alongside member-only GPS pins. **Reset view** fits the complete activity area. On `/`, it fits all saved event areas with space for the map controls. Drawing does not change GPS sharing or matching eligibility.

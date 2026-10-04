@@ -11,6 +11,7 @@ import * as CreateNetworkingEventProcedure from "../create_networking_event_proc
 import * as DeleteCloudAccountProcedure from "../delete_cloud_account_procedure";
 import * as DeleteNetworkingEventProcedure from "../delete_networking_event_procedure";
 import * as DraftCloudFollowupProcedure from "../draft_cloud_followup_procedure";
+import * as GenerateEventRecapProcedure from "../generate_event_recap_procedure";
 import * as GetCloudEventRecommendationsProcedure from "../get_cloud_event_recommendations_procedure";
 import * as GetCloudOpportunitiesProcedure from "../get_cloud_opportunities_procedure";
 import * as GetEventInterestListProcedure from "../get_event_interest_list_procedure";
@@ -32,6 +33,8 @@ export type DeleteNetworkingEventArgs = __Infer<typeof DeleteNetworkingEventProc
 export type DeleteNetworkingEventResult = __Infer<typeof DeleteNetworkingEventProcedure.returnType>;
 export type DraftCloudFollowupArgs = __Infer<typeof DraftCloudFollowupProcedure.params>;
 export type DraftCloudFollowupResult = __Infer<typeof DraftCloudFollowupProcedure.returnType>;
+export type GenerateEventRecapArgs = __Infer<typeof GenerateEventRecapProcedure.params>;
+export type GenerateEventRecapResult = __Infer<typeof GenerateEventRecapProcedure.returnType>;
 export type GetCloudEventRecommendationsArgs = __Infer<typeof GetCloudEventRecommendationsProcedure.params>;
 export type GetCloudEventRecommendationsResult = __Infer<typeof GetCloudEventRecommendationsProcedure.returnType>;
 export type GetCloudOpportunitiesArgs = __Infer<typeof GetCloudOpportunitiesProcedure.params>;

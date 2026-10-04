@@ -260,6 +260,16 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
 .assistant-bubble.user { background: #e7f0dc; border-radius: 11px 11px 2px 11px; margin-left: 24px; }
 .assistant-bubble small { color: #8b9b7c; font: 8px var(--mono); }
 .assistant-bubble p { color: #52664a; font-size: 12px; line-height: 1.7; white-space: pre-wrap; margin: 7px 0 0; }
+.event-recap, .event-contact { border: 1px solid #dce5d2; border-radius: 14px; padding: 20px; margin-bottom: 18px; background: #fffef9; }
+.recap-text, .agent-exchanges p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+.recap-text { font-size: 13px; color: #52664a; }
+.event-contact form { display: grid; gap: 12px; }
+.event-contact label { display: grid; gap: 7px; font-size: 12px; color: #597349; }
+.event-contact input[type=url] { width: 100%; box-sizing: border-box; border: 1px solid #d4dec9; border-radius: 8px; padding: 11px; }
+.event-contact label.contact-consent { display: flex; align-items: center; gap: 8px; }
+.agent-exchanges { margin-bottom: 16px; padding: 12px; border: 1px solid #dce5d2; border-radius: 9px; font-size: 12px; }
+.agent-exchanges summary { cursor: pointer; color: #597349; }
+.agent-exchanges article { padding-top: 12px; border-top: 1px solid #e6ebdf; margin-top: 12px; }
 .assistant-composer textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 80px; border: 1px solid #d4dec9; border-radius: 9px; padding: 12px; background: #fff; color: #35432f; font: 13px/1.6 'DM Sans', sans-serif; margin-bottom: 10px; }
 .assistant-composer > small { float: right; color: #98a38d; font: 8px var(--mono); margin-top: 12px; }
 .assistant-footnote { margin: 13px 0 0; font-size: 9px; color: #96a088; }

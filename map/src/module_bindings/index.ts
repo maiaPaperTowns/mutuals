@@ -64,6 +64,7 @@ import SaveMyProfileReducer from "./save_my_profile_reducer";
 import SetCloudPreferencesReducer from "./set_cloud_preferences_reducer";
 import SetCloudPresenceReducer from "./set_cloud_presence_reducer";
 import SetEventAvailabilityReducer from "./set_event_availability_reducer";
+import SetEventContactReducer from "./set_event_contact_reducer";
 import SetEventStarReducer from "./set_event_star_reducer";
 import SetMyPresenceReducer from "./set_my_presence_reducer";
 import SetNetworkingEventAreaReducer from "./set_networking_event_area_reducer";
@@ -80,6 +81,7 @@ import * as CreateNetworkingEventProcedure from "./create_networking_event_proce
 import * as DeleteCloudAccountProcedure from "./delete_cloud_account_procedure";
 import * as DeleteNetworkingEventProcedure from "./delete_networking_event_procedure";
 import * as DraftCloudFollowupProcedure from "./draft_cloud_followup_procedure";
+import * as GenerateEventRecapProcedure from "./generate_event_recap_procedure";
 import * as GetCloudEventRecommendationsProcedure from "./get_cloud_event_recommendations_procedure";
 import * as GetCloudOpportunitiesProcedure from "./get_cloud_opportunities_procedure";
 import * as GetEventInterestListProcedure from "./get_event_interest_list_procedure";
@@ -102,12 +104,14 @@ import AgentRoiHistoryRow from "./agent_roi_history_table";
 import AgentTranscriptsRow from "./agent_transcripts_table";
 import AgentUserLinksRow from "./agent_user_links_table";
 import LiveLocationRow from "./live_location_table";
+import MyAgentExchangesRow from "./my_agent_exchanges_table";
 import MyAgentFollowUpPlansRow from "./my_agent_follow_up_plans_table";
 import MyAgentInteractionsRow from "./my_agent_interactions_table";
 import MyAgentRoiHistoryRow from "./my_agent_roi_history_table";
 import MyAgentTranscriptsRow from "./my_agent_transcripts_table";
 import MyAssistantMessagesRow from "./my_assistant_messages_table";
 import MyAssistantNotificationsRow from "./my_assistant_notifications_table";
+import MyEventContactsRow from "./my_event_contacts_table";
 import MyEventMapPinsRow from "./my_event_map_pins_table";
 import MyEventStarsRow from "./my_event_stars_table";
 import MyNetworkingMembershipsRow from "./my_networking_memberships_table";
@@ -210,6 +214,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, AgentUserLinksRow),
+  myAgentExchanges: __table({
+    name: 'my_agent_exchanges',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyAgentExchangesRow),
   myAgentFollowUpPlans: __table({
     name: 'my_agent_follow_up_plans',
     indexes: [
@@ -252,6 +263,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MyAssistantNotificationsRow),
+  myEventContacts: __table({
+    name: 'my_event_contacts',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyEventContactsRow),
   myEventMapPins: __table({
     name: 'my_event_map_pins',
     indexes: [
@@ -342,6 +360,7 @@ const reducersSchema = __reducers(
   __reducerSchema("set_cloud_preferences", SetCloudPreferencesReducer),
   __reducerSchema("set_cloud_presence", SetCloudPresenceReducer),
   __reducerSchema("set_event_availability", SetEventAvailabilityReducer),
+  __reducerSchema("set_event_contact", SetEventContactReducer),
   __reducerSchema("set_event_star", SetEventStarReducer),
   __reducerSchema("set_my_presence", SetMyPresenceReducer),
   __reducerSchema("set_networking_event_area", SetNetworkingEventAreaReducer),
@@ -360,6 +379,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("delete_cloud_account", DeleteCloudAccountProcedure.params, DeleteCloudAccountProcedure.returnType),
   __procedureSchema("delete_networking_event", DeleteNetworkingEventProcedure.params, DeleteNetworkingEventProcedure.returnType),
   __procedureSchema("draft_cloud_followup", DraftCloudFollowupProcedure.params, DraftCloudFollowupProcedure.returnType),
+  __procedureSchema("generate_event_recap", GenerateEventRecapProcedure.params, GenerateEventRecapProcedure.returnType),
   __procedureSchema("get_cloud_event_recommendations", GetCloudEventRecommendationsProcedure.params, GetCloudEventRecommendationsProcedure.returnType),
   __procedureSchema("get_cloud_opportunities", GetCloudOpportunitiesProcedure.params, GetCloudOpportunitiesProcedure.returnType),
   __procedureSchema("get_event_interest_list", GetEventInterestListProcedure.params, GetEventInterestListProcedure.returnType),

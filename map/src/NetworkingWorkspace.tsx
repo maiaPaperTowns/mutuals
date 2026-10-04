@@ -3,6 +3,7 @@ import { useProcedure, useReducer, useSpacetimeDB, useTable } from 'spacetimedb/
 import { procedures, reducers, tables } from './module_bindings';
 import EventGpsMap from './EventGpsMap';
 import EventAreaMap, { readEventArea } from './EventAreaMap';
+import EventRecap from './EventRecap';
 import { ZONES } from './types';
 
 type Stage = 'pre' | 'during' | 'post';
@@ -30,6 +31,8 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
   const [pins] = useTable(tables.myEventMapPins);
   const [interactions] = useTable(tables.myAgentInteractions);
   const [plans] = useTable(tables.myAgentFollowUpPlans);
+  const [exchanges] = useTable(tables.myAgentExchanges);
+  const [contacts] = useTable(tables.myEventContacts);
   const { isActive } = useSpacetimeDB();
   const status = useProcedure(procedures.networkingAccountStatus);
   const list = useProcedure(procedures.getEventInterestList);
@@ -49,11 +52,14 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
   const finishConnection = useReducer(reducers.finishEventConnection);
   const markRead = useReducer(reducers.markAssistantNotificationRead);
   const saveProfile = useReducer(reducers.saveMyProfile);
+  const setContact = useReducer(reducers.setEventContact);
   const [account, setAccount] = useState<Account | null>(null);
   const [eventId, setEventId] = useState(new URLSearchParams(window.location.search).get('event') ?? '');
   const [stage, setStage] = useState<Stage>(initialStage);
   const [busy, setBusy] = useState(false);
-  const [chatBusy, setChatBusy] = useState(false);
+  const [manualChatBusy, setChatBusy] = useState(false);
+  const [recapBusy, setRecapBusy] = useState(false);
+  const chatBusy = manualChatBusy || recapBusy;
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [matches, setMatches] = useState<Match[]>([]);
@@ -85,8 +91,11 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
     && Date.now() - Number(row.createdAt.microsSinceUnixEpoch / 1000n) < 120000
     && !dismissedAlerts.has(`${row.notificationId}:${row.createdAt.microsSinceUnixEpoch}`)) : undefined;
   const eventPlans = plans.filter(row => eventInteractionIds.has(row.interactionId));
+  const eventExchanges = exchanges.filter(row => row.eventId === eventId);
+  const eventContacts = contacts.filter(row => row.eventId === eventId);
+  const ownContact = eventContacts.find(row => row.userId === account?.user_id);
   const stars = new Set(starRows.filter(row => row.eventId === eventId).map(row => row.targetId));
-  const conversation = messages.filter(row => row.eventId === eventId && row.stage === stage)
+  const conversation = messages.filter(row => row.eventId === eventId && row.stage === stage && !(row.role === 'user' && row.messageId.startsWith(`${account?.user_id}__recap-${eventId}`)))
     .sort((a,b) => Number(a.createdAt.microsSinceUnixEpoch - b.createdAt.microsSinceUnixEpoch) || (a.messageId.split('__').slice(0,-1).join('__') === b.messageId.split('__').slice(0,-1).join('__') ? (a.role === 'user' ? -1 : 1) : a.messageId.localeCompare(b.messageId)));
 
   useEffect(() => {
@@ -220,6 +229,7 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
         {event.status === 'started' && event.matchingStatus !== 'ready' && <p role="status">Pre is preparing the frozen roster: {event.preparedCount} / {event.memberCount} personal lists ready.{account?.is_admin ? ' Use Resume if preparation was interrupted.' : ''}</p>}
         {member && <><div className="agent-tabs" role="tablist" aria-label="Your event assistants">{(['pre','during','post'] as Stage[]).map(value => <button role="tab" aria-selected={stage === value} key={value} disabled={chatBusy || value !== eventPhase} onClick={() => changeStage(value)}><span>0{value === 'pre' ? 1 : value === 'during' ? 2 : 3}</span>{stageNames[value]} agent<small>{value === 'pre' ? 'Prepare & prioritize' : value === 'during' ? 'Find & connect' : 'Follow up'}</small></button>)}</div>
           <div className="agent-workspace"><div className="agent-primary">
+            {stage === 'post' && <EventRecap key={`${eventId}__${account!.user_id}`} eventId={eventId} onBusy={setRecapBusy} />}
             {stage !== 'post' && <section className="interest-section" aria-label="Your interest list"><div className="section-heading"><div><span className="eyebrow">PRE MATCHES / PERSONAL INTEREST LIST</span><h3>People for you</h3></div><label className="page-size">Show<select aria-label="People per page" value={pageSize} onChange={e => setPageSize(Number(e.target.value))}><option value={5}>5</option><option value={10}>10</option></select></label></div>
               <p className="workspace-muted">Fit combines Pinecone profile similarity with goals and complementary skills. Star someone to keep them in your During alerts.</p>
               {!ready ? <p className="workspace-empty">Your personal list will appear after the event starts and Pre finishes preparing it.</p> : !matches.length ? <p className="workspace-empty">No other discoverable members yet. Matching needs at least two people.</p> : <div className="interest-cards">{matches.map((person,i) => <article className="interest-card" key={person.target_id}><span className="person-rank">{String(i + 1).padStart(2,'0')}</span><div className="person-info"><h4>{person.target_name}</h4><small>{person.role} · {zoneLabel(person.location.zone)}{person.distance_meters != null ? ` · ${person.distance_meters} m away` : ''}</small><p>{person.reason_for_connection}</p><div className="workspace-actions">
@@ -231,7 +241,11 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
             {stage === 'during' && <><section className="event-checkin"><h3>{chatting ? 'Busy · chatting' : checkedIn ? 'Free · ready to meet' : 'Waiting for location'}</h3><p>Nearby alerts start when you allow location. Accepting a connection makes you busy. Tap End chat when you finish to become free again.</p></section><EventGpsMap key={eventId} eventId={eventId} userId={account!.user_id} pins={pins} checkedIn={eventPhase === 'during'} focusedId={focusedId} stars={stars} onError={setError} areaPoints={areaPoints} eventTitle={event.title} onResetFocus={() => setFocusedId('')} /></>}
             {stage !== 'pre' && <section className="event-connections"><h3>{stage === 'post' ? 'Connections to follow up' : 'Your connections'}</h3>{eventInteractions.length ? eventInteractions.map(row => {
               const data = JSON.parse(row.payloadJson), incoming = row.targetId === account?.user_id, name = incoming ? data.user_name : data.target_name;
-              return <article className="connection-card" key={row.interactionId}><div><h4>{name || 'Participant'}</h4><p>{row.status === 'requested' ? incoming ? 'Incoming request' : 'Request sent' : row.status === 'accepted' ? 'Connected' : row.status === 'declined' ? 'Request declined' : row.status}</p></div><div className="workspace-actions">
+              const contact = eventContacts.find(contact => contact.userId === (incoming ? row.userId : row.targetId) && contact.shared);
+              return <article className="connection-card" key={row.interactionId}><div><h4>{name || 'Participant'}</h4><p>{row.status === 'requested' ? incoming ? 'Incoming request' : 'Request sent' : row.status === 'accepted' ? 'Connected · chat in progress' : row.status === 'completed' ? 'Chat marked finished' : row.status === 'declined' ? 'Request declined' : row.status}</p>
+                {stage === 'post' && row.reason && <p>{row.reason}</p>}
+                {stage === 'post' && contact?.linkedinUrl && ['accepted','recorded','completed'].includes(row.status) && <a href={contact.linkedinUrl} target="_blank" rel="noopener noreferrer" aria-label={`${name || 'Participant'}'s LinkedIn`}>LinkedIn ↗</a>}
+              </div><div className="workspace-actions">
                 {stage === 'during' && incoming && row.status === 'requested' && <><button disabled={busy || chatting} onClick={() => respond(row.interactionId, true)}>Accept</button><button disabled={busy} onClick={() => respond(row.interactionId, false)}>Decline</button></>}
                 {['accepted','recorded'].includes(row.status) && <button className="intake-submit" aria-label={`End chat with ${name || 'Participant'}`} disabled={busy} onClick={() => void act(async () => { await finishConnection({ eventId, interactionId: row.interactionId }); setNotice('Chat ended. Nearby matching resumes.'); await refresh(listCount.current); })}>End chat</button>}
                 {stage === 'post' && ['accepted','recorded','completed'].includes(row.status) && <button disabled={chatBusy || busy} onClick={() => void submitChat(`Prepare my follow-up draft for connection ${row.interactionId}.`, 'post')}>Prepare follow-up</button>}
@@ -240,12 +254,15 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
               {stage === 'post' && eventPlans.map(plan => <article className="followup-card" key={plan.planId}><span className="eyebrow">YOUR PRIVATE DRAFT · UNSENT</span><small>{JSON.parse(plan.channelsJson).join(', ')} · {plan.suggestedTiming}</small><textarea aria-label="Your follow-up draft" readOnly value={plan.yourDraft} /><p>{plan.rationale}</p><button className="workspace-button" onClick={() => void act(async () => { await navigator.clipboard.writeText(plan.yourDraft); setNotice('Follow-up copied. You can review and send it yourself.'); })}>Copy draft</button></article>)}
               {stage === 'post' && <p className="workspace-muted">Drafts stay private to you. Review them and send through your chosen channel.</p>}
             </section>}
+            <EventContactEditor key={eventId} contact={ownContact} busy={busy || chatBusy} onSave={values => act(async () => { await setContact({ eventId, ...values }); setNotice(values.share ? 'Your LinkedIn is shared with your accepted event connections.' : 'Your LinkedIn is private.'); })} />
           </div><aside className="assistant-panel" aria-label={`${stageNames[stage]} agent chat`}><div className="assistant-heading"><span className="intake-avatar">AI</span><div><h2>{stageNames[stage]} agent</h2><small>Your personal event assistant</small></div><i className={isActive ? 'agent-online' : ''} /></div>
             <div className="assistant-thread" role="log" aria-label={`${stageNames[stage]} conversation`} aria-live="polite"><div className="assistant-bubble"><small>{stageNames[stage].toUpperCase()} AGENT</small><p>{stage === 'pre' ? 'I can help you prepare, prioritize your matches, and save favorites. Tell me what you hope to get out of this event.' : stage === 'during' ? 'I can help you find people, explain nearby alerts, send a connection request, and accept or decline your incoming requests.' : 'I can help you follow up on your accepted connections, prepare a private draft, and refine its wording.'}</p></div>
               {conversation.map(row => <div className={row.role === 'user' ? 'assistant-bubble user' : 'assistant-bubble'} key={row.messageId}><small>{row.role === 'user' ? 'YOU' : `${stageNames[stage].toUpperCase()} AGENT`}</small><p>{row.content}</p></div>)}
               {localReplies.filter(row => row.eventId === eventId && row.stage === stage && !conversation.some(saved => saved.role === 'assistant' && saved.content === row.content)).map(row => <div className="assistant-bubble" key={row.key}><small>{stageNames[stage].toUpperCase()} AGENT</small><p>{row.content}</p></div>)}
               {chatBusy && <p className="workspace-muted" role="status">Your agent is working…</p>}
-            </div><div className="starter-prompts">{starters[stage].map(text => <button disabled={chatBusy} key={text} onClick={() => setChatDraft(text)}>{text}</button>)}</div><form className="assistant-composer" onSubmit={(e: FormEvent) => { e.preventDefault(); void submitChat(chatDraft.trim()); }}>
+            </div>
+            {!!eventExchanges.length && <details className="agent-exchanges"><summary>Agent exchange · {eventExchanges.length}</summary>{eventExchanges.map(exchange => <article key={exchange.exchangeId}><b>{stageNames[exchange.fromAgent as Stage] || exchange.fromAgent} → {stageNames[exchange.toAgent as Stage] || exchange.toAgent}</b><p>{exchange.question}</p><p>{exchange.response}</p></article>)}</details>}
+            <div className="starter-prompts">{starters[stage].map(text => <button disabled={chatBusy} key={text} onClick={() => setChatDraft(text)}>{text}</button>)}</div><form className="assistant-composer" onSubmit={(e: FormEvent) => { e.preventDefault(); void submitChat(chatDraft.trim()); }}>
               <label className="sr-only" htmlFor="assistant-message">Message your {stageNames[stage]} agent</label><textarea id="assistant-message" maxLength={4000} placeholder={`Ask your ${stageNames[stage]} agent…`} value={chatDraft} disabled={chatBusy || !isActive} onChange={e => setChatDraft(e.target.value)} />
               <button className="intake-submit" disabled={chatBusy || !isActive || !chatDraft.trim()} type="submit">Send message</button><small>{chatDraft.length} / 4,000</small>
             </form><p className="assistant-footnote">Your conversations and notifications are saved to your account.</p>
@@ -257,6 +274,18 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
 }
 
 type EventDetails = { title: string; description: string; venue: string; startAtMs: bigint };
+function EventContactEditor({ contact, busy, onSave }: {
+  contact?: { linkedinUrl: string; shared: boolean }; busy: boolean; onSave: (values: { linkedinUrl: string; share: boolean }) => Promise<void>;
+}) {
+  const [linkedinUrl, setLinkedinUrl] = useState(contact?.linkedinUrl || ''), [share, setShare] = useState(contact?.shared || false);
+  useEffect(() => { setLinkedinUrl(contact?.linkedinUrl || ''); setShare(contact?.shared || false); }, [contact?.linkedinUrl, contact?.shared]);
+  return <section className="event-contact" aria-label="Your contact sharing"><h3>Your LinkedIn</h3><p className="workspace-muted">Choose whether accepted connections in this event can see your profile link. You can stop sharing at any time.</p>
+    <form onSubmit={event => { event.preventDefault(); void onSave({ linkedinUrl, share }); }}><label>LinkedIn profile URL<input type="url" aria-label="LinkedIn profile URL" maxLength={300} placeholder="https://www.linkedin.com/in/your-name" value={linkedinUrl} onChange={event => setLinkedinUrl(event.target.value)} /></label>
+      <label className="contact-consent"><input type="checkbox" checked={share} onChange={event => setShare(event.target.checked)} />Share with my accepted connections in this event</label><button className="workspace-button" disabled={busy}>Save contact sharing</button>
+    </form>
+  </section>;
+}
+
 function AdminEventTools({ event, busy, onPhase, onEdit, onDelete }: {
   event: EventDetails & { phase: string; matchingStatus: string; status: string }; busy: boolean;
   onPhase: (phase: Stage) => Promise<void>; onEdit: (values: EventDetails) => Promise<void>; onDelete: () => Promise<void>;

@@ -37,6 +37,7 @@ async function subscribe(conn: DbConnection) {
   await new Promise<void>((resolve, reject) => conn.subscriptionBuilder().onApplied(() => resolve()).onError(ctx => reject(ctx.event)).subscribe([
     'SELECT * FROM networking_invitations', 'SELECT * FROM my_networking_memberships', 'SELECT * FROM my_assistant_messages',
     'SELECT * FROM my_assistant_notifications', 'SELECT * FROM my_event_map_pins', 'SELECT * FROM my_agent_interactions', 'SELECT * FROM my_agent_follow_up_plans',
+    'SELECT * FROM my_agent_exchanges', 'SELECT * FROM my_event_contacts',
   ]));
 }
 try {
@@ -127,6 +128,8 @@ try {
   await until(() => Array.from(admin.db.myAssistantNotifications.iter()).some(row => row.kind === 'nearby'), 'nearby notification');
   assert.equal(Array.from(outsider.db.myEventMapPins.iter()).length, 0); assert.equal(Array.from(outsider.db.myAssistantNotifications.iter()).length, 0);
   await admin.reducers.requestEventConnection({ eventId, targetId: peer.identity.toHexString() });
+  await peer.reducers.setEventContact({ eventId, linkedinUrl: 'https://www.linkedin.com/in/synthetic-peer', share: true });
+  assert.equal(Array.from(admin.db.myEventContacts.iter()).length, 0, 'pending connection cannot read shared contact');
   await until(() => Array.from(peer.db.myAgentInteractions.iter()).length === 1, 'connection request');
   const request = Array.from(peer.db.myAgentInteractions.iter())[0];
   assert.equal(request.roiScoreAtMatch, matches.items.find((row: any) => row.target_id === peer.identity.toHexString()).roi_score);
@@ -142,12 +145,23 @@ try {
   await admin.reducers.finishEventConnection({ eventId, interactionId: request.interactionId });
   await until(() => Array.from(peer.db.myNetworkingMemberships.iter()).some(row => row.eventId === eventId && row.availabilityStatus === 'free'), 'free after End chat');
   await until(() => Array.from(third.db.myAssistantNotifications.iter()).some(row => row.kind === 'nearby' && row.targetId === admin.identity.toHexString()), 'third participant notified after chat');
+  const manualRequests: string[] = [];
   for (const stage of ['pre','during','post']) {
     await admin.reducers.setNetworkingEventPhase({ eventId, phase: stage });
-    const response = JSON.parse(await admin.procedures.sendAssistantMessage({ eventId, stage, message: 'Explain your role without changing anything.', requestId: randomUUID() })); assert.ok(response.reply);
+    const requestId = randomUUID(); manualRequests.push(requestId);
+    const response = JSON.parse(await admin.procedures.sendAssistantMessage({ eventId, stage, message: 'Explain your role without changing anything.', requestId })); assert.ok(response.reply);
   }
-  await until(() => Array.from(admin.db.myAssistantMessages.iter()).length === 6, 'private chat history');
-  assert.equal(Array.from(peer.db.myAssistantMessages.iter()).length, 0);
+  await until(() => Array.from(admin.db.myAssistantMessages.iter()).filter(row => manualRequests.some(id => row.messageId.includes(id))).length === 6, 'private chat history');
+  assert.equal(Array.from(peer.db.myAssistantMessages.iter()).some(row => manualRequests.some(id => row.messageId.includes(id))), false);
+  const recap = JSON.parse(await admin.procedures.generateEventRecap({ eventId })); assert.ok(recap.reply);
+  await until(() => Array.from(admin.db.myAgentExchanges.iter()).length === 2, 'Post asks Pre and During');
+  assert.deepEqual(Array.from(admin.db.myAgentExchanges.iter()).map(row => row.toAgent).sort(), ['during','pre']);
+  assert.equal(Array.from(peer.db.myAgentExchanges.iter()).length, 0); assert.equal(Array.from(outsider.db.myAgentExchanges.iter()).length, 0);
+  assert.equal(JSON.parse(await admin.procedures.generateEventRecap({ eventId })).reply, recap.reply);
+  await until(() => Array.from(admin.db.myEventContacts.iter()).length === 1, 'accepted contact shared');
+  assert.equal(Array.from(third.db.myEventContacts.iter()).length, 0, 'pending third participant cannot read contact');
+  await peer.reducers.setEventContact({ eventId, linkedinUrl: 'https://www.linkedin.com/in/synthetic-peer', share: false });
+  await until(() => Array.from(admin.db.myEventContacts.iter()).length === 0, 'contact withdrawal');
   const draft = JSON.parse(await admin.procedures.draftCloudFollowup({ interactionId: request.interactionId })); assert.ok(draft.draft);
   await admin.reducers.setNetworkingEventPhase({ eventId, phase: 'during' });
   for (const [index, member] of [admin, peer, third].entries()) await member.reducers.updateEventLocation({ eventId, latitude: 42.29 + index * .0002, longitude: -83.71, accuracyMeters: 5 });
@@ -170,8 +184,8 @@ try {
   await until(() => Array.from(admin.db.networkingInvitations.iter()).length === 0 && Array.from(admin.db.myAgentInteractions.iter()).length === 0, 'event deletion cascade');
   const countsResponse = await fetch(`${server}/v1/database/${dbName}/sql`, { method: 'POST', headers: { Authorization: `Bearer ${localToken}`, 'Content-Type': 'text/plain' }, body: "SELECT value FROM cloud_provider_config WHERE name = 'test_provider_counts'" });
   const counts = JSON.parse((await countsResponse.json())[0].rows[0][0]);
-  assert.equal(counts.query, 3); assert.equal(counts.vectors, 3); assert.equal(counts.asi, 4);
-  console.log(JSON.stringify({ result: 'PASS', runtime: 'actual local SpacetimeDB + SDK', participants: 3, outsider: 1, providers: 'synthetic test adapter', checks: ['admin identity and event phases','frozen roster','cached ROI unchanged in During','member privacy','automatic GPS presence and topics','reverse duplicate request','busy acceptance blocks third person','End chat restores free and notifications','three private agent histories','completed follow-up','GPS stop/expiry/disconnect','admin edit/delete cascade'], provider_counts: counts }));
+  assert.equal(counts.query, 3); assert.equal(counts.vectors, 3); assert.equal(counts.asi, 7);
+  console.log(JSON.stringify({ result: 'PASS', runtime: 'actual local SpacetimeDB + SDK', participants: 3, outsider: 1, providers: 'synthetic test adapter', checks: ['admin identity and event phases','frozen roster','cached ROI unchanged in During','member privacy','automatic GPS presence and topics','reverse duplicate request','busy acceptance blocks third person','End chat restores free and notifications','three private agent histories','Post consultations and cached recap','accepted contact sharing and withdrawal','completed follow-up','GPS stop/expiry/disconnect','admin edit/delete cascade'], provider_counts: counts }));
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   console.error(dbLogs.slice(-5).join('').slice(-3000)); process.exitCode = 1;

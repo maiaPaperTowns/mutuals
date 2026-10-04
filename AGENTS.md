@@ -35,6 +35,7 @@ After completing a requested change, commit and push it to the current branch an
 - Python checks, from `agents`: `.venv/Scripts/python.exe -m pytest tests -q`, with an accessible temporary base directory when needed.
 - Photon checks, from `photon`, when affected: `npm.cmd test`, `npm.cmd run typecheck`.
 - Event areas use the private `networking_event_area` table, public `networking_event_areas` projection and admin-only `set_networking_event_area` reducer. Preserve event IDs and existing boundaries on deployment; boundaries are display/viewport geometry, not GPS access rules. The open MHacks invitation has an approximate North Campus area that an admin can redraw.
+- Event agent collaboration is native ASI role-to-role Q&A through `ask_event_agent`, with private `agent_exchange` records. Post automatically consults Pre/During via `generate_event_recap`; keep consultations read-only, scoped to the caller/event and retry-safe. LinkedIn sharing is event-specific opt-in and limited to accepted connections; keep links out of model-generated recap text. Independent Agentverse hosting remains unconfigured. For actual SDK integration on Windows, use `bin/2.10.2/spacetimedb-cli.exe` with test `--root-dir` arguments rather than the outer launcher.
 
 ## Communication
 
