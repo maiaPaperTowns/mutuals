@@ -66,6 +66,7 @@ import SetCloudPresenceReducer from "./set_cloud_presence_reducer";
 import SetEventAvailabilityReducer from "./set_event_availability_reducer";
 import SetEventStarReducer from "./set_event_star_reducer";
 import SetMyPresenceReducer from "./set_my_presence_reducer";
+import SetNetworkingEventAreaReducer from "./set_networking_event_area_reducer";
 import SetNetworkingEventPhaseReducer from "./set_networking_event_phase_reducer";
 import StartNetworkingEventReducer from "./start_networking_event_reducer";
 import StopEventLocationReducer from "./stop_event_location_reducer";
@@ -112,6 +113,7 @@ import MyEventStarsRow from "./my_event_stars_table";
 import MyNetworkingMembershipsRow from "./my_networking_memberships_table";
 import MyProfileRow from "./my_profile_table";
 import MyProfileDetailsRow from "./my_profile_details_table";
+import NetworkingEventAreasRow from "./networking_event_areas_table";
 import NetworkingInvitationsRow from "./networking_invitations_table";
 import PresenceRow from "./presence_table";
 import PublicProfilesRow from "./public_profiles_table";
@@ -285,6 +287,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MyProfileDetailsRow),
+  networkingEventAreas: __table({
+    name: 'networking_event_areas',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, NetworkingEventAreasRow),
   networkingInvitations: __table({
     name: 'networking_invitations',
     indexes: [
@@ -335,6 +344,7 @@ const reducersSchema = __reducers(
   __reducerSchema("set_event_availability", SetEventAvailabilityReducer),
   __reducerSchema("set_event_star", SetEventStarReducer),
   __reducerSchema("set_my_presence", SetMyPresenceReducer),
+  __reducerSchema("set_networking_event_area", SetNetworkingEventAreaReducer),
   __reducerSchema("set_networking_event_phase", SetNetworkingEventPhaseReducer),
   __reducerSchema("start_networking_event", StartNetworkingEventReducer),
   __reducerSchema("stop_event_location", StopEventLocationReducer),
