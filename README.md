@@ -1,104 +1,117 @@
-# mhacks-2026
+# mutuals
 
-**A recruiter agent for your networking, living in iMessage.**
-Text it your resume, tell it what you need, and it finds the right person in the room.
-Nothing is revealed until you both say yes.
+**People find people.** A live map of who's open to meet at an event, plus a pocket-sized FREE-WILi badge
+companion that tells you when someone is nearby, and when you've actually found them.
 
-![tag:innovationlab](https://img.shields.io/badge/innovationlab-3D8BD3)
-![Photon Spectrum](https://img.shields.io/badge/iMessage-Photon%20Spectrum-black)
 ![SpacetimeDB](https://img.shields.io/badge/live%20map-SpacetimeDB-6b4fbb)
+![FREE-WILi](https://img.shields.io/badge/badge-FREE--WILi%20OG-e5484d)
+![Clerk](https://img.shields.io/badge/accounts-Clerk-6c47ff)
 
-> Built at MHacks 2026. Working name; the final name goes here once picked.
+> Built at MHacks 2026.
 
 ## The problem
 
-There are about a thousand hackers in this building, and you'll talk to maybe five of them. The person
-who already fixed your exact bug is probably two tables away. Event networking apps give you a directory and
-an "87% match" that nobody opens and that doesn't tell you what to say.
+There are about a thousand hackers in this building, and you'll talk to maybe five of them. The person who
+already fixed your exact bug is probably two tables away. Event apps give you a directory nobody opens. mutuals
+shows who's actually around and open to meet right now, and nudges you to go say hi.
 
 ## What it does
 
-1. **Text a number. Nothing to install.** Send your resume PDF; the agent builds your profile in seconds.
-   You can see everything it knows and delete any of it.
-2. **Ask like you'd ask a recruiter.** "Stuck on Spacetime auth, anyone nearby solved it?" or "Find me a designer for tonight."
-3. **Double yes.** The agent texts both people a plain-English reason, with no names. Only when **both** reply yes
-   does it share names, zones and contact cards.
-4. **Opt-in live map.** Participants can explicitly share anonymous device GPS positions; the latest location syncs live, and turning sharing off removes the point.
-5. **Was it worth it?** One 👍/👎 after each intro. The scoreboard shows real counts only: intros, meetings,
-   % rated worth it.
+1. **Opt-in live map** (`map/`). Sign in, set a short profile (name, headline, interests), and turn on location
+   sharing. You appear on a shared map of the venue; others see your dot and, if you allow it, your profile card.
+   Turning sharing off removes your dot.
+2. **A badge that finds people for you** (`freewili/`). The FREE-WILi OG runs the mutuals app: a pixel pup (or a
+   clean formal look) on its screen, with sounds and LEDs.
+   - Plugged into a laptop with the map open, it shows who's near you on the map, with their name and distance.
+     Its YES / NO buttons turn your sharing on and off.
+   - Badges also **find each other directly by radio** (433 MHz, no internet or GPS needed): "someone's nearby!",
+     then "you found them!" when you're within a couple of metres.
+3. **Points and levels.** +10 when someone new is nearby, +50 when you find them. Levels go Lv 1 → Lv 5 (at 50 /
+   100 / 200 / 400 pts), and your badge's pup grows up with you.
+4. **Cute or Formal.** One switch restyles the website and the badge:
+   - **Cute** for clubs and university mixers: pastel pixel pup, puppy noises.
+   - **Formal** for recruiting events: white/navy icons, "Contact nearby" / "Connection made", Tier 1–5, soft chimes.
 
 ## How it works
 
 ```
-iPhone ──iMessage──► Photon Spectrum bridge ──► Concierge agent (Fetch.ai Agentverse / ASI:One)
-   ▲                  (photon/)                    ├─ onboarding: resume → profile
-   │                     ▲                         ├─ matcher: who nearby fits this need
-   └── double-yes ───────┘◄──── POST /offer ───────└─ recruiter: the plain-English "why"
-                         │
-                         ▼
-          SpacetimeDB: person · profile · presence · match · rating
-                         ▲
-        Live venue map (map/)  ·  Worth-it scoreboard (scoreboard/)
+ Badge (FREE-WILi OG)                       Laptop: Chrome / Edge                       Cloud
+┌──────────────────────┐   USB (Web Serial) ┌───────────────────────────┐  WebSocket  ┌──────────────────┐
+│ display CPU: screen,  │◄──────────────────►│ mutuals map (map/, React)  │◄──────────►│ SpacetimeDB       │
+│ buttons, LEDs, sound  │  who's near, pts,  │ Leaflet map, points card,  │            │ live_location,    │
+│        ▲ link         │  style ◄── buttons │ Cute/Formal, badge connect │            │ profiles (Clerk   │
+│ main CPU: CC1101 radio│                    └───────────────────────────┘            │ sign-in)          │
+└──────────▲───────────┘                                                              └──────────────────┘
+           │ 433.92 MHz beacons (random id + first name while sharing; silent when hidden)
+┌──────────▼───────────┐
+│ another mutuals badge │
+└──────────────────────┘
 ```
 
 | Folder | What | Owner |
 |---|---|---|
-| [`photon/`](photon/) | iMessage bridge on Photon Spectrum, double-yes intros, privacy commands, worth-it follow-up | Maia |
-| `agents/` | Agentverse agents: concierge, onboarding, matcher, recruiter | Ziquan |
-| [`map/`](map/) | React 2D OpenStreetMap centered on the Duderstadt Center, with opt-in anonymous GPS dots backed by SpacetimeDB | Terry |
-| [`freewili/`](freewili/) | Mutual Badge on FREE-WILi OG: answer intros, IR high-five to prove you met, live scoreboard | Elena / Maia |
-| `scoreboard/` | Worth-it scoreboard, real counts only | Elena |
-
-See [PLAN.md](PLAN.md) for checkpoints, the shared schema and fallbacks.
+| [`map/`](map/) | The mutuals website: live OpenStreetMap of the Duderstadt Center on SpacetimeDB, Clerk accounts and profiles, badge connection, points and levels, Cute/Formal switch | Terry · Maia |
+| [`freewili/`](freewili/) | The mutuals badge app for the FREE-WILi OG (native C, wiliOGbsp): screens, sounds, radio proximity, plus the setup guide for teammates | Maia · Elena |
+| `photon/` | Earlier iMessage-agent prototype (Photon Spectrum). Paused: not part of mutuals | Maia |
 
 ## Quick start
 
-**iMessage bridge** (works with no credentials: it falls back to a chat in your terminal):
+**Use it (teammates):** follow [freewili/TEAMMATE_SETUP.md](freewili/TEAMMATE_SETUP.md). Short version:
 
-```bash
-cd photon
-npm install
-npm test
-npm start
-```
+1. **Get the badge app.** Download it from the
+   [mutuals-badge-v1 release](https://github.com/maiaPaperTowns/mhacks-2026/releases/tag/mutuals-badge-v1) and flash
+   it with FREE-WILi's [OG App Explorer](https://github.com/freewili/fwOGAppExplorer/releases/latest) (Windows) or the
+   [FreeWili GUI](https://github.com/freewili/freewili-gui/releases).
+2. **Open the map.** In Chrome, sign up and set your profile (tick *show on map*).
+3. **Connect.** Click **Connect** in the badge box and press **YES** on the badge.
 
-To use real iMessage, put your Photon project keys in `photon/.env` (see [photon/README.md](photon/README.md)).
-
-**Live venue map** (local preview works without cloud credentials):
+**Run the website locally:**
 
 ```bash
 cd map
-npm install
-npm run dev
+npm ci
+npm run dev        # http://localhost:5173 (add ?demo in local preview for two pretend people walking up to you)
 ```
 
-The local preview shows the basemap and can display the current browser's GPS location locally. To enable shared live locations, publish the SpacetimeDB module and configure `map/.env.local`; see [map/README.md](map/README.md). For Vercel, set the public database URI and name in the project's environment settings. GPS sharing is off by default; when enabled, the latest exact coordinates are public to visitors of the map. The map does not store names, resumes, contact details, or a location history.
+For the shared live map, create `map/.env.local` (see [map/README.md](map/README.md)):
 
-Other folders: see the README inside each one.
+```
+VITE_SPACETIMEDB_URI=wss://maincloud.spacetimedb.com
+VITE_SPACETIMEDB_DATABASE=mhacks-live-map
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_bm92ZWwtZ3JpZmZvbi05MDczLmNsZXJrLmFjY291bnRzLmRldiQ=
+```
 
-## Agents (Fetch.ai Agentverse)
+**Share your laptop's copy with the team** over https (needed for USB and location in other browsers):
 
-| Agent | Role | Address |
-|---|---|---|
-| Concierge | Entry point; routes the conversation | `agent1q…` *(fill in)* |
-| Onboarding | Resume → profile | `agent1q…` *(fill in)* |
-| Matcher | Finds who nearby fits a need | `agent1q…` *(fill in)* |
-| Recruiter | Writes the plain-English reason for an intro | `agent1q…` *(fill in)* |
+```bash
+cd map && npm run build && npx vite preview --port 4173
+cloudflared tunnel --url http://localhost:4173      # prints a https://….trycloudflare.com link
+```
+
+**Build the badge app** (macOS/Linux): see [freewili/README.md](freewili/README.md):
+
+```bash
+cd freewili
+native/setup_toolchain.sh      # once
+native/build.sh                # → native/out/photon_main.uf2
+```
 
 ## Privacy, by design
 
-- **Opt-in only.** Location sharing is off until a participant enables it and grants browser location permission. Turning it off removes their published point.
-- **Double yes.** No name, zone or number is shared until both people agree. A "no" or a timeout reveals nothing.
-- **You're in control.** Text `STOP` to pause intros, `START` to resume, `DELETE ME` to erase everything,
-  or ask "what do you know about me?"
-- **Only what you give us:** a resume and a few answers. No scraping. Raw resumes aren't stored.
-- **Quiet by default.** The agent only texts when it has a real intro, plus one follow-up.
+- **Opt-in only.** Location sharing is off until you turn it on (YES on the badge or the website switch) and allow
+  location in the browser. Turning it off (NO) deletes your dot. The map keeps only your latest position, never a
+  history.
+- **Profiles are yours.** Your profile card shows only while you're sharing and only if you ticked *show on map*.
+  Email and passwords stay with Clerk, never in the database or on the map.
+- **Radio is quiet when you are.** While you're not discoverable, your badge broadcasts nothing. While you're
+  sharing, it broadcasts a random per-boot id and your first name, nothing else.
+- **Points stay local.** Your points live in your browser and on your badge. Nothing is ranked publicly.
 
 ## Built with
 
-[Photon Spectrum](https://photon.codes/spectrum) (iMessage) ·
-[Fetch.ai Agentverse & ASI:One](https://agentverse.ai) ·
-[SpacetimeDB](https://spacetimedb.com) · React · TypeScript
+[SpacetimeDB](https://spacetimedb.com) · [Clerk](https://clerk.com) · React · TypeScript · Leaflet /
+OpenStreetMap · [FREE-WILi OG](https://github.com/freewili) + [wiliOGbsp](https://github.com/freewili/wiliOGbsp) (C, Pico SDK) ·
+Web Serial
 
 ## Team
 
@@ -106,5 +119,5 @@ Maia · Ziquan · Terry · Elena
 
 ## Credit
 
-Inspired by **Klick** (HackMIT), which proved that this matters. We focused on zero-install iMessage
-onboarding, an opt-in live map, and a transparent worth-it measure.
+Inspired by **Klick** (HackMIT), which proved that this matters. We focused on an opt-in live map and a physical
+companion that gets people to actually walk over and meet.

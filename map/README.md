@@ -1,6 +1,57 @@
-# MHacks Live Map
+# mutuals map
 
-A mobile-friendly 2D OpenStreetMap centered on the Duderstadt Center. A participant can explicitly share their device's current GPS position; opted-in positions are synchronized live through SpacetimeDB.
+The mutuals website: a mobile-friendly 2D OpenStreetMap centered on the Duderstadt Center. A participant can
+explicitly share their device's current GPS position; opted-in positions are synchronized live through SpacetimeDB.
+It also connects to the **mutuals FREE-WILi badge**, keeps **points and levels**, and has a **Cute / Formal**
+switch.
+
+## mutuals features
+
+### FREE-WILi badge (`src/badge.ts`)
+
+The **Connect** box links the badge over USB with **Web Serial**. That needs Chrome or Edge on a computer, over https
+or localhost. The badge runs the app in [`freewili/native`](../freewili/README.md). Once connected:
+
+- The map sends the badge one line a second:
+  - `M <state> <nearby> <meters> <points> <met> <name>`: state is H not discoverable, A sharing with nobody near,
+    N someone within 150 m, C someone within 25 m.
+  - `N <first name>`: what the badge broadcasts on radio while you're sharing.
+  - `T C|F`: the style.
+- The badge sends back:
+  - its buttons: `B green` (YES) turns sharing on, `B red` (NO) turns it off;
+  - its own points: `P <points> <caught> <met>` (practice and radio finds; the higher total wins);
+  - other badges its radio hears: `R <count> <rssi> <name>`.
+- The badge box shows the badge's state, the last button press and what the website did with it, what the radio
+  hears, and when you need to sign in first.
+
+### Points and levels (`src/points.ts`)
+
++10 the first time someone new is near you on the map, +50 the first time you're within 25 m of them; practice and
+radio points come from the badge. Levels at 50 / 100 / 200 / 400 pts (Lv 1–5, or Tier 1–5 in Formal). Points are
+kept in the browser (`localStorage`), per device.
+
+### Cute / Formal
+
+The switch in the top bar (saved per browser) restyles the site and sends `T C` / `T F` to the badge:
+
+- **Cute** (clubs, mixers): pixel logo and pups (`public/mutuals/`).
+- **Formal** (recruiting events): white/navy, tier badge, professional wording.
+
+### Solo demo
+
+In local preview (no `.env.local`), open `http://localhost:5173/?demo`: after you share, two pretend people (Sam and
+Alex) appear near you and Alex walks up over ~40 s, so the badge goes "someone's nearby!" → "you found them!".
+
+### Sharing a laptop's copy with teammates
+
+USB and location need https on other machines. `vite.config.ts` allows `*.trycloudflare.com`:
+
+```bash
+npm run build && npx vite preview --port 4173
+cloudflared tunnel --url http://localhost:4173
+```
+
+The link lasts as long as the laptop and both commands keep running. For a permanent link, deploy to Vercel (below).
 
 ## Location and privacy behavior
 
@@ -32,7 +83,9 @@ npm run stdb:generate
 npm run build
 ```
 
-The current source uses a placeholder issuer, so authenticated location/profile writes remain rejected until step 3 is completed and the module is published. The map remains read-only for visitors until the Clerk publishable key is configured.
+The issuer is configured (`https://novel-griffon-9073.clerk.accounts.dev`) and the module is published to maincloud as
+`mhacks-live-map`. The matching public publishable key is
+`pk_test_bm92ZWwtZ3JpZmZvbi05MDczLmNsZXJrLmFjY291bnRzLmRldiQ=`.
 
 ## Local preview
 
@@ -62,7 +115,7 @@ Create `.env.local` from `.env.example`:
 ```env
 VITE_SPACETIMEDB_URI=wss://maincloud.spacetimedb.com
 VITE_SPACETIMEDB_DATABASE=mhacks-live-map
-VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_bm92ZWwtZ3JpZmZvbi05MDczLmNsZXJrLmFjY291bnRzLmRldiQ=
 ```
 
 Run `npm run dev` and open the page in two browsers to see opted-in location updates. Geolocation requires HTTPS in production (localhost is allowed by browsers). The Vercel project should use this `map` directory as its root and expose only the public `VITE_` settings. Never add a Clerk secret key or SpacetimeDB admin token to Vercel's frontend environment.
