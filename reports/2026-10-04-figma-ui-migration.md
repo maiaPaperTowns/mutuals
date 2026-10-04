@@ -41,4 +41,11 @@ Retrieved design context and screenshots for home `16:2`, profile `14:2`, event 
 
 Website target is Vercel Preview on the existing mhacks-live-map project. The compatible chat module targets the existing Maincloud mhacks-live-map database with --delete-data=never; Preview therefore shares its existing backend, rather than receiving an isolated database. No table schema or matching algorithm changes.
 
-Live deployment results are recorded below after publication.
+- Implementation commit: `13641625c3c46de529594df78496710189ef6912`; pushed branch SHA verified equal to local HEAD before deployment.
+- Preview: https://mhacks-live-po8jiu6dc-terryzhu2024-8185.vercel.app
+- Vercel deployment `dpl_C7pT7fKbHK6AdFvKbXcsFsyFhKBW`: READY, Preview target; no production alias assigned.
+- Existing production `mutuals.tech` still points to READY deployment `dpl_CFLWpVNtdpF64HtjeFBL8ZDJfkmD` from 09:45 EDT.
+- Maincloud publication succeeded, with an empty database migration plan and --delete-data=never.
+- Real cloud probe: ASI true; embedding dimension 1024; Pinecone write/fetch/query true; probe cleanup verified.
+- Live Preview browser: homepage Live sync, actual three invitations, signed-out People privacy guidance and event navigation verified. The selected MHacks event renders the real information/area and People columns. Authenticated profile/star/agent behavior was exercised with synthetic automated fixtures and the actual isolated SDK test; this browser session was signed out.
+- Public signed-out homepage screenshot saved outside Git in the task visualization folder. No private profile screenshots or deployment credentials were committed.
