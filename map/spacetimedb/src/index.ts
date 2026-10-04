@@ -1,8 +1,8 @@
 import { schema, table, t, SenderError } from 'spacetimedb/server';
 import type { InferSchema, ReducerCtx } from 'spacetimedb/server';
 
-// Replace these with the issuer and JWT audience configured in the Clerk dashboard.
-const CLERK_ISSUER = 'https://your-clerk-instance.clerk.accounts.dev';
+// Issuer and audience from the MHacks Clerk SpacetimeDB JWT template.
+const CLERK_ISSUER = 'https://novel-griffon-9073.clerk.accounts.dev';
 const CLERK_AUDIENCE = 'mhacks-live-map';
 
 const ZONES = [
