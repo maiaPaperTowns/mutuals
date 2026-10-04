@@ -66,7 +66,12 @@ class Display(unittest.TestCase):
             if m.state in (S.MATCH_FOUND, S.WAITING, S.SEARCHING, S.IDLE):
                 self.assertNotIn("Terry", device_text(m))
                 self.assertNotIn("Zone B", device_text(m))
-        self.assertIn("TERRY", device_text(m))  # FOUND
+        self.assertEqual(device_text(m), "TERRY!")  # FOUND
+
+    def test_board_text_fits(self):
+        from photon_fw.display import BOARD_MAX
+        for m in self.machines():
+            self.assertLessEqual(len(device_text(m)), BOARD_MAX, device_text(m))
 
     def test_fwi_roundtrip(self):
         m = Machine(0); m.tick(2)

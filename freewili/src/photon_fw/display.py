@@ -138,17 +138,23 @@ def render_state(m: Machine, now: float = 0.0) -> Image.Image:
     return im
 
 
+BOARD_MAX = 8  # the OG's show_text uses a huge font: about 8 characters fit on one line
+
+
 def device_text(m: Machine) -> str:
-    """The plain-text version for the FREE-WILi screen (show_text)."""
-    title, sub = caption(m)
-    lines = [title.upper(), ""] + textwrap.wrap(sub, 26)
-    if m.state == S.MATCH_FOUND:
-        lines += ["", "GREEN = yes", "RED = no"]
-    elif m.state == S.NAVIGATING:
-        lines += ["", "warmth " + "#" * m.ctx.proximity + "-" * (3 - m.ctx.proximity)]
-    elif m.state == S.IDLE and m.ctx.page == 0:
-        lines += ["", "hold GREEN: open/closed"]
-    return "\n".join(lines)
+    """One short word for the FREE-WILi screen (show_text). The full UI is the pixel mirror."""
+    name = m.visible_person().get("firstName", "").upper()
+    fit = lambda w, fallback: w if 0 < len(w) <= BOARD_MAX else fallback  # noqa: E731
+    if m.state == S.IDLE:
+        return ["READY?", "OPEN" if m.ctx.open else "CLOSED", "PHOTON"][m.ctx.page]
+    if m.state == S.NAVIGATING:
+        return fit(name, "GO!") if m.ctx.proximity < 2 else "CLOSE!"
+    if m.state == S.FOUND:
+        return fit(f"{name}!", "FOUND!")
+    return {
+        S.BOOT: "PHOTON", S.SEARCHING: "LOOKING", S.MATCH_FOUND: "MATCH!", S.WAITING: "WAITING",
+        S.DOUBLE_YES: "YES YES!", S.OFFLINE: "OFFLINE", S.ERROR: "NO LINK",
+    }[m.state]
 
 
 # -- drawing helpers ----------------------------------------------------------------------------
@@ -237,3 +243,28 @@ class Mirror:
         tmp = self.folder / "screen.tmp.png"
         im.save(tmp)
         tmp.replace(self.folder / "screen.png")
+
+
+def compose(sprite_name: str, title: str, sub: str = "", hints_: list | None = None, bob: int = 0,
+            heart: bool = False) -> Image.Image:
+    """A free-form screen in the same style (used for the on-badge game's frames)."""
+    im = Image.new("RGB", (W, H), CREAM)
+    d = ImageDraw.Draw(im)
+    for y in range(H):
+        t = y / (H - 1)
+        d.line([(0, y), (W, y)], fill=tuple(round(MINT[i] * (1 - t) + LAVENDER[i] * t) for i in range(3)))
+    x = 8
+    for ch, col in WORD:  # small wordmark
+        d.text((x, 4), ch, font=font(16), fill=col)
+        x += d.textlength(ch, font=font(16))
+    sp = sprite(sprite_name, 112)
+    im.paste(sp, ((W - sp.width) // 2, 30 + bob), sp)
+    _center(d, 160, title, 22, NAVY, heart=heart)
+    for i, line in enumerate(textwrap.wrap(sub, 36)[:2]):
+        _center(d, 190 + i * 16, line, 13, MUTED)
+    x = 8
+    for col, label in hints_ or []:
+        d.ellipse([x, H - 16, x + 10, H - 6], fill=col, outline=NAVY)
+        d.text((x + 14, H - 18), label, font=font(11), fill=NAVY)
+        x += 20 + d.textlength(label, font=font(11)) + 8
+    return im

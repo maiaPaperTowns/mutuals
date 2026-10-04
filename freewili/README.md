@@ -20,6 +20,15 @@ open mirror/index.html                          # live pixel UI next to the badg
 `0 s IDLE → 2 s SEARCHING → 5 s MATCH FOUND → (GREEN) WAITING → DOUBLE YES → NAVIGATING (getting warmer… they're
 close!) → YOU FOUND TERRY! Zone B`. Without hardware: `python3 mock/demo_sequence.py --mock` and type `a` for YES.
 
+**Photon Pup mini-game** (a networking Tamagotchi):
+
+```bash
+.venv/bin/python pet_game.py        # badge: animated face + LED meters + voice; laptop: pixel pup (mirror/index.html)
+```
+
+Catch match prompts with GREEN for a double yes (+1 social, score spoken), YELLOW = coffee, BLUE = nap,
+GRAY = quit. Social fades when you miss matches; LEDs show social (pink) and energy (green).
+
 **With the real backend** (the Photon bridge in `photon/` running on this laptop):
 
 ```bash
@@ -130,10 +139,22 @@ signal from anyone else is ignored), and RSSI is smoothed into FAR / NEAR / FOUN
 place to swap in better ranging later. Thresholds (`FOUND_DBM = -45`, `NEAR_DBM = -70`) need a quick calibration
 with two badges; one badge alone can't hear itself.
 
+### What we tried for pixel art on the badge screen
+
+- `gui.show_fwi_image`: firmware answers *"file-backed images are not supported on FreeWili OG"*.
+- Panels / picture / shape / text controls and message boxes: *Failed* on OG v024.
+- A WASM app on the badge (built on a Mac with the clang + wasm-ld bundled in the FREE-WILi GUI): OG v024 apps
+  use the single `ow_call` import (OneWili), not the old drawing imports Wili Pass used, so the same image limits apply.
+- Built-in images (`gui.show_image_asset_by_id`, ids 0–39) do display, but they're FREE-WILi's own assets.
+
+So on the OG the badge shows text, LEDs and voice; the pixel UI lives on the laptop mirror. Our `.fwi` encoder is
+ready for a firmware or board (FREE-WILi 2) that can display files.
+
 ## Status
 
+- ✅ Photon Pup mini-game (badge face + LED meters + voice, pixel mirror; tests).
 - ✅ State machine, event contract, privacy rules, buttons (short/long, stuck-button guard), LEDs, speech, pixel UI +
-  mirror, .fwi export, bridge + mock transports, mock server, one-command demo: built and tested (26 tests).
+  mirror, .fwi export, bridge + mock transports, mock server, one-command demo: built and tested (34 tests).
 - ✅ On hardware: text, LEDs, speech, buttons, IR, radio calls.
 - ⏳ Radio proximity between **two** badges: implemented, calibration pending a second kit (the demo simulates it).
 - ⏳ Pixel UI on the badge screen itself: blocked by the OG not displaying images over USB (see above).
