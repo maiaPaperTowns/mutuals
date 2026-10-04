@@ -150,6 +150,9 @@ for (const r of await store.open()) {
 
 // FREE-WILi badges: badge id (its serial, or a name) → the person wearing it.
 const badges = new Map<string, string>();
+// When someone last asked Photon to find someone (their badge shows "looking..." for a minute).
+const searchingSince = new Map<string, number>();
+const SEARCH_SHOWN_MS = 60_000;
 
 /** One record per person who has given us anything. */
 function userRecords(): store.UserRecord[] {
@@ -286,6 +289,15 @@ async function handle(space: Space, id: string, text: string) {
     awaitingAvatar.add(id);
     return void (await space.send("Send it over! 📸"));
   }
+  // "my name is Maia Le" / "call me Maia": fixes the name on your card if the resume reader got it wrong.
+  const named = text.match(/^\s*(?:my name is|my name's|call me|i'm called)\s+([\p{L}][\p{L}'. ()-]{0,40})\s*[.!]?\s*$/iu);
+  if (named) {
+    const name = named[1]!.trim();
+    people.set(id, { ...(people.get(id) ?? { id, name }), name });
+    const prof = profiles.get(id);
+    if (prof) prof.name = name;
+    return void (await space.send(`Got it, ${name.split(" ")[0]}! ✏️ Your card is updated.`));
+  }
   const handles = parseHandles(text);
   if (handles) {
     const p = people.get(id) ?? { id, name: profiles.get(id)?.name ?? "" };
@@ -313,6 +325,7 @@ async function handle(space: Space, id: string, text: string) {
       p ? `${formatProfile(p)}\nDELETE ME erases it.` : "Nothing yet! Send your resume 📄",
     ));
   }
+  searchingSince.set(id, Date.now()); // the agent is working on their request
   await space.responding(async () => {
     const res = await askAgent({ userId: id, text });
     if (res.reply) await space.send(res.reply);
@@ -425,17 +438,37 @@ async function badgeRoute(req: http.IncomingMessage, res: http.ServerResponse) {
     return json(200, { ok: true, id, name: people.get(id)?.name ?? "" });
   }
 
-  const m = path.match(/^\/badge\/([\w.-]+)\/(state|answer|rate|ir)$/);
+  const m = path.match(/^\/badge\/([\w.-]+)\/(state|answer|rate|ir|presence|found)$/);
   const personId = m ? badges.get(m[1]!) : undefined;
   if (!m || !personId) return json(404, { ok: false, error: "unknown badge; register first" });
   const action = m[2];
 
   if (req.method === "GET" && action === "state") {
-    return json(200, badgeState(personId, intros.phaseFor(personId), intros.stats()));
+    const p = intros.phaseFor(personId);
+    const st = badgeState(personId, p, intros.stats(), intros.statsFor(personId));
+    // Badge-only phases: not discoverable (paused), or Photon is looking for someone for them.
+    if (intros.isPaused(personId)) return json(200, { ...st, phase: "offline" });
+    const since = searchingSince.get(personId);
+    if (p.phase === "idle" && since && Date.now() - since < SEARCH_SHOWN_MS) return json(200, { ...st, phase: "searching" });
+    return json(200, st);
   }
   const body = await readJson(req);
   const { phase, match } = intros.phaseFor(personId);
+  if (action === "presence") {
+    // "open to meet" toggled on the badge (same as texting STOP / START)
+    if (body.open) intros.resume(personId);
+    else await intros.pause(personId);
+    return json(200, { ok: true, open: Boolean(body.open) });
+  }
+  if (action === "found" && phase === "matched" && match && (!body.matchId || body.matchId === match.id)) {
+    // Radio proximity: the two badges heard each other's ephemeral match token.
+    const ok = await intros.markMet(match.id);
+    if (ok) console.log(`[badge] met in person (radio): ${match.id}`);
+    return json(200, { ok });
+  }
   if (action === "answer" && phase === "offer" && match) {
+    if (body.matchId && body.matchId !== match.id) return json(409, { ok: false, error: "different intro" });
+    searchingSince.delete(personId);
     return json(200, { ok: await intros.answerMatch(match.id, personId, Boolean(body.yes)) });
   }
   if (action === "rate") return json(200, { ok: await intros.rate(personId, Boolean(body.worthIt)) });

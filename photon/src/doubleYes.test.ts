@@ -148,4 +148,9 @@ test("badge phases: offer → waiting → matched → met (asks worth-it once) �
   await tick(); // the timed follow-up must not ask again
   assert.equal(texts().filter((t) => t.to === "alice" && t.text.includes("worth it")).length, 1);
   assert.equal(dy.stats().met, 1);
+  const me = dy.statsFor("alice");
+  assert.equal(me.met, 1);
+  assert.equal(me.worthIt, 1);
+  assert.ok(me.lastMetAt && me.lastMetAt <= Date.now());
+  assert.equal(dy.statsFor("carol").met, 0);
 });

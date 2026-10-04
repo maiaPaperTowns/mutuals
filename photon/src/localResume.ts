@@ -115,7 +115,7 @@ const isDates = (t: string) => {
 const LOCATION = /^(remote|hybrid|[A-Z][a-zA-Z .'-]+(,\s*([A-Z]{2}|[A-Z][a-zA-Z .'-]+)){1,2})$/;
 const ROLE = /\b(intern(ship)?|engineer(ing)?|developer|researcher|research assistant|assistant|analyst|designer|scientist|manager|lead|founder|co-?founder|president|director|officer|chair|ta\b|teaching assistant|tutor|consultant|fellow|member|organizer|mentor|associate|coordinator|head of|vp\b|swe\b)/i;
 const SCHOOL = /\b(university|college|institute|school|academy|polytechnic)\b/i;
-const DEGREE = /\b(b\.?s\.?e?|b\.?a\.?|m\.?s\.?|m\.?eng|ph\.?d|bachelor|master|associate|major|minor|diploma|candidate)\b/i;
+const DEGREE = /\b([b3]\.?s\.?e?|[b3]\.?a\.?|m\.?s\.?|m\.?eng|ph\.?d|bachelor|master|associate|major|minor|diploma|candidate)\b/i;
 const BULLET = /^[•·▪●◦*\-–]\s*/;
 
 type Row = { text: string; dates: string; location: string };
@@ -234,7 +234,11 @@ function guessName(lines: string[]): string {
   for (const l of lines.slice(0, 5)) {
     const t = l.split("\t")[0].trim();
     const words = t.split(/\s+/);
-    if (words.length >= 2 && words.length <= 4 && words.every((w) => /^[A-Z][a-zA-Z'.-]*$/.test(w)) && !sectionOf(t)) {
+    // Not a school, degree, place or heading ("DePauw University" is not a name).
+    if (SCHOOL.test(t) || DEGREE.test(t) || LOCATION.test(t) || sectionOf(t)) continue;
+    // Letters in any language ("Lê", "Nguyễn"), a nickname in parentheses ("Maia (Huong) Le").
+    const nameWord = /^(\p{Lu}[\p{L}'.-]*|\(\p{Lu}[\p{L}'.-]*\))$/u;
+    if (words.length >= 2 && words.length <= 4 && words.every((w) => nameWord.test(w))) {
       // "MAIA LE" → "Maia Le"
       return t === t.toUpperCase() ? t.toLowerCase().replace(/(^|[\s'-])\w/g, (c) => c.toUpperCase()) : t;
     }
@@ -251,8 +255,9 @@ function headlineFrom(p: Omit<Profile, "headline" | "can_help_with">): string {
       .replace(/[,;|]?\s*(minor|concentration|gpa)\b.*$/i, "") // drop minor/GPA
       .replace(/^.*?\b(?:BSE?|BA|BEng|MS|MEng|MBA|PhD)\s*,\s*/, "") // LinkedIn: "Bachelor of Science - BS, X" → "X"
       .replace(/^.*\b(?:in|of)\s+(?=[A-Z])/, "") // "Bachelor of Science in X" → "X" (last in/of)
-      .replace(/^(?:b\.?s\.?e?\.?|b\.?a\.?|m\.?s\.?|m\.?eng\.?|ph\.?d\.?)\s+/i, "") // "B.S.E. X" → "X"
-      .replace(/[,.;:]\s*$/, "")
+      .replace(/^(?:[b3]\.?s\.?e?\.?|[b3]\.?a\.?|m\.?s\.?|m\.?eng\.?|ph\.?d\.?)\s+/i, "") // "B.S.E. X" → "X" (OCR reads B as 3)
+      .replace(/\s*[•·|]\s*/g, " & ") // double major: "CS • Communication" → "CS & Communication"
+      .replace(/[,.;:&\s]+$/, "")
       .trim();
     const year = edu.dates.match(/(?:19|20)(\d{2})(?!.*\d{4})/)?.[1];
     const school = edu.school.replace(/^the\s+/i, "");

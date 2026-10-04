@@ -27,6 +27,7 @@ export type Match = {
   ratings: { a?: boolean; b?: boolean };
   status: MatchStatus;
   met?: boolean; // confirmed in person (FREE-WILi IR high-five)
+  metAt?: number;
   worthAsked?: boolean; // the one "worth it?" follow-up was sent
   createdAt: number;
 };
@@ -134,6 +135,7 @@ export class DoubleYes {
     const m = this.matches.get(matchId);
     if (!m || m.status !== "accepted" || m.met) return false;
     m.met = true;
+    m.metAt = Date.now();
     this.changed(m);
     await this.askWorthIt(m);
     return true;
@@ -263,6 +265,21 @@ export class DoubleYes {
       if (m.a.id === personId || m.b.id === personId) this.matches.delete(id);
     }
     this.paused.delete(personId); // nothing about them is left, not even the paused flag
+  }
+
+  /** One person's own record, for their Mutual pup (FREE-WILi Tamagotchi). */
+  statsFor(personId: string) {
+    const mine = [...this.matches.values()].filter((m) => m.a.id === personId || m.b.id === personId);
+    const myRating = (m: Match) => m.ratings[m.a.id === personId ? "a" : "b"];
+    const lastMetAt = Math.max(0, ...mine.map((m) => m.metAt ?? 0));
+    return {
+      intros: mine.length,
+      doubleYes: mine.filter((m) => m.status === "accepted").length,
+      met: mine.filter((m) => m.met).length,
+      worthIt: mine.filter((m) => myRating(m) === true).length,
+      notWorthIt: mine.filter((m) => myRating(m) === false).length,
+      lastMetAt: lastMetAt || undefined,
+    };
   }
 
   /** Real counts only, for the scoreboard. */

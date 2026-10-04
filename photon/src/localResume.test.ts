@@ -56,3 +56,10 @@ test("LinkedIn 'Save to PDF' export (sidebar read after the main column)", () =>
   for (const s of ["Figma", "React Native", "User Research"]) assert.ok(p.skills.includes(s), s); // "Top Skills"
   assert.ok(p.links.some((l) => l.includes("linkedin.com/in/example")));
 });
+
+test("school line is never the name; accents, nicknames, OCR 'B.A.' → '3.A.', double majors", () => {
+  const p = profileFromText("DePauw University\tGreencastle, IN\nMaia Lê\nEDUCATION\nDePauw University\n3.A. Computer Science • Communication.\tMay 2028");
+  assert.equal(p.name, "Maia Lê");
+  assert.equal(p.headline, "Computer Science & Communication @ DePauw University ’28");
+  assert.equal(profileFromText("Maia (Huong) Le\nEDUCATION\nDePauw University").name, "Maia (Huong) Le");
+});

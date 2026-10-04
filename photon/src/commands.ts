@@ -24,5 +24,6 @@ export const REPLIES: Record<Command, string> = {
     "📄 read your resume or LinkedIn PDF\n" +
     "🔍 find people: \"who knows React?\"\n" +
     "📍 \"I'm in the lounge\" · \"map\" · \"profile\"\n" +
+    "✏️ \"my name is …\" · \"my instagram is @…\"\n" +
     "⏸ STOP · 🗑 DELETE ME",
 };

@@ -34,15 +34,18 @@ export type BadgeState = {
   color?: { name: string; rgb: [number, number, number] };
   myIrCode?: number;
   stats: { offered: number; accepted: number; met: number; ratings: number; worthIt: number };
+  // The wearer's own record: drives their pup (level from meetings, hearts from "worth it").
+  me?: { intros: number; doubleYes: number; met: number; worthIt: number; notWorthIt: number; lastMetAt?: number };
 };
 
 export function badgeState(
   personId: string,
   p: { phase: BadgeState["phase"]; match?: Match },
   stats: BadgeState["stats"],
+  me?: BadgeState["me"],
 ): BadgeState {
   const m = p.match;
-  if (!m) return { phase: p.phase, stats };
+  if (!m) return { phase: p.phase, stats, me };
   const mine = m.a.id === personId ? "a" : "b";
   const other = mine === "a" ? m.b : m.a;
   const revealed = m.status === "accepted";
@@ -55,5 +58,6 @@ export function badgeState(
     color: revealed ? pairColor(m.id) : undefined,
     myIrCode: revealed ? irCode(m.id, personId) : undefined,
     stats,
+    me,
   };
 }
