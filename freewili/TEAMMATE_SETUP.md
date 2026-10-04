@@ -7,31 +7,50 @@ links 404).
 **On Windows:** everything works the same. You don't need Node, git or any drivers: the website is a link, and
 Windows 10/11 recognises the badge's USB ports by itself.
 
-## 1. Install the FREE-WILi GUI (once)
+## 1. Get a flashing app (once)
 
-Get **FreeWili GUI** from the FREE-WILi website or the MHacks kit instructions (it's the same app Maia uses; she can
-AirDrop it too). Unzip it and open it. On Windows, if SmartScreen warns about it: **More info** → **Run anyway**. On a Mac, if it says it can't be
-opened: right-click it → **Open** → **Open**.
+**Windows (easiest): FreeWili OG App Explorer.** This is FREE-WILi's official one-file app for loading apps onto
+the OG badge.
+
+1. Download **FwOGExplorerV2.zip**:
+   <https://github.com/freewili/fwOGAppExplorer/releases/download/v2.0.0/FwOGExplorerV2.zip>
+2. Unzip it and run **fwOGExp.exe**. There's nothing to install. If SmartScreen warns: **More info** → **Run anyway**.
+
+**Or the full FreeWili GUI** (what Maia uses):
+
+- Windows: <https://github.com/freewili/freewili-gui/releases/download/v0.4.0/fwcom-0.4.0.zip>
+- Mac (Apple Silicon, macOS 26+): <https://github.com/freewili/freewili-gui/releases/tag/v0.4.2>
+- All versions: <https://github.com/freewili/freewili-gui/releases>
 
 ## 2. Put the mutuals app on your badge
 
 1. Download **mutuals.uf2** from
    <https://github.com/maiaPaperTowns/mhacks-2026/releases/tag/mutuals-badge-v1>.
-2. Put it in the GUI's **catalog** folder:
-   - **Windows:** open the GUI → **Setup** → **FreeWili OG updater** → **Apps** tab and click the **folder button**
-     (📁, next to *Online Update*). It opens the catalog folder. Copy `mutuals.uf2` from your Downloads into it,
-     then close and reopen the updater so it shows up. If the folder button doesn't open it, look for a folder
-     named `catalog` next to the FreeWili GUI program (where you unzipped or installed it).
-   - **Mac:** in Finder, right-click **FreeWili GUI.app** → **Show Package Contents** → open `Contents` → `MacOS` →
-     `catalog`, and drop `mutuals.uf2` in there.
-3. Plug the badge into the laptop with USB-C and switch it on.
-4. In the GUI: **Setup** → **FreeWili OG updater** → wait until **Device** shows your FREE-WILi → **Apps** tab.
-5. Click **mutuals** in the list (it may say *[Unlisted]*, that's fine). **Scroll down in the right-hand panel**
-   and click **Flash**. Don't drag the file onto the GUI.
-6. When it finishes, wait **about 30 seconds**: the badge updates its screen by itself. You'll see the pastel
-   **mutuals** logo and a puppy, and hear a little yip.
+2. Plug the badge into the laptop with USB-C and switch it on.
 
-If the GUI shows two "RPI-RP2" drives or the badge seems stuck: unplug it, wait 3 s, plug it back in, and retry.
+**With the App Explorer (Windows):**
+
+3. Copy `mutuals.uf2` into the **`catalog`** folder next to `fwOGExp.exe` (from the zip), then start (or restart)
+   `fwOGExp.exe`. **mutuals** appears in the **App Explorer** tab.
+4. Select **mutuals** → **Flash**. The app finds the board and writes to the right chip by itself.
+5. If the screen stays dark after flashing, the board is missing FREE-WILi's OG display bootloader. Fix it once: go to
+   the **OG Bootloader Installer** tab → **Install FreeWili OG Bootloader**, then flash **mutuals** again.
+
+**With the FreeWili GUI:**
+
+3. Put `mutuals.uf2` in the GUI's **catalog** folder:
+   - **Windows:** **Setup** → **FreeWili OG updater** → **Apps** tab → click the **folder button** (📁, next to
+     *Online Update*). It opens the catalog folder. Copy the file in, then close and reopen the updater.
+   - **Mac:** right-click **FreeWili GUI.app** → **Show Package Contents** → `Contents` → `MacOS` → `catalog`.
+4. **Setup** → **FreeWili OG updater** → wait until **Device** shows your FREE-WILi → **Apps** tab.
+5. Click **mutuals** (it may say *[Unlisted]*, that's fine). **Scroll down in the right-hand panel** and click
+   **Flash**. Don't drag the file onto the GUI.
+
+Either way: when it finishes, wait **about 30 seconds**: the badge updates its screen by itself. You'll see the
+**mutuals** logo and a puppy, and hear a little yip.
+
+If the badge seems stuck, or the computer shows two "RPI-RP2" drives: unplug it, wait 3 s, plug it back in, and
+retry.
 
 ## 3. Open the mutuals map
 
@@ -72,7 +91,7 @@ Open **http://localhost:5173** in **Chrome**. The top right should say **Live sy
 
 ## 5. Connect your badge
 
-1. Close the FREE-WILi GUI first: only one app can use the badge at a time.
+1. Close the App Explorer / FREE-WILi GUI first: only one app can use the badge at a time.
 2. In the white card on the left, find the 🐶 **mutuals FREE-WILi badge** box and click **Connect**.
 3. Chrome lists **FWOG display photon 001** (on Windows it may add a port like *COM5*). Select it, then click
    **Connect**. If you see two FWOG entries, pick the one that says **display**.
