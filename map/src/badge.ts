@@ -6,9 +6,11 @@
 //                 s = H not discoverable · A sharing, nobody near · N someone near · C right here
 //                 "N <my name>"   the first name this badge broadcasts to nearby badges (radio) while discoverable
 //                 "T C" | "T F"   style: cute (clubs, mixers) or formal (recruiting events)
+//                 "C a,b,c"       your connections' names, newest first (badge: MENU → NEXT)
 //   badge → map:  "B yellow" | "B green" | "B blue" | "B red"   (MENU opens stats on the badge itself)
 //                 "P <points> <caught> <met>"  points the badge earned itself: practice, radio finds (higher wins)
 //                 "R <count> <rssi> <name>"    other mutuals badges its radio hears right now (no GPS needed)
+//                 "F <id> <name>"              its radio just found someone new (added to your connections)
 // The badge falls back to its mini-game when the lines stop (5 s), so closing the tab is always safe.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
@@ -73,8 +75,9 @@ export function badgeLine(status: BadgeStatus, score: BadgeScore): string {
 }
 
 /** Connect / disconnect the badge, send it a status every second, hear its buttons and its practice points. */
-export function useBadge(status: BadgeStatus, score: BadgeScore, myName: string, formal: boolean, onButton: (button: BadgeButton) => void,
-  onPoints: (points: number, caught: number, met: number) => void) {
+export function useBadge(status: BadgeStatus, score: BadgeScore, myName: string, formal: boolean, connectionNames: string[],
+  onButton: (button: BadgeButton) => void, onPoints: (points: number, caught: number, met: number) => void,
+  onFound: (badgeId: string, name: string) => void) {
   const [radio, setRadio] = useState<RadioPeer | null>(null);
   const [lastButton, setLastButton] = useState<{ button: BadgeButton; at: number } | null>(null);
   const [connected, setConnected] = useState(false);
@@ -85,8 +88,11 @@ export function useBadge(status: BadgeStatus, score: BadgeScore, myName: string,
   const lineRef = useRef('');
   const buttonRef = useRef(onButton);
   const pointsRef = useRef(onPoints);
+  const foundRef = useRef(onFound);
+  foundRef.current = onFound;
   const firstName = badgeText(myName.split(/\s+/)[0] ?? '').slice(0, 12);
-  const line = badgeLine(status, score) + `N ${firstName}\nT ${formal ? 'F' : 'C'}\n`;
+  const names = connectionNames.map(n => badgeText(n.split(/\s+/)[0] ?? '').replace(/,/g, '').slice(0, 12)).filter(Boolean).slice(0, 8);
+  const line = badgeLine(status, score) + `N ${firstName}\nT ${formal ? 'F' : 'C'}\nC ${names.join(',')}\n`;
   lineRef.current = line;
   buttonRef.current = onButton;
   pointsRef.current = onPoints;
@@ -145,6 +151,8 @@ export function useBadge(status: BadgeStatus, score: BadgeScore, myName: string,
               }
               const pts = /^P (\d+) (\d+)(?: (\d+))?$/.exec(line);
               if (pts) pointsRef.current(Number(pts[1]), Number(pts[2]), Number(pts[3] ?? 0));
+              const found = /^F ([0-9a-f]{8}) ?(.*)$/.exec(line);
+              if (found) foundRef.current(found[1]!, found[2] ?? '');
               const heard = /^R (\d+) (-?\d+) ?(.*)$/.exec(line);
               if (heard) setRadio({ count: Number(heard[1]), rssi: Number(heard[2]), name: heard[3] ?? '', at: Date.now() });
             }

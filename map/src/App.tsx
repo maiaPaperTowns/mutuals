@@ -5,7 +5,7 @@ import L from 'leaflet';
 import { reducers, tables } from './module_bindings';
 import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { badgeStatus, badgeSupported, useBadge, type BadgeStatus } from './badge';
-import { LEVEL_AT, LEVEL_NAME, TIER_NAME, usePoints, type Gain } from './points';
+import { LEVEL_AT, LEVEL_NAME, TIER_NAME, usePoints, type Connection, type Gain } from './points';
 
 const DUDERSTADT: [number, number] = [42.2912, -83.7157];
 type LocationPin = { participantId: string; latitude: number; longitude: number; accuracyMeters: number };
@@ -249,11 +249,12 @@ function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, s
   }, [nearbyKey, status.closestId, award]);
   const { style } = useContext(StyleContext);
   const formal = style === 'formal';
-  const badge = useBadge(status, { points: score.points, met: score.met }, nameOf(myId) ?? '', formal, button => {
+  const badge = useBadge(status, { points: score.points, met: score.met }, nameOf(myId) ?? '', formal,
+    score.connections.map(c => c.name), button => {
     if (busy) return;
     if (button === 'green' && !sharing) onToggle();
     if (button === 'red' && sharing) onToggle();
-  }, score.adopt);
+  }, score.adopt, score.addRadioConnection);
   return <main className={`map-app style-${style}`}>
     <MapContainer center={DUDERSTADT} zoom={17} zoomControl={false} scrollWheelZoom className="leaflet-map">
       <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -276,6 +277,7 @@ function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, s
       <h1>Find people nearby.</h1>
       <p className="subhead">Only anonymous live locations appear here. Names and profiles stay private.</p>
       <PointsCard {...score} formal={formal} />
+      <ConnectionsList connections={score.connections} formal={formal} />
       <div className="count-line"><span className="count-number">{loaded ? pins.length : '—'}</span><span>people sharing location</span><i className="count-live" /></div>
       <button className={`share-button${sharing ? ' sharing' : ''}`} type="button" role={signedIn || preview ? 'switch' : undefined} aria-checked={signedIn || preview ? sharing : undefined} disabled={busy || (!connected && !preview)} onClick={onToggle}>
         <span className="switch-dot" />{busy ? 'Updating…' : sharing ? 'Stop sharing my location' : preview ? 'Preview my location' : signedIn ? 'Share my live location' : 'Sign in to share your location'}
@@ -314,6 +316,31 @@ function gainText(gain: Gain, formal: boolean): string {
   if (gain.kind === 'badge') return formal ? 'synced from your badge' : 'from your badge';
   if (gain.kind === 'found') return formal ? `Connection made: ${gain.who}` : `you found ${gain.who}!`;
   return formal ? `Contact nearby: ${gain.who}` : `${gain.who} is nearby`;
+}
+
+function ago(at: number): string {
+  const min = Math.round((Date.now() - at) / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min} min ago`;
+  const h = Math.round(min / 60);
+  return h < 24 ? `${h} h ago` : `${Math.round(h / 24)} d ago`;
+}
+
+function ConnectionsList({ connections, formal }: { connections: Connection[]; formal: boolean }) {
+  const [open, setOpen] = useState(false);
+  if (!connections.length) return <p className="connections-empty">{formal ? 'Connections you make appear here.' : 'People you find show up here 🐾'}</p>;
+  const shown = open ? connections : connections.slice(0, 3);
+  return <div className="connections">
+    <div className="connections-head"><b>{formal ? 'Connections' : 'Your mutuals'}</b><span>{connections.length}</span></div>
+    <ul>
+      {shown.map(c => <li key={c.id}>
+        <span className="connection-avatar" aria-hidden="true">{c.name.slice(0, 1).toUpperCase()}</span>
+        <span className="connection-name">{c.name}</span>
+        <small>{c.via === 'radio' ? (formal ? 'in person (radio)' : '📡 badge') : (formal ? 'via map' : '📍 map')} · {ago(c.at)}</small>
+      </li>)}
+    </ul>
+    {connections.length > 3 && <button type="button" className="connections-more" onClick={() => setOpen(!open)}>{open ? 'Show less' : `Show all ${connections.length}`}</button>}
+  </div>;
 }
 
 function StyleToggle() {

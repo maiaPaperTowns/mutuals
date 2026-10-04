@@ -17,18 +17,21 @@ or localhost. The badge runs the app in [`freewili/native`](../freewili/README.m
     N someone within 150 m, C someone within 25 m.
   - `N <first name>`: what the badge broadcasts on radio while you're sharing.
   - `T C|F`: the style.
+  - `C a,b,c`: your connections' first names, newest first (the badge's MENU → NEXT page).
 - The badge sends back:
   - its buttons: `B green` (YES) turns sharing on, `B red` (NO) turns it off;
   - its own points: `P <points> <caught> <met>` (practice and radio finds; the higher total wins);
-  - other badges its radio hears: `R <count> <rssi> <name>`.
+  - other badges its radio hears: `R <count> <rssi> <name>`;
+  - people its radio found: `F <id> <name>` (added to your connections list).
 - The badge box shows the badge's state, the last button press and what the website did with it, what the radio
   hears, and when you need to sign in first.
 
 ### Points and levels (`src/points.ts`)
 
 +10 the first time someone new is near you on the map, +50 the first time you're within 25 m of them; practice and
-radio points come from the badge. Levels at 50 / 100 / 200 / 400 pts (Lv 1–5, or Tier 1–5 in Formal). Points are
-kept in the browser (`localStorage`), per device.
+radio points come from the badge. Levels at 50 / 100 / 200 / 400 pts (Lv 1–5, or Tier 1–5 in Formal). Points and the
+**connections list** (who you found, via the map or the badge's radio, and when) are kept in the browser
+(`localStorage`), per device.
 
 ### Cute / Formal
 

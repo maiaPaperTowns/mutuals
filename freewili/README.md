@@ -36,7 +36,7 @@ OG firmware can't show images over USB, so this is a real display-CPU app built 
 | **MENU** (gray) | stats: people met, matches, points, level, radio | same |
 | **BACK** (yellow) | close stats | close stats |
 | **YES** (green) | turn location sharing on | catch a match / say hi |
-| **NEXT** (blue) | – | call the next practice match |
+| **NEXT** (blue) | on stats: flip to your connections (names) | on stats: connections; otherwise the next practice match |
 | **NO** (red) | turn sharing off (radio goes silent) | skip a match. Holding it 6 s powers the badge off |
 
 **Code** (`native/`):

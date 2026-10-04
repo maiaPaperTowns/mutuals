@@ -239,6 +239,14 @@ static void draw_info(const char *title, const char *detail) {  /* rows 124..201
 
 static void draw_stats(void);  /* below: it shows the radio too */
 
+/* Names of the people you've connected with. The website keeps the full list (map + radio) and sends it as
+ * "C a,b,c"; without the website the badge shows the people its radio found. */
+#define MAX_CONN 8
+static char radio_conn[MAX_CONN][MUTUALS_NAME_MAX + 1];
+static unsigned n_radio_conn;
+static char web_conn[MAX_CONN * (MUTUALS_NAME_MAX + 1) + 1];
+static bool stats_page_conn;  /* MENU screen: false = stats, true = connections */
+
 /* Who this badge is on the radio: discoverable follows the map (not discoverable = radio silent). */
 static bool link_ok, discoverable = true, me_dirty = true;
 static char my_name[MUTUALS_NAME_MAX + 1];
@@ -248,8 +256,10 @@ static char my_name[MUTUALS_NAME_MAX + 1];
  *   s = H not discoverable · A sharing, nobody near · N someone near · C someone right here
  *                   "N <my name>"  (the name this badge broadcasts to nearby badges while discoverable)
  *                   "T C" / "T F"  (style: cute / formal)
+ *                   "C name1,name2,..."  (your connections, newest first, for the MENU → NEXT page)
  * badge → website:  "B gray|yellow|green|blue|red", "P <points> <caught> <met>" when the badge earns points
  *                   (practice, radio finds), "R <count> <rssi> <name>" while other badges are heard,
+ *                   "F <id> <name>" when the radio finds someone new (so the website adds them to your connections),
  *                   "HI mutuals-badge 3" when asked with "?". */
 static struct { bool on; char state; int nearby, meters, gained; char name[28]; uint32_t last; } map;
 static char rx[112];
@@ -259,7 +269,12 @@ static void report_points(void) { printf("P %d %d %d\n", points, caught, met); }
 
 static void map_parse(const char *s, uint32_t now) {
     if (s[0] == '?') { printf("HI mutuals-badge 3\n"); report_points(); return; }
-    if (s[0] == 'T' && s[1] == ' ') { formal = s[2] == 'F'; return; }  /* style: "T C" cute, "T F" formal */
+    if (s[0] == 'T' && s[1] == ' ') { formal = s[2] == 'F'; return; }
+    if (s[0] == 'C' && (s[1] == ' ' || s[1] == 0)) {  /* "C name1,name2,...": your connections, newest first */
+        strncpy(web_conn, s[1] ? s + 2 : "", sizeof web_conn - 1);
+        web_conn[sizeof web_conn - 1] = 0;
+        return;
+    }  /* style: "T C" cute, "T F" formal */
     if (s[0] == 'N' && s[1] == ' ') {  /* "N <my name>": broadcast it to nearby badges while discoverable */
         char name[MUTUALS_NAME_MAX + 1] = "";
         strncpy(name, s + 2, MUTUALS_NAME_MAX);
@@ -350,7 +365,42 @@ static void draw_stats(void) {  /* the MENU screen, over the pup area too */
         else snprintf(v, sizeof v, "on  %d badge%s near", radio.count, radio.count == 1 ? "" : "s");
         band_text(&photon_font_small, RIGHT, 264, y, v, INK_SOFT);
     }
-    band_text(&photon_font_small, CENTER, 0, 144, "press BACK to close", INK_SOFT);
+    band_text(&photon_font_small, CENTER, 0, 144, STYLE("NEXT your mutuals  -  BACK close", "NEXT connections  -  BACK close"), INK_SOFT);
+    band_points();
+    band_end();
+}
+
+static void draw_connections(void) {
+    char names[MAX_CONN][MUTUALS_NAME_MAX + 1];
+    unsigned n = 0;
+    if (map.on && web_conn[0]) {  /* the website's list: map + radio connections */
+        const char *p = web_conn;
+        while (*p && n < MAX_CONN) {
+            const char *e = strchr(p, ',');
+            size_t len = e ? (size_t)(e - p) : strlen(p);
+            if (len > MUTUALS_NAME_MAX) len = MUTUALS_NAME_MAX;
+            memcpy(names[n], p, len);
+            names[n][len] = 0;
+            if (len) n++;
+            p = e ? e + 1 : p + strlen(p);
+        }
+    } else {
+        for (unsigned i = 0; i < n_radio_conn && n < MAX_CONN; ++i) strcpy(names[n++], radio_conn[i]);
+    }
+    band_begin(BUF_Y0, BUF_ROWS);
+    band_text(&photon_font_large, CENTER, 0, 22, STYLE("your mutuals", "Connections"), INK);
+    if (n == 0) {
+        band_text(&photon_font_small, CENTER, 0, 70, STYLE("no one yet!", "No connections yet"), INK);
+        band_text(&photon_font_small, CENTER, 0, 90, STYLE("go find people to add them", "connections appear here"), INK_SOFT);
+    }
+    for (unsigned i = 0; i < n; ++i) {  /* two columns of four */
+        const int x = i < 4 ? 56 : 172;
+        const unsigned y = 52u + (i % 4) * 22u;
+        char line[MUTUALS_NAME_MAX + 4];
+        snprintf(line, sizeof line, STYLE("* %s", "- %s"), names[i]);
+        band_text(&photon_font_small, LEFT, x, y, line, INK);
+    }
+    band_text(&photon_font_small, CENTER, 0, 144, "NEXT stats  -  BACK close", INK_SOFT);
     band_points();
     band_end();
 }
@@ -523,7 +573,10 @@ int main(void) {
         if (pressed) misses = 0;  /* someone's here: practice can resume */
         const bool menu = pressed & FWOG_BTN_BIT(FWOG_BTN_GRAY);
         if (menu && overlay != V_STATS) {
-            overlay = V_STATS, overlay_until = now + STATS_MS;
+            overlay = V_STATS, overlay_until = now + STATS_MS, stats_page_conn = false;
+        } else if (overlay == V_STATS && (pressed & FWOG_BTN_BIT(FWOG_BTN_BLUE))) {
+            stats_page_conn = !stats_page_conn, overlay_until = now + STATS_MS;  /* NEXT: stats <-> connections */
+            drawn_points = -1;
         } else if (overlay == V_STATS && (menu || (pressed & FWOG_BTN_BIT(FWOG_BTN_YELLOW)))) {
             overlay = V_NONE;
         } else if (map.on) {
@@ -579,7 +632,15 @@ int main(void) {
         if (radio_near) {  /* points the first time each badge is near / found, and tell the website */
             int gain = 0;
             if (seen(seen_near, &n_near, radio.id)) gain += PTS_NEARBY;
-            if (radio.rssi >= RADIO_CLOSE_DBM && seen(seen_found, &n_found, radio.id)) gain += PTS_FOUND, met++;
+            if (radio.rssi >= RADIO_CLOSE_DBM && seen(seen_found, &n_found, radio.id)) {
+                gain += PTS_FOUND, met++;
+                const char *who = radio.name[0] ? radio.name : "a mutuals badge";
+                memmove(radio_conn[1], radio_conn[0], sizeof radio_conn[0] * (MAX_CONN - 1));  /* newest first */
+                strncpy(radio_conn[0], who, MUTUALS_NAME_MAX);
+                radio_conn[0][MUTUALS_NAME_MAX] = 0;
+                if (n_radio_conn < MAX_CONN) n_radio_conn++;
+                printf("F %02x%02x%02x%02x %s\n", radio.id[0], radio.id[1], radio.id[2], radio.id[3], radio.name);
+            }
             if (gain) { points += gain; map.gained = gain; report_points(); }
             if (map.on && (int32_t)(now - next_radio_line) >= 0) {
                 printf("R %d %d %s\n", radio.count, radio.rssi, radio.name);
@@ -602,7 +663,7 @@ int main(void) {
         if (view != shown) {
             if (shown == V_STATS || shown == V_NONE || view == V_STATS) draw_background();
             if (view == V_STATS) {
-                draw_stats();
+                stats_page_conn ? draw_connections() : draw_stats();
                 drawn_points = points;
             } else {
                 draw_sprite(view_sprite(view), 0);
@@ -616,7 +677,8 @@ int main(void) {
             static int drawn_radio = -1;
             const int radio_now = (radio.ok ? 100 : 0) + (discoverable ? 50 : 0) + radio.count;
             if (points != drawn_points || radio_now != drawn_radio) {
-                draw_stats();
+                if (stats_page_conn) draw_background();  /* two columns of names: clear the whole page */
+                stats_page_conn ? draw_connections() : draw_stats();
                 drawn_points = points, drawn_radio = radio_now;
             }
         } else {

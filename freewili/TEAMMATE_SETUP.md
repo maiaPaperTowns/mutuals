@@ -105,7 +105,7 @@ Open **http://localhost:5173** in **Chrome**. The top right should say **Live sy
 | **NO** (red) | Stop sharing: you disappear from the map (tap it; holding NO for 6 s turns the badge off). |
 | **MENU** (gray) | Your stats: people met, matches caught, points, level. |
 | **BACK** (yellow) | Close stats. |
-| **NEXT** (blue) | Practice mode only: call the next practice match. |
+| **NEXT** (blue) | On the stats screen: flip to **your connections** (names of the people you've met). In practice mode: call the next practice match. |
 
 What the badge shows:
 
@@ -114,7 +114,9 @@ What the badge shows:
 - **you found them!**: they're within 25 m. +50 pts the first time.
 - **level up!**: Lv 1 → 2 → 3 → 4 → 5 at 50 / 100 / 200 / 400 pts. Your home-screen pup grows up.
 
-Your points show on the badge and on the website's points card. They're saved in this browser.
+Your points show on the badge and on the website's points card. **Your connections** (everyone you found, on the map
+or by radio) are listed under the points card on the website, and on the badge under MENU → NEXT. Both are saved in
+this browser.
 
 ## Cute or Formal
 
