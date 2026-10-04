@@ -73,7 +73,7 @@ shows who's actually around and open to meet right now, and nudges you to go say
 **Use it (teammates):** follow [freewili/TEAMMATE_SETUP.md](freewili/TEAMMATE_SETUP.md). Short version:
 
 1. **Get the badge app.** Download it from the
-   [mutuals-badge-v1 release](https://github.com/maiaPaperTowns/mhacks-2026/releases/tag/mutuals-badge-v1) and flash
+   [mutuals-badge-v1 release](https://github.com/maiaPaperTowns/mutuals/releases/tag/mutuals-badge-v1) and flash
    it with FREE-WILi's [OG App Explorer](https://github.com/freewili/fwOGAppExplorer/releases/latest) (Windows) or the
    [FreeWili GUI](https://github.com/freewili/freewili-gui/releases).
 2. **Open the map.** In Chrome, sign up and set your profile (tick *show on map*).

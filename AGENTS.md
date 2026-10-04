@@ -15,7 +15,7 @@ After completing a requested change, commit and push it to the current branch an
 
 ## Existing cloud targets
 
-- Git remote: `origin`, `https://github.com/maiaPaperTowns/mhacks-2026.git`. Preserve the current branch; `feat/live-map-spacetimedb` was current when these instructions were added.
+- Git remote: `origin`, `https://github.com/maiaPaperTowns/mutuals.git`. Preserve the current branch; `feat/live-map-spacetimedb` was current when these instructions were added.
 - Vercel: project `mhacks-live-map`, linked by ignored `.vercel/project.json`; project root `map`. Deploy from repository root: `npx.cmd --yes vercel --prod --yes --scope terryzhu2024-8185`. Explicit scope avoids a default-scope authorization failure observed with CLI 62.2.0. Verify READY status.
 - Verified public entry: `https://mhacks-live-map.vercel.app/chat`. Custom domain `mutuals.tech` is also assigned; verify DNS/login before claiming it works on a user's network.
 - SpacetimeDB: database `mhacks-live-map`, server `maincloud`; Windows CLI `C:\Users\TerryZhu\AppData\Local\SpacetimeDB\spacetime.exe`.

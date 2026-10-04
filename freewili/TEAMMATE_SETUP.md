@@ -1,7 +1,7 @@
 # mutuals badge: setup for a teammate
 
 You need: a **FREE-WILi OG** badge + its USB-C cable, a **laptop** (Windows or Mac) with **Google Chrome** (or
-Microsoft Edge), and access to the GitHub repo `maiaPaperTowns/mhacks-2026` (ask Maia to add you as a collaborator if
+Microsoft Edge), and access to the GitHub repo `maiaPaperTowns/mutuals` (ask Maia to add you as a collaborator if
 links 404).
 
 **On Windows:** everything works the same. You don't need Node, git or any drivers: the website is a link, and
@@ -25,7 +25,7 @@ the OG badge.
 ## 2. Put the mutuals app on your badge
 
 1. Download **mutuals.uf2** from
-   <https://github.com/maiaPaperTowns/mhacks-2026/releases/tag/mutuals-badge-v1>.
+   <https://github.com/maiaPaperTowns/mutuals/releases/tag/mutuals-badge-v1>.
 2. Plug the badge into the laptop with USB-C and switch it on.
 
 **With the App Explorer (Windows):**
@@ -61,7 +61,7 @@ retry.
 and git (on Windows, run these in **PowerShell**).
 
 ```bash
-git clone https://github.com/maiaPaperTowns/mhacks-2026.git
+git clone https://github.com/maiaPaperTowns/mutuals.git
 cd mhacks-2026/map
 npm ci
 ```

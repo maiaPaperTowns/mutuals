@@ -63,7 +63,7 @@ cd native/.bsp && ../../.venv/bin/python tools/fw.py flash photon_main   # over 
 ```
 
 Or without a toolchain, using the released UF2
-([mutuals-badge-v1](https://github.com/maiaPaperTowns/mhacks-2026/releases/tag/mutuals-badge-v1)):
+([mutuals-badge-v1](https://github.com/maiaPaperTowns/mutuals/releases/tag/mutuals-badge-v1)):
 
 - **Windows:** FREE-WILi's [OG App Explorer](https://github.com/freewili/fwOGAppExplorer/releases/latest).
   1. Put the UF2 in its `catalog` folder (the 📁 button opens it).
