@@ -93,7 +93,7 @@ Open **http://localhost:5173** in **Chrome**. The top right should say **Live sy
 
 1. Close the App Explorer / FREE-WILi GUI first: only one app can use the badge at a time.
 2. In the white card on the left, find the 🐶 **mutuals FREE-WILi badge** box and click **Connect**.
-3. Chrome lists **FWOG display photon 001** (on Windows it may add a port like *COM5*). Select it, then click
+3. Chrome lists **FWOG display mutuals 002** (on Windows it may add a port like *COM5*). Select it, then click
    **Connect**. If you see two FWOG entries, pick the one that says **display**.
 4. The box says **mutuals badge connected**. The badge shows a sleeping pup: **not discoverable** (Formal style:
    a lock, **Private mode**). That just means you're not sharing yet.
@@ -162,6 +162,8 @@ points sync to the website the next time you connect.
 
 - **Windows: the badge doesn't show up anywhere:** try another USB-C cable (some only charge) and another USB
   port. In Device Manager → *Ports (COM & LPT)* you should see two USB serial devices while the badge is on.
+- **Chrome lists "FWOG display photon 001" instead of mutuals:** that badge has an older build. It still works,
+  but flash the latest mutuals.uf2 (step 2) to get all the features.
 - **Chrome says "No compatible devices found":** the badge is still restarting after a flash. Wait 30 s, or unplug
   and replug it, then click Connect again.
 - **"Couldn't open the badge":** the FREE-WILi GUI or another tab is using it. Close them and retry.

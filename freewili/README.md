@@ -50,7 +50,7 @@ native/
   photon/common/mutuals_link.h  the beacon and inter-CPU message formats
   make_assets.py              screens: one background per style + pup sprites / formal icons + fonts → C arrays
   make_sounds.py              chiptune + puppy noises + formal chimes (8 kHz) → C arrays (+ .wav previews)
-  build.sh / setup_toolchain.sh   fetch wiliOGbsp, build photon_main.uf2 (the app keeps its original target name)
+  build.sh / setup_toolchain.sh   fetch wiliOGbsp, build photon_main.uf2 (CMake targets keep their photon_* names; the board shows the app as mutuals)
 ../tools/cut_mutuals.py       cuts the logo and the Lv 1–5 pups out of assets/source/mutuals-board.webp
 ```
 
@@ -79,7 +79,7 @@ Stable) brings back `main.py` / `pet_game.py`: the badge runs one or the other.
 1. Open the live map: the shared `https://….trycloudflare.com` link, a deployed site, or `cd map && npm run dev`
    with `map/.env.local` (see [map/README.md](../map/README.md)).
 2. Sign in, then **Profile**: your name, headline, and *show on map*. Your name is what the other badge shows.
-3. Click **Connect** in the badge box and pick *FWOG display photon*. Press **YES** on the badge to share.
+3. Click **Connect** in the badge box and pick *FWOG display mutuals*. Press **YES** on the badge to share.
 4. When you're near each other on the map: "someone's nearby!" (+10). Within 25 m: "you found them!" (+50).
 
 Solo demo: `http://localhost:5173/?demo` in the local preview adds two pretend people who walk up to you.
