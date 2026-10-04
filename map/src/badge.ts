@@ -21,8 +21,9 @@ export const CLOSE_METERS = 25;
 type Pin = { participantId: string; latitude: number; longitude: number };
 export type BadgeButton = 'green' | 'red' | 'yellow' | 'blue' | 'gray';
 export type BadgeStatus = {
-  state: 'H' | 'A' | 'N' | 'C'; nearby: number; meters: number; name: string;
+  state: 'H' | 'A' | 'N' | 'C' | 'Q'; nearby: number; meters: number; name: string;
   nearbyIds: string[]; closestId?: string;
+  why?: string;  // the AI's reason / talking points for this person (events page); alternates on the badge
 };
 
 // Minimal Web Serial typings (not in TypeScript's DOM lib yet).
@@ -33,7 +34,10 @@ type SerialPortLike = {
   writable: WritableStream<Uint8Array> | null;
   getInfo(): { usbVendorId?: number; usbProductId?: number };
 };
-type SerialLike = { requestPort(options?: { filters: { usbVendorId: number; usbProductId?: number }[] }): Promise<SerialPortLike> };
+type SerialLike = {
+  requestPort(options?: { filters: { usbVendorId: number; usbProductId?: number }[] }): Promise<SerialPortLike>;
+  getPorts(): Promise<SerialPortLike[]>;
+};
 const serial = (): SerialLike | undefined => (navigator as Navigator & { serial?: SerialLike }).serial;
 
 // FREE-WILi OG app USB ids (wiliOGbsp): 093C:2055 is the display CPU, where the pup app listens.
@@ -71,7 +75,9 @@ export type BadgeScore = { points: number; met: number };
 export type RadioPeer = { count: number; rssi: number; name: string; at: number };
 
 export function badgeLine(status: BadgeStatus, score: BadgeScore): string {
-  return `M ${status.state} ${status.nearby} ${status.meters} ${score.points} ${score.met} ${badgeText(status.name)}\n`;
+  const why = status.why ? status.why.normalize('NFKD').replace(/[^\x20-\x7e]/g, '').replace(/\s+/g, ' ').trim().slice(0, 44) : '';
+  return `M ${status.state} ${status.nearby} ${status.meters} ${score.points} ${score.met} ${badgeText(status.name)}\n`
+    + (why ? `W ${why}\n` : 'W\n');
 }
 
 /** Connect / disconnect the badge, send it a status every second, hear its buttons and its practice points. */
@@ -118,12 +124,8 @@ export function useBadge(status: BadgeStatus, score: BadgeScore, myName: string,
     }
   }, [disconnect]);
 
-  const connect = useCallback(async () => {
-    setError('');
-    const api = serial();
-    if (!api) { setError('Connecting a badge needs Chrome or Edge on a computer.'); return; }
+  const openPort = useCallback(async (port: SerialPortLike, quiet: boolean) => {
     try {
-      const port = await api.requestPort({ filters: [{ usbVendorId: FREEWILI_VID, usbProductId: DISPLAY_PID }] });
       await port.open({ baudRate: 115200 }); // USB CDC ignores the rate (never 1200: that reboots the badge)
       portRef.current = port;
       writerRef.current = port.writable!.getWriter();
@@ -162,12 +164,37 @@ export function useBadge(status: BadgeStatus, score: BadgeScore, myName: string,
         }
         void disconnect();
       })();
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'NotFoundError') return; // closed the picker
-      setError("Couldn't open the badge. Is the pup app running and nothing else using the port?");
+    } catch {
+      if (!quiet) setError("Couldn't open the badge. Is the mutuals app running and nothing else (another tab, the FREE-WILi GUI) using it?");
       void disconnect();
     }
   }, [disconnect, send]);
+
+  const connect = useCallback(async () => {
+    setError('');
+    const api = serial();
+    if (!api) { setError('Connecting a badge needs Chrome or Edge on a computer.'); return; }
+    try {
+      const port = await api.requestPort({ filters: [{ usbVendorId: FREEWILI_VID, usbProductId: DISPLAY_PID }] });
+      await openPort(port, false);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'NotFoundError') return; // closed the picker
+      setError("Couldn't open the badge.");
+    }
+  }, [openPort]);
+
+  // Pages load in full (map, events, profile), so reconnect on its own: Chrome lists badges this site was already
+  // allowed to use without asking again.
+  useEffect(() => {
+    const api = serial();
+    if (!api) return;
+    let cancelled = false;
+    void api.getPorts().then(async ports => {
+      const badge = ports.find(port => { const info = port.getInfo(); return info.usbVendorId === FREEWILI_VID && info.usbProductId === DISPLAY_PID; });
+      if (badge && !cancelled && !portRef.current) await openPort(badge, true);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [openPort]);
 
   // Heartbeat: the badge leaves map mode after 5 s of silence, so send every second (and on every change).
   useEffect(() => { if (connected) void send(line); }, [connected, line, send]);

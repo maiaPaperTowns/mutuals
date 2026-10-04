@@ -124,6 +124,16 @@ Your points show on the badge and on the website's points card. **Your connectio
 or by radio) are listed under the points card on the website, and on the badge under MENU → NEXT. Both are saved in
 this browser.
 
+## At an event (Events page)
+
+The badge also works on the website's **Events & assistants** page during an event (the *During* stage). It connects
+again on its own when you change pages, once you've connected it once. A badge box sits in the bottom-right corner:
+
+- **AI nearby alert** (someone the AI picked for you is close and free): **someone's nearby!** with their name,
+  distance and the AI's talking points. **YES** sends them a connection request, **NO** dismisses.
+- **Someone wants to connect:** **"Alex wants to meet!"** with the AI's reason. **YES** accepts, **NO** declines.
+- **Accepted:** **you found them!**, +50 pts, and they're added to your connections.
+
 ## Cute or Formal
 
 Use the **✿ Cute | Formal** switch at the top of the website. It changes the website **and** the connected badge:

@@ -254,14 +254,17 @@ static char my_name[MUTUALS_NAME_MAX + 1];
 /* ---- map mode: the mutuals website talks to the badge over USB (Web Serial) ----
  * website → badge, about once a second:  "M <s> <nearby> <meters> <points> <met> <name>\n"
  *   s = H not discoverable · A sharing, nobody near · N someone near · C someone right here
+ *       Q someone asked to connect (events page): YES accepts, NO declines
  *                   "N <my name>"  (the name this badge broadcasts to nearby badges while discoverable)
  *                   "T C" / "T F"  (style: cute / formal)
  *                   "C name1,name2,..."  (your connections, newest first, for the MENU → NEXT page)
+ *                   "W <why>"  (the AI's reason / talking points for the person on screen; alternates on the detail line)
  * badge → website:  "B gray|yellow|green|blue|red", "P <points> <caught> <met>" when the badge earns points
  *                   (practice, radio finds), "R <count> <rssi> <name>" while other badges are heard,
  *                   "F <id> <name>" when the radio finds someone new (so the website adds them to your connections),
  *                   "HI mutuals-badge 3" when asked with "?". */
 static struct { bool on; char state; int nearby, meters, gained; char name[28]; uint32_t last; } map;
+static char why[64];  /* "W <text>": the AI's reason / talking points for the current person (events page) */
 static char rx[112];
 static unsigned rx_n;
 
@@ -270,6 +273,11 @@ static void report_points(void) { printf("P %d %d %d\n", points, caught, met); }
 static void map_parse(const char *s, uint32_t now) {
     if (s[0] == '?') { printf("HI mutuals-badge 3\n"); report_points(); return; }
     if (s[0] == 'T' && s[1] == ' ') { formal = s[2] == 'F'; return; }
+    if (s[0] == 'W') {  /* "W <why>": AI reason for the person on screen; "W" alone clears it */
+        strncpy(why, s[1] == ' ' ? s + 2 : "", sizeof why - 1);
+        why[sizeof why - 1] = 0;
+        return;
+    }
     if (s[0] == 'C' && (s[1] == ' ' || s[1] == 0)) {  /* "C name1,name2,...": your connections, newest first */
         strncpy(web_conn, s[1] ? s + 2 : "", sizeof web_conn - 1);
         web_conn[sizeof web_conn - 1] = 0;
@@ -285,7 +293,7 @@ static void map_parse(const char *s, uint32_t now) {
     char st = 0;
     int nearby = 0, meters = 0, web_points = 0, web_met = 0, used = 0;
     if (sscanf(s + 2, "%c %d %d %d %d %n", &st, &nearby, &meters, &web_points, &web_met, &used) < 5 ||
-        !strchr("HANC", st))
+        !strchr("HANCQ", st))
         return;
     map.state = st, map.nearby = nearby, map.meters = meters, map.last = now, map.on = true;
     strncpy(map.name, used ? s + 2 + used : "", sizeof map.name - 1);
@@ -409,6 +417,7 @@ static void draw_connections(void) {
 typedef enum {
     V_HOME, V_LONELY, V_PROMPT, V_MUTUAL, V_MISS,   /* practice */
     V_HIDDEN, V_LOOKING, V_NEARBY, V_FOUND,          /* map mode */
+    V_REQUEST,                                       /* events page: someone wants to connect */
     V_LEVELUP, V_STATS, V_NONE
 } view_t;
 
@@ -429,6 +438,7 @@ static photon_sprite_id_t view_sprite(view_t v) {
         case V_LONELY: case V_LOOKING: return SPF_LOOKING;
         case V_PROMPT: return SPF_MATCH;
         case V_MUTUAL: case V_FOUND: return SPF_MUTUAL;
+        case V_REQUEST: return SPF_MATCH;
         case V_MISS: return SPF_MISS;
         case V_NEARBY: return SPF_NEARBY;
         case V_HIDDEN: return SPF_OFFLINE;
@@ -441,12 +451,17 @@ static photon_sprite_id_t view_sprite(view_t v) {
         case V_MUTUAL: case V_FOUND: return SP_MUTUAL;
         case V_MISS: return SP_MISS;
         case V_NEARBY: return SP_NEARBY;
+        case V_REQUEST: return SP_MATCH;
         case V_HIDDEN: return SP_OFFLINE;
         default: return SP_BLANK;
     }
 }
 
 static bool radio_src;  /* the current NEARBY / FOUND view comes from the radio, not the map */
+
+static bool show_why(void) {  /* alternate between the usual detail and the AI's reason */
+    return why[0] && (to_ms_since_boot(get_absolute_time()) / 2500u) % 2u == 1u;
+}
 
 static void view_text(view_t v, char *title, char *detail, size_t n) {
     const char *who = radio_src ? (radio.name[0] ? radio.name : "a mutuals badge") : (map.name[0] ? map.name : "someone");
@@ -468,7 +483,8 @@ static void view_text(view_t v, char *title, char *detail, size_t n) {
             break;
         case V_NEARBY:
             snprintf(title, n, STYLE("someone's nearby!", "Contact nearby"));
-            if (radio_src) snprintf(detail, n, "%s  signal %d dBm", who, radio.rssi);
+            if (!radio_src && show_why()) snprintf(detail, n, "%s", why);
+            else if (radio_src) snprintf(detail, n, "%s  signal %d dBm", who, radio.rssi);
             else if (map.nearby > 1) snprintf(detail, n, "%s - %d m  +%d more", who, map.meters, map.nearby - 1);
             else snprintf(detail, n, "%s - %d m", who, map.meters);
             break;
@@ -477,6 +493,11 @@ static void view_text(view_t v, char *title, char *detail, size_t n) {
             if (map.gained > 0) snprintf(detail, n, "+%d pts  %s", map.gained, who);
             else if (radio_src) snprintf(detail, n, STYLE("%s  right here!", "%s  in person"), who);
             else snprintf(detail, n, "%s - %d m", who, map.meters);
+            break;
+        case V_REQUEST:
+            snprintf(title, n, STYLE("%s wants to meet!", "%s wants to connect"), who);
+            if (show_why()) snprintf(detail, n, "%s", why);
+            else snprintf(detail, n, "YES accept  -  NO decline");
             break;
         case V_LEVELUP:
             snprintf(title, n, STYLE("level up!", "Tier up"));
@@ -491,6 +512,7 @@ static view_t map_view(uint32_t now) {
         case 'A': return V_LOOKING;
         case 'N': return V_NEARBY;
         case 'C': return V_FOUND;
+        case 'Q': return V_REQUEST;
         default: return V_HIDDEN;
     }
 }
@@ -512,6 +534,7 @@ static void on_enter(view_t from, view_t to, uint32_t now) {  /* sound + lights 
             led_all(255, 150, 20);
             break;
         case V_FOUND: sfx(SFX_FOUND); break;
+        case V_REQUEST: sfx(SFX_NEAR); led_all(255, 120, 200); break;
         case V_HIDDEN:
             if (from == V_LOOKING || from == V_NEARBY || from == V_FOUND) sfx(SFX_HIDE);
             led_all(12, 8, 24);

@@ -44,6 +44,16 @@ or localhost. The badge runs the app in [`freewili/native`](../freewili/README.m
 - The badge box shows the badge's state, the last button press and what the website did with it, what the radio
   hears, and when you need to sign in first.
 
+### Badge on the events page (`src/EventBadge.tsx`)
+
+During an event, the Events page drives the badge from the event engine:
+
+- the AI nearby alert becomes `N` plus `W Talk about: …` (YES = request connection, NO = dismiss);
+- an incoming request becomes `Q` plus `W <AI reason>` (YES = accept, NO = decline);
+- accepted connections become `C` (+50 pts once, added to connections).
+
+The badge reconnects on its own after page loads (`navigator.serial.getPorts()`).
+
 ### Points and levels (`src/points.ts`)
 
 +10 the first time someone new is near you on the map, +50 the first time you're within 25 m of them; practice and

@@ -21,7 +21,7 @@ export function levelProgress(points: number): number {
   return (points - LEVEL_AT[level - 1]!) / (LEVEL_AT[level]! - LEVEL_AT[level - 1]!);
 }
 
-export type Connection = { id: string; name: string; via: 'map' | 'radio'; at: number };
+export type Connection = { id: string; name: string; via: 'map' | 'radio' | 'event'; at: number };
 type Saved = { points: number; caught: number; nearby: string[]; met: string[]; badgeMet?: number; connections?: Connection[] };
 const KEY = 'mutuals-points-v1';
 const EMPTY: Saved = { points: 0, caught: 0, nearby: [], met: [] };
@@ -86,6 +86,19 @@ export function usePoints() {
     }, { kind: 'badge', who: '' });
   }, [update]);
 
+  /** A connection made through an event (accepted request): +50 the first time, and remembered by name. */
+  const addEventConnection = useCallback((interactionId: string, name: string) => {
+    const cur = savedRef.current;
+    const id = `event:${interactionId}`;
+    if ((cur.connections ?? []).some(c => c.id === id)) return;
+    update({
+      ...cur,
+      points: cur.points + PTS_FOUND,
+      met: [...cur.met, id],
+      connections: [{ id, name: name || 'Participant', via: 'event', at: Date.now() }, ...(cur.connections ?? [])],
+    }, { kind: 'found', who: name || 'Participant' });
+  }, [update]);
+
   /** Someone the badge found by radio (it already counted the points; this records who). */
   const addRadioConnection = useCallback((badgeId: string, name: string) => {
     const cur = savedRef.current;
@@ -103,5 +116,5 @@ export function usePoints() {
 
   const level = levelOf(saved.points);
   const connections = saved.connections ?? [];
-  return { connections, addRadioConnection, points: saved.points, met: Math.max(saved.met.length, saved.badgeMet ?? 0, connections.length), caught: saved.caught, level, progress: levelProgress(saved.points), gain, award, adopt };
+  return { connections, addRadioConnection, addEventConnection, points: saved.points, met: Math.max(saved.met.length, saved.badgeMet ?? 0, connections.length), caught: saved.caught, level, progress: levelProgress(saved.points), gain, award, adopt };
 }

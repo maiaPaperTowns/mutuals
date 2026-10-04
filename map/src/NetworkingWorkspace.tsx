@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import EventBadge from './EventBadge';
 import { useProcedure, useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { procedures, reducers, tables } from './module_bindings';
 import EventGpsMap from './EventGpsMap';
@@ -176,10 +177,25 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
     setNotice('All personal interest lists are ready.'); await refresh(pageSize);
   };
 
+  // The mutuals badge (FREE-WILi) mirrors During: AI nearby alerts, incoming requests, accepted connections.
+  const named = (row: (typeof eventInteractions)[number]) => {
+    const data = JSON.parse(row.payloadJson), incoming = row.targetId === account?.user_id;
+    return { interactionId: row.interactionId, name: (incoming ? data.user_name : data.target_name) || 'Participant', incoming };
+  };
+  const badgeRequest = eventInteractions.filter(row => row.status === 'requested' && row.targetId === account?.user_id)
+    .map(row => ({ ...named(row), reason: row.reason ?? '' }))[0];
+  const badgeConnections = eventInteractions.filter(row => ['accepted', 'recorded', 'completed'].includes(row.status)).map(named);
+  const badgeChatting = eventInteractions.filter(row => ['accepted', 'recorded'].includes(row.status)).map(named)[0];
+
   return <div className="networking-workspace">
     <header className="chat-topbar"><a className="brand" href="/" aria-label="MHacks live map"><span className="brand-mark">mh<span>+</span></span><span><b>MHACKS</b><small>MEET YOUR PEOPLE</small></span></a>
       <nav className="chat-nav" aria-label="Main navigation"><a className="nav-link" href="/chat">My profile</a><a className="nav-link" href="/">Live map</a>{accountControl}</nav></header>
     <main className="workspace-main">
+      <EventBadge active={eventPhase === 'during' && Boolean(member)} checkedIn={checkedIn}
+        myName={profiles[0]?.displayName ?? accountName}
+        nearby={nearbyAlert ? { title: nearbyAlert.title, body: nearbyAlert.body, targetId: nearbyAlert.targetId } : undefined}
+        request={badgeRequest} chatting={badgeChatting} connections={badgeConnections}
+        onRequest={targetId => request(targetId, '')} onRespond={respond} onDismiss={dismissAlert} />
       <div className="workspace-intro"><div><span className="eyebrow">YOUR EVENT / YOUR ASSISTANTS</span><h1>Make every connection <em>count.</em></h1><p>Join an event. Find people with shared interests. Let your personal assistants help before, during and after.</p></div>
         {account && <button className="workspace-button inbox-toggle" onClick={() => setInboxOpen(value => !value)} aria-expanded={inboxOpen}>Notifications <b>{unread}</b></button>}</div>
       {error && <p className="intake-error workspace-alert" role="alert">{error}</p>}{notice && <p className="workspace-alert success" role="status">{notice}</p>}

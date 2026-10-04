@@ -11,6 +11,7 @@ import { EventAreaLayer, readEventArea, type EventArea } from './EventAreaMap';
 import { createProfileApi } from './profileApi';
 import { badgeStatus, badgeSupported, useBadge, type BadgeStatus } from './badge';
 import { LEVEL_AT, LEVEL_NAME, TIER_NAME, usePoints, type Connection, type Gain } from './points';
+import { STYLE_KEY, StyleContext, loadStyle, type Style } from './style';
 
 const noToken = async () => null;
 const previewProfileApi = createProfileApi('', noToken, async () => {});
@@ -21,14 +22,6 @@ type UserProfile = { displayName: string; headline: string; interests: string; s
 type PublicMapProfile = Pick<UserProfile, 'displayName' | 'headline' | 'interests'>;
 const AuthDialogContext = createContext<() => void>(() => {});
 const SignedInContext = createContext(false);
-
-// Cute (clubs, university mixers: the pixel pup) or formal (recruiting events: clean, no pup). Per browser.
-type Style = 'cute' | 'formal';
-const STYLE_KEY = 'mutuals-style';
-const StyleContext = createContext<{ style: Style; setStyle: (style: Style) => void }>({ style: 'cute', setStyle: () => {} });
-function loadStyle(): Style {
-  try { return localStorage.getItem(STYLE_KEY) === 'formal' ? 'formal' : 'cute'; } catch { return 'cute'; }
-}
 
 const pinIcon = (mine: boolean) => L.divIcon({
   className: `live-pin${mine ? ' live-pin-mine' : ''}`,
@@ -116,14 +109,26 @@ function LiveMapContent({ authEnabled, accountName }: { authEnabled: boolean; ac
         }
         if (!navigator.geolocation) throw new Error("This browser doesn't support location. Try a modern browser on your phone.");
         lastSentRef.current = null;
-        await new Promise<void>((resolve, reject) => navigator.geolocation.getCurrentPosition(
-          () => resolve(),
+        // A quick, coarse fix (cached up to 5 min, Wi-Fi accuracy is fine) so sharing starts in about a second instead
+        // of waiting on a high-accuracy GPS fix; watchPosition refines it right after. (The badge's YES feels instant.)
+        const first = await new Promise<GeolocationPosition>((resolve, reject) => navigator.geolocation.getCurrentPosition(
+          resolve,
           error => reject(new Error(error.code === error.PERMISSION_DENIED
             ? 'Location permission was denied. Allow location in your browser settings, then try again.'
             : error.code === error.POSITION_UNAVAILABLE ? 'Your device cannot determine a location right now.' : 'Location timed out. Move outdoors or try again.')),
-          { enableHighAccuracy: true, maximumAge: 4000, timeout: 20000 },
+          { enableHighAccuracy: false, maximumAge: 300000, timeout: 10000 },
         ));
         await setPresence({ participantId: id, zoneId: 'main-hall' });
+        // Publish that first fix right away so your dot (and the badge) update now, not after the next GPS reading.
+        if (first.coords.accuracy <= 10000) {
+          lastSentRef.current = { lat: first.coords.latitude, lng: first.coords.longitude, time: Date.now() };
+          void updateLocation({
+            participantId: id,
+            latitude: first.coords.latitude,
+            longitude: first.coords.longitude,
+            accuracyMeters: first.coords.accuracy,
+          }).catch(() => setLocationError('Location sync failed. Check your connection and try again.'));
+        }
         sharingRef.current = true;
         setSharing(true);
       }
@@ -299,6 +304,7 @@ const BADGE_TEXT: Record<BadgeStatus['state'], [cute: string, formal: string]> =
   A: ['Looking… nobody near yet', 'Searching nearby'],
   N: ["Someone's nearby!", 'Contact nearby'],
   C: ['You found them!', 'Connection made'],
+  Q: ['Someone wants to meet!', 'Connection request'],
 };
 
 const BUTTON_LABEL = { gray: 'MENU', yellow: 'BACK', green: 'YES', blue: 'NEXT', red: 'NO' } as const;
@@ -336,7 +342,7 @@ function ConnectionsList({ connections, formal }: { connections: Connection[]; f
       {shown.map(c => <li key={c.id}>
         <span className="connection-avatar" aria-hidden="true">{c.name.slice(0, 1).toUpperCase()}</span>
         <span className="connection-name">{c.name}</span>
-        <small>{c.via === 'radio' ? (formal ? 'in person (radio)' : '📡 badge') : (formal ? 'via map' : '📍 map')} · {ago(c.at)}</small>
+        <small>{c.via === 'radio' ? (formal ? 'in person (radio)' : '📡 badge') : c.via === 'event' ? (formal ? 'event connection' : '🤝 event') : (formal ? 'via map' : '📍 map')} · {ago(c.at)}</small>
       </li>)}
     </ul>
     {connections.length > 3 && <button type="button" className="connections-more" onClick={() => setOpen(!open)}>{open ? 'Show less' : `Show all ${connections.length}`}</button>}

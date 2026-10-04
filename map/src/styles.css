@@ -424,3 +424,18 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
 .style-formal .connection-avatar { border-radius: 6px; background: #1f3a68; color: #fff; }
 .style-formal .connection-name { color: #16223f; }
 .style-formal .connections-more { color: #1f3a68; }
+
+/* mutuals badge dock on the events page */
+.event-badge { position: fixed; z-index: 900; right: 18px; bottom: 18px; display: flex; align-items: center; gap: 10px; width: min(380px, calc(100vw - 36px)); padding: 11px 12px; border: 1px dashed #d5dbcf; border-radius: 12px; background: #fffffff5; box-shadow: 0 10px 30px #2531281f; }
+.event-badge.on { border-style: solid; border-color: #b9d6c2; }
+.event-badge-icon { font-size: 20px; }
+.event-badge-copy { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.event-badge-copy b { color: #2d553e; font-size: 11px; }
+.event-badge-copy small { color: #6d786e; font-size: 9.5px; line-height: 1.45; }
+.event-badge-copy .event-badge-press { color: #2c62b4; font-weight: 700; }
+.event-badge button { flex: none; padding: 7px 10px; border: 0; border-radius: 8px; background: #294c37; color: #fff; font-size: 10px; font-weight: 700; cursor: pointer; }
+.event-badge.on button { background: #e3e9df; color: #43584a; }
+.event-badge.formal { border-radius: 8px; border-color: #d3dae6; }
+.event-badge.formal .event-badge-copy b { color: #1f3a68; }
+.event-badge.formal button { background: #1f3a68; }
+.event-badge.formal.on button { background: #e6ebf3; color: #1f3a68; }
