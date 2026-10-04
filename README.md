@@ -23,7 +23,7 @@ an "87% match" that nobody opens and that doesn't tell you what to say.
 2. **Ask like you'd ask a recruiter.** "Stuck on Spacetime auth, anyone nearby solved it?" or "Find me a designer for tonight."
 3. **Double yes.** The agent texts both people a plain-English reason, with no names. Only when **both** reply yes
    does it share names, zones and contact cards.
-4. **Opt-in live map.** Only people who are open to meet show up, and the dot disappears the moment they toggle off.
+4. **Opt-in live map.** Participants can explicitly share anonymous device GPS positions; the latest location syncs live, and turning sharing off removes the point.
 5. **Was it worth it?** One 👍/👎 after each intro. The scoreboard shows real counts only: intros, meetings,
    % rated worth it.
 
@@ -45,7 +45,7 @@ iPhone ──iMessage──► Photon Spectrum bridge ──► Concierge agent 
 |---|---|---|
 | [`photon/`](photon/) | iMessage bridge on Photon Spectrum, double-yes intros, privacy commands, worth-it follow-up | Maia |
 | `agents/` | Agentverse agents: concierge, onboarding, matcher, recruiter | Ziquan |
-| `map/` | React venue map: zones, live dots, open-to-meet toggle; seeded "demo persona" profiles | Terry |
+| [`map/`](map/) | React 2D OpenStreetMap centered on the Duderstadt Center, with opt-in anonymous GPS dots backed by SpacetimeDB | Terry |
 | `scoreboard/` | Worth-it scoreboard, real counts only | Elena |
 
 See [PLAN.md](PLAN.md) for checkpoints, the shared schema and fallbacks.
@@ -63,6 +63,16 @@ npm start
 
 To use real iMessage, put your Photon project keys in `photon/.env` (see [photon/README.md](photon/README.md)).
 
+**Live venue map** (local preview works without cloud credentials):
+
+```bash
+cd map
+npm install
+npm run dev
+```
+
+The local preview shows the basemap and can display the current browser's GPS location locally. To enable shared live locations, publish the SpacetimeDB module and configure `map/.env.local`; see [map/README.md](map/README.md). For Vercel, set the public database URI and name in the project's environment settings. GPS sharing is off by default; when enabled, the latest exact coordinates are public to visitors of the map. The map does not store names, resumes, contact details, or a location history.
+
 Other folders: see the README inside each one.
 
 ## Agents (Fetch.ai Agentverse)
@@ -76,7 +86,7 @@ Other folders: see the README inside each one.
 
 ## Privacy, by design
 
-- **Opt-in only.** You're on the map only while "open to meet" is on.
+- **Opt-in only.** Location sharing is off until a participant enables it and grants browser location permission. Turning it off removes their published point.
 - **Double yes.** No name, zone or number is shared until both people agree. A "no" or a timeout reveals nothing.
 - **You're in control.** Text `STOP` to pause intros, `START` to resume, `DELETE ME` to erase everything,
   or ask "what do you know about me?"

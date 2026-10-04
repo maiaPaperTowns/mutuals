@@ -1,0 +1,11 @@
+{
+  "name": "mhacks-live-map-module",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "spacetimedb": "^2.0.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  }
+}
