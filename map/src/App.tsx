@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from 'react';
 import { FavoritePeople, HomeNavigation, LiveFavoritePeople, LiveHomeNavigation } from './HomePanels';
 import { SignIn, SignUp, useClerk } from '@clerk/react';
+import { createPortal } from 'react-dom';
 import { MapContainer, Marker, TileLayer, Tooltip, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
 import { reducers, tables } from './module_bindings';
@@ -24,12 +25,25 @@ type PublicMapProfile = Pick<UserProfile, 'displayName' | 'headline' | 'interest
 const AuthDialogContext = createContext<() => void>(() => {});
 const SignedInContext = createContext(false);
 
-const pinIcon = (mine: boolean) => L.divIcon({
-  className: `live-pin${mine ? ' live-pin-mine' : ''}`,
-  html: '<span></span>',
-  iconSize: [20, 20],
-  iconAnchor: [10, 10],
-});
+// People on the map: a round avatar with their initial in their own pastel color, their name underneath, and a
+// soft pulsing ring for you. Formal style uses navy.
+const AVATAR_COLORS = ['#7cc6a4', '#86b6f0', '#f4a3b4', '#f2cc6b', '#a99be6', '#7fd0d6'];
+const escapeHtml = (text: string) => text.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]!));
+const pinIcon = (mine: boolean, name = '', id = '', formal = false) => {
+  const known = Boolean(name) && name !== 'Anonymous participant';
+  const label = mine ? 'You' : known ? name.split(/\s+/)[0]!.slice(0, 14) : '';
+  const initial = known ? name.trim()[0]!.toUpperCase() : mine ? '•' : '?';
+  let hash = 0;
+  for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  const color = formal ? (mine ? '#1f3a68' : '#3d5f99') : mine ? '#2d6a4f' : known ? AVATAR_COLORS[hash % AVATAR_COLORS.length] : '#b9bfb6';
+  return L.divIcon({
+    className: `person-pin${mine ? ' person-pin-mine' : ''}${formal ? ' person-pin-formal' : ''}`,
+    html: `<span class="person-pulse"></span><span class="person-avatar" style="background:${color}">${escapeHtml(initial)}</span>`
+      + (label ? `<span class="person-name">${escapeHtml(label)}</span>` : ''),
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+  });
+};
 const venueIcon = L.divIcon({
   className: 'venue-pin',
   html: '<span class="venue-dot"></span><b>DUDERSTADT CENTER</b><small>2281 Bonisteel Blvd</small>',
@@ -245,6 +259,8 @@ function ProfileDialog({ initialProfile, onClose }: { initialProfile?: UserProfi
   </div>;
 }
 
+const clerkInDialog = { elements: { header: { display: 'none' }, footerAction: { display: 'none' } } };
+
 function AuthDialog({ onClose, authEnabled }: { onClose: () => void; authEnabled: boolean }) {
   const [mode, setMode] = useState<'signup' | 'signin'>('signup');
   if (!authEnabled) {
@@ -261,7 +277,14 @@ function AuthDialog({ onClose, authEnabled }: { onClose: () => void; authEnabled
       <button className="dialog-close" type="button" aria-label="Close" onClick={onClose}>×</button>
       <span className="eyebrow">MHACKS ACCOUNT</span><h2 id="auth-dialog-title">{mode === 'signup' ? 'Create your account' : 'Welcome back'}</h2>
       <div className="auth-tabs"><button className={mode === 'signup' ? 'active' : ''} type="button" onClick={() => setMode('signup')}>Sign up</button><button className={mode === 'signin' ? 'active' : ''} type="button" onClick={() => setMode('signin')}>Log in</button></div>
-      <div className="clerk-form">{mode === 'signup' ? <SignUp routing="hash" signInUrl="/sign-in" /> : <SignIn routing="hash" signUpUrl="/sign-up" />}</div>
+      {/* Clerk's own "Sign in" / "Sign up" footer links would leave this page; the tabs above and the link below
+          switch inside this dialog instead, and our heading replaces Clerk's duplicate one. */}
+      <div className="clerk-form">{mode === 'signup'
+        ? <SignUp routing="hash" appearance={clerkInDialog} />
+        : <SignIn routing="hash" appearance={clerkInDialog} />}</div>
+      <p className="auth-switch">{mode === 'signup'
+        ? <>Already have an account? <button type="button" onClick={() => setMode('signin')}>Log in</button></>
+        : <>New here? <button type="button" onClick={() => setMode('signup')}>Create an account</button></>}</p>
     </section>
   </div>;
 }
@@ -301,7 +324,7 @@ function MapExperience({ myName = '', pins, profileById, myId, loaded, connected
       {pins.map(pin => {
         const profile = profileById.get(pin.participantId);
         const name = profile?.displayName || (pin.participantId === myId ? 'Your location' : 'Anonymous participant');
-        return <Marker key={pin.participantId} position={[pin.latitude, pin.longitude]} icon={pinIcon(pin.participantId === myId)} title={name}>
+        return <Marker key={pin.participantId} position={[pin.latitude, pin.longitude]} icon={pinIcon(pin.participantId === myId, profile?.displayName ?? '', pin.participantId, formal)} title={name}>
           <Tooltip direction="top" offset={[0, -6]}>
             <span className="profile-tooltip"><b>{name}</b>{(profile?.headline || profile?.interests) && <small>{profile.headline || `Interests: ${profile.interests}`}</small>}</span>
           </Tooltip>
@@ -395,6 +418,7 @@ function StyleToggle() {
 }
 
 function PointsCard({ points, level, progress, met, formal }: ReturnType<typeof usePoints> & { formal: boolean }) {
+  const [showLevels, setShowLevels] = useState(false);
   const next = LEVEL_AT[level];
   const unit = formal ? 'Tier' : 'Lv';
   return <div className="points-card">
@@ -403,8 +427,39 @@ function PointsCard({ points, level, progress, met, formal }: ReturnType<typeof 
       <div className="points-row">{!formal && <span className="points-star" aria-hidden="true">★</span>}<b>{points}</b><span>pts</span><span className="points-level">{unit} {level}</span></div>
       <div className="points-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}><i style={{ width: `${Math.round(progress * 100)}%` }} /></div>
       <small>{(formal ? TIER_NAME : LEVEL_NAME)[level - 1]} · {met} {formal ? 'connections' : 'met'}{next !== undefined ? ` · ${next - points} pts to ${unit} ${level + 1}` : ''}</small>
+      <button type="button" className="levels-button" onClick={() => setShowLevels(true)}>{formal ? 'See all tiers' : 'See all levels'}</button>
     </div>
+    {showLevels && <LevelsDialog level={level} points={points} formal={formal} onClose={() => setShowLevels(false)} />}
   </div>;
+}
+
+/** All five levels: the pup (or tier badge), name and points needed; your current level is highlighted. */
+function LevelsDialog({ level, points, formal, onClose }: { level: number; points: number; formal: boolean; onClose: () => void }) {
+  const names = formal ? TIER_NAME : LEVEL_NAME;
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return createPortal(<div className="dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className={`demo-dialog levels-dialog${formal ? ' formal' : ''}`} role="dialog" aria-modal="true" aria-labelledby="levels-title">
+      <button className="dialog-close" type="button" aria-label="Close" onClick={onClose}>×</button>
+      <span className="eyebrow">{formal ? 'TIERS' : 'LEVELS'}</span>
+      <h2 id="levels-title">{formal ? 'Your networking tiers' : 'Watch your pup grow'}</h2>
+      <p className="dialog-copy">+10 pts when someone new is nearby, +50 when you meet them. You have <b>{points} pts</b>.</p>
+      <ol className="levels-list">
+        {names.map((name, i) => {
+          const lv = i + 1, reached = level >= lv;
+          return <li key={lv} className={`${lv === level ? 'current' : ''}${reached ? ' reached' : ''}`}>
+            {formal ? <span className="levels-tier">T{lv}</span> : <img src={`/mutuals/lv${lv}.png`} alt="" />}
+            <b>{formal ? 'Tier' : 'Lv'} {lv}</b>
+            <span>{name}</span>
+            <small>{lv === level ? 'You are here' : reached ? 'Reached' : `${LEVEL_AT[i]} pts`}</small>
+          </li>;
+        })}
+      </ol>
+    </section>
+  </div>, document.body);  // the side panel clips its contents, so the dialog lives at the page level
 }
 
 function BadgeControl({ status, formal, needsSignIn, problem, connected, connect, disconnect, error, radio, lastButton }: { status: BadgeStatus; formal: boolean; needsSignIn: boolean; problem: string } & ReturnType<typeof useBadge>) {

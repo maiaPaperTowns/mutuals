@@ -30,6 +30,9 @@ export function EventAreaLayer({ areas, autoFit = true, homeLayout = false, onRe
         if (size.x <= 600) bottom = card?.height ? mapRect.bottom - card.top + 24 : 355;
         else left = card?.width ? card.right - mapRect.left + 24 : 420;
       }
+      // If the panels leave no room at all (e.g. a phone before the layout settles), fall back to plain padding
+      // instead of letting fitBounds jump to the maximum zoom (that showed a grey, empty map on phones).
+      if (size.x - left - right <= 0 || size.y - top - bottom <= 0) left = top = right = bottom = 24;
       const margin = centered ? .1 : .22;
       const x = Math.round(Math.max(0, size.x - left - right) * margin);
       const y = Math.round(Math.max(0, size.y - top - bottom) * margin);
@@ -37,7 +40,15 @@ export function EventAreaLayer({ areas, autoFit = true, homeLayout = false, onRe
     }
     else map.setView(NORTH_CAMPUS, 17);
   };
-  useEffect(() => { if (autoFit && points.length) fit(); }, [map, boundary, autoFit]);
+  useEffect(() => {
+    if (!autoFit || !points.length) return;
+    fit();
+    // Fit again once the page layout has settled, and whenever the map is resized (rotation, window size).
+    const settle = window.setTimeout(() => { map.invalidateSize(); fit(); }, 400);
+    const onResize = () => fit();
+    map.on('resize', onResize);
+    return () => { window.clearTimeout(settle); map.off('resize', onResize); };
+  }, [map, boundary, autoFit]);
   return <>
     {areas.filter(area => area.points.length >= 3).map(area => <Polygon key={area.eventId} positions={area.points} pathOptions={{ color: '#64833e', fillColor: '#9ab967', fillOpacity: .13, weight: 2 }}><Tooltip sticky>{area.title} · Event area</Tooltip></Polygon>)}
     <button type="button" className="workspace-button event-area-reset" aria-label="Reset to event area"
