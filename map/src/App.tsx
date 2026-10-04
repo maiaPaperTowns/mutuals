@@ -4,6 +4,8 @@ import { Circle, MapContainer, Marker, TileLayer, Tooltip, ZoomControl } from 'r
 import L from 'leaflet';
 import { reducers, tables } from './module_bindings';
 import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
+import { badgeStatus, badgeSupported, useBadge, type BadgeStatus } from './badge';
+import { LEVEL_AT, LEVEL_NAME, usePoints } from './points';
 
 const DUDERSTADT: [number, number] = [42.2912, -83.7157];
 type LocationPin = { participantId: string; latitude: number; longitude: number; accuracyMeters: number };
@@ -214,6 +216,22 @@ function AuthDialog({ onClose, authEnabled }: { onClose: () => void; authEnabled
 function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, sharing, busy, message, onToggle, onRequestSignIn, authEnabled, accountName, preview = false }: {
   pins: LocationPin[]; profileById: Map<string, PublicMapProfile>; myId: string; loaded: boolean; connected: boolean; signedIn: boolean; sharing: boolean; busy: boolean; message: string; onToggle: () => void; onRequestSignIn: () => void; authEnabled: boolean; accountName: string; preview?: boolean;
 }) {
+  // mutuals: who's near you earns points (+10 nearby, +50 found) and levels; the FREE-WILi badge mirrors it all
+  // and its YES / NO buttons work the share switch.
+  const nameOf = (id: string) => profileById.get(id)?.displayName;
+  const status = badgeStatus(pins, myId, sharing, nameOf);
+  const score = usePoints();
+  const { award } = score;
+  const nearbyKey = status.nearbyIds.join(',');
+  useEffect(() => {
+    award(nearbyKey ? nearbyKey.split(',') : [], status.closestId, id => nameOf(id) ?? 'someone');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-score only when who is near changes
+  }, [nearbyKey, status.closestId, award]);
+  const badge = useBadge(status, { points: score.points, met: score.met }, button => {
+    if (busy) return;
+    if (button === 'green' && !sharing) onToggle();
+    if (button === 'red' && sharing) onToggle();
+  }, score.adopt);
   return <main className="map-app">
     <MapContainer center={DUDERSTADT} zoom={17} zoomControl={false} scrollWheelZoom className="leaflet-map">
       <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -229,12 +247,13 @@ function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, s
       </Fragment>)}
     </MapContainer>
 
-    <header className="map-topbar"><a className="brand" href="/" aria-label="MHacks live map"><span className="brand-mark">mh<span>+</span></span><span><b>MHACKS</b><small>LIVE CAMPUS MAP</small></span></a><div className="topbar-actions"><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div><AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={onRequestSignIn} /></div></header>
+    <header className="map-topbar"><a className="brand" href="/" aria-label="mutuals"><img className="brand-word" src="/mutuals/mutuals_word.png" alt="mutuals" /><small>PEOPLE FIND PEOPLE · MHACKS 2026</small></a><div className="topbar-actions"><div className={`connection ${connected ? 'online' : ''}`}><i />{preview ? 'Local preview' : connected ? 'Live sync' : 'Connecting'}</div><AccountControl authEnabled={authEnabled} signedIn={signedIn} accountName={accountName} onRequestSignIn={onRequestSignIn} /></div></header>
 
     <section className="map-card" aria-label="Live location sharing controls">
       <span className="eyebrow">DUDERSTADT CENTER · ANN ARBOR</span>
       <h1>Find people nearby.</h1>
       <p className="subhead">Only anonymous live locations appear here. Names and profiles stay private.</p>
+      <PointsCard {...score} />
       <div className="count-line"><span className="count-number">{loaded ? pins.length : '—'}</span><span>people sharing location</span><i className="count-live" /></div>
       <button className={`share-button${sharing ? ' sharing' : ''}`} type="button" role={signedIn || preview ? 'switch' : undefined} aria-checked={signedIn || preview ? sharing : undefined} disabled={busy || (!connected && !preview)} onClick={onToggle}>
         <span className="switch-dot" />{busy ? 'Updating…' : sharing ? 'Stop sharing my location' : preview ? 'Preview my location' : signedIn ? 'Share my live location' : 'Sign in to share your location'}
@@ -243,10 +262,43 @@ function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, s
       {sharing && <p className="sharing-status">{message || (preview ? 'Local preview: your location is not sent to anyone.' : "Waiting for your phone's location… The first fix may take a few seconds.")}</p>}
       {!sharing && message && <p className="error-message" role="alert">{message}</p>}
       {!signedIn && !preview && <button className="profile-link" type="button" onClick={onRequestSignIn}>Sign up or log in to share your location</button>}
+      <BadgeControl status={status} {...badge} />
+      {score.gain && <div className="points-toast" key={score.gain.at}>+{score.gain.points} pts · {score.gain.reason}</div>}
     </section>
 
     <div className="map-bottom"><span>GPS accuracy shown by circles · Indoor locations may drift</span><span>Map data &copy; OpenStreetMap</span></div>
   </main>;
+}
+
+const BADGE_TEXT: Record<BadgeStatus['state'], string> = {
+  H: 'Not discoverable',
+  A: 'Looking… nobody near yet',
+  N: "Someone's nearby!",
+  C: 'You found them!',
+};
+
+function PointsCard({ points, level, progress, met }: ReturnType<typeof usePoints>) {
+  const next = LEVEL_AT[level];
+  return <div className="points-card">
+    <img className="points-pup" src={`/mutuals/lv${level}.png`} alt={`Level ${level} pup`} />
+    <div className="points-body">
+      <div className="points-row"><span className="points-star" aria-hidden="true">★</span><b>{points}</b><span>pts</span><span className="points-level">Lv {level}</span></div>
+      <div className="points-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}><i style={{ width: `${Math.round(progress * 100)}%` }} /></div>
+      <small>{LEVEL_NAME[level - 1]} · {met} met{next !== undefined ? ` · ${next - points} pts to Lv ${level + 1}` : ''}</small>
+    </div>
+  </div>;
+}
+
+function BadgeControl({ status, connected, connect, disconnect, error }: { status: BadgeStatus } & ReturnType<typeof useBadge>) {
+  if (!badgeSupported()) return null; // Web Serial: Chrome / Edge on a computer
+  return <div className={`badge-control${connected ? ' on' : ''}`}>
+    <span className="badge-icon" aria-hidden="true">🐶</span>
+    <div className="badge-copy">
+      <b>{connected ? 'mutuals badge connected' : 'mutuals FREE-WILi badge'}</b>
+      <small>{error || (connected ? `${BADGE_TEXT[status.state]}${status.state === 'N' || status.state === 'C' ? ` · ${status.name} · ${status.meters} m` : ''} · YES share · NO hide · MENU stats` : 'Plug in your badge: your pup, points and who is near you, on its screen')}</small>
+    </div>
+    <button type="button" onClick={() => void (connected ? disconnect() : connect())}>{connected ? 'Disconnect' : 'Connect'}</button>
+  </div>;
 }
 
 function PreviewMap() {
@@ -259,7 +311,41 @@ function PreviewMap() {
     const watcher = navigator.geolocation.watchPosition(position => setPin({ participantId: id, latitude: position.coords.latitude, longitude: position.coords.longitude, accuracyMeters: position.coords.accuracy }), () => {}, { enableHighAccuracy: true, maximumAge: 4000, timeout: 20000 });
     return () => navigator.geolocation.clearWatch(watcher);
   }, [sharing, id]);
-  return <MapExperience pins={pin ? [pin] : []} profileById={new Map()} myId={id} loaded connected={false} signedIn={false} sharing={sharing} busy={false} message="" preview onToggle={() => setSharing(value => !value)} onRequestSignIn={requestSignIn} authEnabled={false} accountName="Your account" />;
+  const demo = useDemoWalkers(pin);
+  return <MapExperience pins={pin ? [pin, ...demo.pins] : []} profileById={demo.profiles} myId={id} loaded connected={false} signedIn={false} sharing={sharing} busy={false} message="" preview onToggle={() => setSharing(value => !value)} onRequestSignIn={requestSignIn} authEnabled={false} accountName="Your account" />;
+}
+
+// Local preview with ?demo in the URL: two pretend people near your pin, one walking up to you over ~40 s, so the
+// FREE-WILi badge can show "someone's nearby!" → "they're right here!" without a second phone. Preview only.
+const DEMO_WALKERS = [
+  { participantId: 'demo-walker-alex', displayName: 'Alex', from: 140, to: 8, bearing: 40 },
+  { participantId: 'demo-walker-sam', displayName: 'Sam', from: 95, to: 95, bearing: 220 },
+];
+
+function useDemoWalkers(me: LocationPin | null) {
+  const enabled = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo');
+  const startRef = useRef<number | null>(null); // the walk starts when your own pin first appears
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!enabled) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [enabled]);
+  const profiles = new Map<string, PublicMapProfile>(DEMO_WALKERS.map(w => [w.participantId, { displayName: w.displayName, headline: 'Demo walker', interests: '' }]));
+  if (!enabled || !me) { startRef.current = null; return { pins: [] as LocationPin[], profiles }; }
+  startRef.current ??= now;
+  const progress = Math.min(1, ((now - startRef.current) / 1000) / 40);
+  const pins = DEMO_WALKERS.map(w => {
+    const meters = w.from + (w.to - w.from) * progress;
+    const rad = (w.bearing * Math.PI) / 180;
+    return {
+      participantId: w.participantId,
+      latitude: me.latitude + (meters * Math.cos(rad)) / 111_320,
+      longitude: me.longitude + (meters * Math.sin(rad)) / (111_320 * Math.cos((me.latitude * Math.PI) / 180)),
+      accuracyMeters: 6,
+    };
+  });
+  return { pins, profiles };
 }
 
 export default function App({ live, authEnabled, signedIn, accountName = 'Your account' }: { live: boolean; authEnabled: boolean; signedIn: boolean; accountName?: string }) {

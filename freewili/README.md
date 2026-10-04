@@ -29,24 +29,44 @@ close!) → YOU FOUND TERRY! Zone B`. Without hardware: `python3 mock/demo_seque
 Catch match prompts with GREEN for a double yes (+1 social, score spoken), YELLOW = coffee, BLUE = nap,
 GRAY = quit. Social fades when you miss matches; LEDs show social (pink) and energy (green).
 
-**Photon Pup native app: the pixel puppy on the badge's own screen, with sounds and a voice.**
+**mutuals badge app: the pup on the badge's own screen, synced with the mutuals map website.**
 OG firmware can't show images over USB, so this is a real display-CPU app built with FREE-WILi's
-[wiliOGbsp](https://github.com/freewili/wiliOGbsp) (`native/`). It runs on its own, with no laptop needed:
+[wiliOGbsp](https://github.com/freewili/wiliOGbsp) (`native/`).
+
+- **Screen:** the mutuals logo, the pup, a title, ★ points · Lv · progress bar, and MENU BACK YES NEXT NO
+  labels right above the five buttons. Your home-screen pup grows up with your level (Lv 1–5, from the design board).
+- **Map mode:** the website (`map/`, Chrome or Edge) connects over USB with Web Serial.
+  - The badge shows whether you're discoverable, who's near you on the map (name + distance) and "you found them!".
+  - YES / NO turn location sharing on / off.
+  - Points: +10 when someone new is nearby, +50 when you find them. Levels at 50 / 100 / 200 / 400. MENU = stats.
+- **Practice mode** (no website): quiet match prompts, YES to catch (+10). Practice pauses after 2 misses.
+  Points sync both ways (the higher total wins).
+- **Sounds** (`native/make_sounds.py`): chiptune effects + synthesized puppy noises, 8 kHz like the OG's I2S
+  driver. A voice line is available (`SPEAK = True`).
+
+Build and flash (from `freewili/`):
 
 ```bash
-native/setup_toolchain.sh        # once: Arm GCC + Pico SDK 2.3.0 + ninja into ~/.pico-sdk
-native/build.sh                  # → native/out/photon_main.uf2 (pixel art + sounds generated on the way)
+native/setup_toolchain.sh                                    # once: Arm GCC + Pico SDK 2.3.0 + ninja
+native/build.sh                                              # → native/out/photon_main.uf2
+cd native/.bsp && ../../.venv/bin/python tools/fw.py flash photon_main   # over USB, no buttons
 ```
 
-Flash it: FREE-WILi GUI → Setup → FreeWili OG updater → Apps → *photon_main* → Flash. (Copy the UF2 into
-`FreeWili GUI.app/Contents/MacOS/catalog/` so it shows up in the list.) Go back to the standard firmware
-(Firmware → Stable → *Update and verify*) to use `main.py` / `pet_game.py` again: the badge runs one or the other.
+Or with the FREE-WILi GUI:
+1. Copy the UF2 into `FreeWili GUI.app/Contents/MacOS/catalog/`.
+2. Setup → FreeWili OG updater → Apps → select it → **Flash** (scroll down in the right panel).
 
-- Same game as `pet_game.py`: GREEN catches a match, YELLOW = coffee, BLUE = nap, LEDs are the meters, score top-right.
-- Sounds (`native/make_sounds.py`, 8 kHz like the OG's I2S driver):
-  - Chiptune effects plus synthesized puppy noises (yips, "arf", whimper, panting, yawn).
-  - A short cute voice line ("double yes!", "coffee time!"), made with macOS `say` (Samantha) and pitched up.
-  - Previews go to `native/out/sounds/*.wav`.
+After a flash, the main CPU updates the screen CPU by itself (about 30 s). The standard firmware (Firmware →
+Stable) brings back `main.py` / `pet_game.py`: the badge runs one or the other.
+
+**Testing together** (each person: a laptop with Chrome + a badge running mutuals):
+1. Open the live map, either the deployed site or `cd map && npm run dev`. It needs `map/.env.local` with
+   `VITE_SPACETIMEDB_URI`, `VITE_SPACETIMEDB_DATABASE` and the public `VITE_CLERK_PUBLISHABLE_KEY`.
+2. Sign in, then **Profile**: your name, headline, and *show on map*. Your name is what the other badge shows.
+3. Click **Connect** in the badge box and pick *FWOG display photon*. Press **YES** on the badge to share.
+4. When you're near each other on the map: "someone's nearby!" (+10). Within 25 m: "you found them!" (+50).
+
+Solo demo: `http://localhost:5173/?demo` in the local preview adds two pretend people who walk up to you.
 
 **With the real backend** (the Photon bridge in `photon/` running on this laptop):
 

@@ -110,3 +110,29 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
   .account-name { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+
+.badge-control { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 11px; border: 1px dashed #d5dbcf; border-radius: 10px; background: #fafbf6; }
+.badge-control.on { border-style: solid; border-color: #b9d6c2; background: #f0f7f1; }
+.badge-icon { font-size: 20px; line-height: 1; }
+.badge-copy { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.badge-copy b { color: #2d553e; font-size: 11px; }
+.badge-copy small { color: #758074; font-size: 9.5px; line-height: 1.45; }
+.badge-control button { flex: none; padding: 7px 10px; border: 0; border-radius: 8px; background: #294c37; color: white; font-size: 10px; font-weight: 700; cursor: pointer; }
+.badge-control.on button { background: #e3e9df; color: #43584a; }
+
+/* mutuals: brand, points card, gain toast */
+.brand { flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 14px; }
+.brand-word { display: block; height: 24px; width: auto; image-rendering: pixelated; }
+.brand small { margin-top: 0; }
+.points-card { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 10px 12px; border: 1px solid #e3e1f1; border-radius: 12px; background: linear-gradient(180deg, #eef8f2, #f1effb); }
+.points-pup { width: 54px; height: 54px; object-fit: contain; image-rendering: pixelated; flex: none; }
+.points-body { flex: 1; min-width: 0; }
+.points-row { display: flex; align-items: baseline; gap: 5px; color: #24284a; font-size: 11px; }
+.points-row b { font: 800 22px Manrope, sans-serif; letter-spacing: -.04em; }
+.points-star { color: #f0b93a; font-size: 16px; }
+.points-level { margin-left: auto; font-weight: 800; }
+.points-bar { height: 8px; margin: 5px 0 5px; overflow: hidden; border: 1px solid #c8cade; border-radius: 99px; background: #e2e4f0; }
+.points-bar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #5cb88a, #7aa7f0); transition: width .6s ease; }
+.points-body small { color: #6e6c8c; font-size: 9.5px; }
+.points-toast { position: absolute; left: 23px; right: 23px; bottom: -18px; padding: 9px 12px; border-radius: 10px; background: #24284a; color: #fff; font-size: 11px; font-weight: 700; text-align: center; box-shadow: 0 8px 24px #24284a40; animation: points-pop 3.5s ease forwards; }
+@keyframes points-pop { 0% { opacity: 0; transform: translateY(8px) scale(.96); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }

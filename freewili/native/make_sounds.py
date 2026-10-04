@@ -146,9 +146,11 @@ def nap() -> list[float]:
 # small and cute. Played right after each effect, in the same clip. Without `say` (not a Mac) effects play alone.
 # Pitch-up: the speech is relabelled as faster than it is, then afconvert (Apple's band-limited resampler) brings
 # it down to the badge's 8 kHz cleanly; a home-made resampler made it muffled and fizzy.
+SPEAK = False  # voice lines off: effects + puppy noises only (set True to bring the talking back)
 VOICE, RATE_WPM, PITCH = "Samantha", 155, 1.34  # higher + a touch slower = small, cute, still clear
-LINES = {"yip": "hi friend!", "match": "ooh! a match!", "yes": "double yes!", "miss": "aww... too slow",
-         "coffee": "coffee time!", "nap": "nap time"}
+LINES = {"yip": "hi friend!", "match": "ooh! a match!", "yes": "it's mutual!", "miss": "aww... too slow",
+         "near": "someone's nearby!", "close": "you found them!", "hide": "not discoverable",
+         "levelup": "level up!"}
 
 
 def voice(text: str) -> list[float]:
@@ -176,7 +178,29 @@ def voice(text: str) -> list[float]:
     return [math.tanh(2.2 * v / peak) / math.tanh(2.2) * 0.9 for v in out]
 
 
-SOUNDS = {"yip": yip, "match": match_ding, "yes": double_yes, "miss": womp, "coffee": coffee, "nap": nap}
+def near() -> list[float]:
+    return match_ding()
+
+
+def close() -> list[float]:
+    return double_yes()
+
+
+def hide() -> list[float]:
+    return puppy_whimper()
+
+
+def levelup() -> list[float]:
+    """Fanfare: G C E G, a held high C with vibrato, sparkles, then happy yips."""
+    out = []
+    for f in (392, 523, 659, 784):
+        out += tone(f, f, 0.08, "square", 0.42, decay=5)
+    out += tone(1047, 1047, 0.32, "square", 0.42, decay=3, vibrato=7)
+    sparkle = rest(0.4) + tone(1568, 1568, 0.07, "sine", 0.25, decay=20) + tone(2093, 2093, 0.1, "sine", 0.25, decay=16)
+    return mix(out, sparkle) + puppy_yip()
+
+
+SOUNDS = {"levelup": levelup, "near": near, "close": close, "hide": hide, "yip": yip, "match": match_ding, "yes": double_yes, "miss": womp}
 
 
 def to_int16(samples: list[float]) -> list[int]:
@@ -191,8 +215,8 @@ def main() -> None:
              '#include "photon_sounds.h"', ""]
     total = 0
     for name, fn in SOUNDS.items():
-        said = voice(LINES[name]) if name in LINES else []
-        tail = rest(0.04) + puppy_pant(3) if name == "yes" else []
+        said = voice(LINES[name]) if SPEAK and name in LINES else []
+        tail = rest(0.04) + puppy_pant(3) if name in ("yes", "close") else []
         pcm = to_int16(fn() + (rest(0.05) + said if said else []) + tail)
         total += len(pcm)
         with wave.open(str(OUT_WAV / f"{name}.wav"), "wb") as w:
