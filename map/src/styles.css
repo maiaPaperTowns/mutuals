@@ -165,3 +165,5 @@ button:focus-visible, a:focus-visible { outline: 3px solid #328276; outline-offs
 .style-formal .badge-icon { color: #1f3a68; font-size: 18px; }
 .style-formal .points-toast { border-radius: 6px; background: #16223f; }
 .style-formal .count-number { color: #1f3a68; }
+.style-formal .badge-control.on button { background: #e6ebf3; color: #1f3a68; }
+.style-formal .badge-control button { color: #fff; }
