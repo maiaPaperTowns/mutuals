@@ -87,6 +87,9 @@ export const testSeedUser = spacetimedb.reducer({ subject: t.string(), name: t.s
   ctx.db.agentAuthSubject.insert({ subject, ownerIdentity: ctx.sender });
 });
 `);
+for (const name of ['networking.ts', 'assistantAgents.ts']) {
+  await writeFile(join(moduleDir, 'src', name), await readFile(join(root, '../../map/spacetimedb/src', name)));
+}
 await writeFile(join(moduleDir, 'package.json'), await readFile(join(root, '../../map/spacetimedb/package.json')));
 await writeFile(join(moduleDir, 'tsconfig.json'), await readFile(join(root, '../../map/spacetimedb/tsconfig.json')));
 await symlink(resolve(root, '../../map/spacetimedb/node_modules'), join(moduleDir, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
