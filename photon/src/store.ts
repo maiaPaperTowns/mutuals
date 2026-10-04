@@ -25,7 +25,7 @@ interface Backend {
 
 // ---------- local file ----------
 
-const DIR = new URL("../data/", import.meta.url).pathname;
+const DIR = process.env.DATA_DIR ? `${process.env.DATA_DIR.replace(/\/$/, "")}/` : new URL("../data/", import.meta.url).pathname;
 const FILE = `${DIR}users.json`;
 const LEGACY = `${DIR}state.json`; // earlier snapshot format
 

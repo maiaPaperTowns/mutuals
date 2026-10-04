@@ -26,6 +26,8 @@ export type Match = {
   answers: { a?: boolean; b?: boolean };
   ratings: { a?: boolean; b?: boolean };
   status: MatchStatus;
+  met?: boolean; // confirmed in person (FREE-WILi IR high-five)
+  worthAsked?: boolean; // the one "worth it?" follow-up was sent
   createdAt: number;
 };
 
@@ -112,16 +114,45 @@ export class DoubleYes {
       return true;
     }
 
+    return this.rate(personId, answer);
+  }
+
+  /** Answer the "worth it?" follow-up (text, tapback or FREE-WILi button). False if none is pending. */
+  async rate(personId: string, worthIt: boolean): Promise<boolean> {
     const rated = this.awaitingRating.get(personId);
-    if (rated) {
-      this.awaitingRating.delete(personId);
-      rated.ratings[rated.a.id === personId ? "a" : "b"] = answer;
-      this.changed(rated);
-      this.opts.onRating?.(rated, personId, answer);
-      await this.text(personId, answer ? "Yay, thanks! 💜" : "Thanks, noted 💜");
-      return true;
-    }
-    return false;
+    if (!rated) return false;
+    this.awaitingRating.delete(personId);
+    rated.ratings[rated.a.id === personId ? "a" : "b"] = worthIt;
+    this.changed(rated);
+    this.opts.onRating?.(rated, personId, worthIt);
+    await this.text(personId, worthIt ? "Yay, thanks! 💜" : "Thanks, noted 💜");
+    return true;
+  }
+
+  /** They met in person (FREE-WILi IR high-five). Ask "worth it?" right away instead of waiting. */
+  async markMet(matchId: string): Promise<boolean> {
+    const m = this.matches.get(matchId);
+    if (!m || m.status !== "accepted" || m.met) return false;
+    m.met = true;
+    this.changed(m);
+    await this.askWorthIt(m);
+    return true;
+  }
+
+  /** What a person's badge should show right now (most recent intro first). */
+  phaseFor(personId: string): { phase: "idle" | "offer" | "waiting" | "matched" | "rate" | "met"; match?: Match } {
+    const pending = this.pendingFor(personId);
+    if (pending) return { phase: "offer", match: pending };
+    const mine = [...this.matches.values()]
+      .filter((m) => m.a.id === personId || m.b.id === personId)
+      .sort((x, y) => y.createdAt - x.createdAt);
+    const rating = this.awaitingRating.get(personId);
+    if (rating) return { phase: "rate", match: rating };
+    const m = mine[0];
+    if (!m) return { phase: "idle" };
+    if (m.status === "offered") return { phase: "waiting", match: m };
+    if (m.status === "accepted") return { phase: m.met ? "met" : "matched", match: m };
+    return { phase: "idle" };
   }
 
   get(matchId: string): Match | undefined {
@@ -173,6 +204,8 @@ export class DoubleYes {
   }
 
   private async askWorthIt(m: Match) {
+    if (m.worthAsked) return; // only ever one follow-up
+    m.worthAsked = true;
     for (const p of [m.a, m.b]) {
       if (this.paused.has(p.id)) continue;
       this.awaitingRating.set(p.id, m);
@@ -241,6 +274,7 @@ export class DoubleYes {
       accepted: all.filter((m) => m.status === "accepted").length,
       declined: all.filter((m) => m.status === "declined").length,
       expired: all.filter((m) => m.status === "expired").length,
+      met: all.filter((m) => m.met).length,
       ratings: ratings.length,
       worthIt: ratings.filter(Boolean).length,
     };

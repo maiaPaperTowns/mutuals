@@ -9,6 +9,8 @@
 //   POST /welcome { phone, name? }                                      → agent texts someone first
 //   POST /profile { phone, name, title?, org?, zone?, links?, skills? }  → ASI agent saves a person's card
 //   POST /forget  { phone }                                             → erase a person (delete me on ASI:One)
+//   FREE-WILi badge (freewili/badge.py): POST /badge/register {badge, phone}, GET /badge/<badge>/state,
+//   POST /badge/<badge>/answer {yes}, /badge/<badge>/rate {worthIt}, /badge/<badge>/ir {code}
 //   GET  /app/...                                                       → mini app pages (see miniapp.ts)
 import http from "node:http";
 import { existsSync, readFileSync } from "node:fs";
@@ -22,6 +24,7 @@ import { parseZone } from "./zones.ts";
 import { handlesFromLinks, linkUrls, parseHandles } from "./handles.ts";
 import { renderCard } from "./businessCard.ts";
 import { warmOpener } from "./opener.ts";
+import { badgeState, isPartnerCode } from "./badge.ts";
 import * as mini from "./miniapp.ts";
 import * as store from "./store.ts";
 import { formatProfile, readResumeProfile, toJpeg, UnsupportedResume, type ListField, type Profile } from "./resume.ts";
@@ -108,7 +111,8 @@ const send = async (to: string, msg: Outbound) => {
     } catch (err) {
       console.error("card image failed", err);
     }
-    await space.send(businessCard(other));
+    // Each piece on its own: one failing (e.g. contact cards on a provider without them) never blocks the rest.
+    await space.send(businessCard(other)).catch((err) => console.error("contact card failed", err));
     if (m) {
       const reason = m.a.id === to ? m.reasonForA : m.reasonForB;
       const opener = await warmOpener({ fromName: people.get(to)?.name ?? "", toName: other.name, zone: other.zone, reason });
@@ -143,6 +147,9 @@ for (const r of await store.open()) {
   if (r.token) mini.restoreTokens([[r.userId, r.token]]);
   if (r.paused) intros.restorePaused([r.userId]);
 }
+
+// FREE-WILi badges: badge id (its serial, or a name) → the person wearing it.
+const badges = new Map<string, string>();
 
 /** One record per person who has given us anything. */
 function userRecords(): store.UserRecord[] {
@@ -403,6 +410,44 @@ async function readResume(space: Space, id: string, file: Buffer, mimeType: stri
   }
 }
 
+// ---------- FREE-WILi badge API (called by freewili/badge.py on this laptop) ----------
+async function badgeRoute(req: http.IncomingMessage, res: http.ServerResponse) {
+  const json = (status: number, body: unknown) =>
+    res.writeHead(status, { "content-type": "application/json" }).end(JSON.stringify(body));
+  const path = new URL(req.url ?? "/", "http://x").pathname;
+
+  if (req.method === "POST" && path === "/badge/register") {
+    const { badge, phone } = await readJson(req);
+    if (!badge || !phone) return json(400, { ok: false, error: "badge and phone required" });
+    const id = dmId(String(phone));
+    badges.set(String(badge), id);
+    console.log(`[badge] ${badge} → ${id}`);
+    return json(200, { ok: true, id, name: people.get(id)?.name ?? "" });
+  }
+
+  const m = path.match(/^\/badge\/([\w.-]+)\/(state|answer|rate|ir)$/);
+  const personId = m ? badges.get(m[1]!) : undefined;
+  if (!m || !personId) return json(404, { ok: false, error: "unknown badge; register first" });
+  const action = m[2];
+
+  if (req.method === "GET" && action === "state") {
+    return json(200, badgeState(personId, intros.phaseFor(personId), intros.stats()));
+  }
+  const body = await readJson(req);
+  const { phase, match } = intros.phaseFor(personId);
+  if (action === "answer" && phase === "offer" && match) {
+    return json(200, { ok: await intros.answerMatch(match.id, personId, Boolean(body.yes)) });
+  }
+  if (action === "rate") return json(200, { ok: await intros.rate(personId, Boolean(body.worthIt)) });
+  if (action === "ir" && phase === "matched" && match) {
+    // The high-five: only counts if the beam carried your match's code.
+    const ok = isPartnerCode(match, personId, Number(body.code)) && (await intros.markMet(match.id));
+    if (ok) console.log(`[badge] met in person: ${match.id}`);
+    return json(200, { ok });
+  }
+  return json(409, { ok: false, error: `nothing to ${action} right now (${phase})` });
+}
+
 // ---------- HTTP API for teammates ----------
 function readBody(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -553,6 +598,8 @@ http
           });
         }
         res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, id }));
+      } else if (req.url?.startsWith("/badge/")) {
+        return void (await badgeRoute(req, res));
       } else if (req.method === "POST" && req.url === "/forget") {
         // "Delete me" said on ASI:One: erase everything the bridge holds for that phone.
         const { phone } = await readJson(req);

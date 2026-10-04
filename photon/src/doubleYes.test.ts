@@ -107,7 +107,7 @@ test("one worth-it follow-up, rating recorded, then quiet", async () => {
   assert.equal(await dy.handleReply("bob", "nah"), true);
   assert.deepEqual(ratings, [true, false]);
   assert.equal(await dy.handleReply("alice", "yes"), false); // nothing pending any more
-  assert.deepEqual(dy.stats(), { offered: 1, accepted: 1, declined: 0, expired: 0, ratings: 2, worthIt: 1 });
+  assert.deepEqual(dy.stats(), { offered: 1, accepted: 1, declined: 0, expired: 0, met: 0, ratings: 2, worthIt: 1 });
 });
 
 test("stop declines the open offer quietly and blocks new ones", async () => {
@@ -129,4 +129,23 @@ test("forget drops the person's matches", async () => {
   assert.equal(dy.stats().offered, 0);
   assert.ok(!dy.pausedIds().includes("bob")); // no trace left
   assert.equal(dy.pendingFor("alice"), undefined);
+});
+
+test("badge phases: offer → waiting → matched → met (asks worth-it once) → rate", async () => {
+  const { dy, texts, offer } = setup();
+  assert.equal(dy.phaseFor("alice").phase, "idle");
+  await offer();
+  assert.equal(dy.phaseFor("alice").phase, "offer");
+  await dy.answerMatch("m1", "alice", true);
+  assert.equal(dy.phaseFor("alice").phase, "waiting");
+  await dy.answerMatch("m1", "bob", true);
+  assert.equal(dy.phaseFor("alice").phase, "matched");
+  assert.equal(await dy.markMet("m1"), true);
+  assert.equal(await dy.markMet("m1"), false); // only once
+  assert.equal(dy.phaseFor("alice").phase, "rate");
+  assert.equal(await dy.rate("alice", true), true);
+  assert.equal(dy.phaseFor("alice").phase, "met");
+  await tick(); // the timed follow-up must not ask again
+  assert.equal(texts().filter((t) => t.to === "alice" && t.text.includes("worth it")).length, 1);
+  assert.equal(dy.stats().met, 1);
 });

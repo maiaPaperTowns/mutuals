@@ -46,6 +46,7 @@ iPhone ──iMessage──► Photon Spectrum bridge ──► Concierge agent 
 | [`photon/`](photon/) | iMessage bridge on Photon Spectrum, double-yes intros, privacy commands, worth-it follow-up | Maia |
 | `agents/` | Agentverse agents: concierge, onboarding, matcher, recruiter | Ziquan |
 | [`map/`](map/) | React 2D OpenStreetMap centered on the Duderstadt Center, with opt-in anonymous GPS dots backed by SpacetimeDB | Terry |
+| [`freewili/`](freewili/) | Mutual Badge on FREE-WILi OG: answer intros, IR high-five to prove you met, live scoreboard | Elena / Maia |
 | `scoreboard/` | Worth-it scoreboard, real counts only | Elena |
 
 See [PLAN.md](PLAN.md) for checkpoints, the shared schema and fallbacks.
