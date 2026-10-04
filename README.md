@@ -119,7 +119,3 @@ Web Serial
 
 Maia · Ziquan · Terry · Elena
 
-## Credit
-
-Inspired by **Klick** (HackMIT), which proved that this matters. We focused on an opt-in live map and a physical
-companion that gets people to actually walk over and meet.
