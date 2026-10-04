@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNod
 import { useProcedure, useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { procedures, reducers, tables } from './module_bindings';
 import EventGpsMap from './EventGpsMap';
+import EventAreaMap, { readEventArea } from './EventAreaMap';
 import { ZONES } from './types';
 
 type Stage = 'pre' | 'during' | 'post';
@@ -20,6 +21,7 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
   signedIn: boolean; accountName: string; onSignIn: () => void; accountControl: ReactNode;
 }) {
   const [events, eventsLoaded] = useTable(tables.networkingInvitations);
+  const [eventAreas] = useTable(tables.networkingEventAreas);
   const [members] = useTable(tables.myNetworkingMemberships);
   const [profiles, profilesLoaded] = useTable(tables.myProfile);
   const [messages] = useTable(tables.myAssistantMessages);
@@ -40,6 +42,7 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
   const setStar = useReducer(reducers.setEventStar);
   const setPhase = useReducer(reducers.setNetworkingEventPhase);
   const editEvent = useReducer(reducers.editNetworkingEvent);
+  const setEventArea = useReducer(reducers.setNetworkingEventArea);
   const deleteEvent = useProcedure(procedures.deleteNetworkingEvent);
   const requestConnection = useReducer(reducers.requestEventConnection);
   const respondConnection = useReducer(reducers.respondEventConnection);
@@ -69,6 +72,7 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
   const seenNotifications = useRef(new Set<string>());
   const listCount = useRef(pageSize);
   const event = events.find(row => row.eventId === eventId);
+  const areaPoints = readEventArea(eventAreas.find(row => row.eventId === eventId)?.areaJson);
   const eventPhase = (event?.phase || (event?.status === 'started' ? 'during' : 'pre')) as Stage;
   const member = members.find(row => row.eventId === eventId && row.userId === account?.user_id);
   const checkedIn = Boolean(member?.discoverable && member.availabilityStatus && member.availabilityStatus !== 'offline');
@@ -208,6 +212,9 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
           else await setPhase({ eventId, phase });
           setNotice(`Event is now in ${stageNames[phase]}.`);
         })} onEdit={values => act(async () => { await editEvent({ eventId, ...values }); setNotice('Event updated.'); })} onDelete={() => act(async () => { await deleteEvent({ eventId }); setEventId(''); setNotice('Event deleted. Personal profiles are preserved.'); })} />}
+        {(account?.is_admin || !member || stage !== 'during') && <EventAreaMap key={eventId} eventId={eventId} title={event.title} points={areaPoints} canEdit={account?.is_admin} busy={busy || chatBusy} onSave={async points => {
+          await setEventArea({ eventId, areaJson: JSON.stringify(points) }); setNotice(points.length ? 'Event area saved.' : 'Event area cleared.');
+        }} />}
         {signedIn && account && !account.profile_ready && <p className="workspace-alert">Save your resume or introduction and complete indexing on <a href="/chat">My profile</a> before joining.</p>}
         {event.status === 'open' && <p className="workspace-muted">Joining shares your name and headline with event members for recommendations. Your resume stays private. The organizer locks the participant list by pressing Start; Pre then compares everyone on that list.</p>}
         {event.status === 'started' && event.matchingStatus !== 'ready' && <p role="status">Pre is preparing the frozen roster: {event.preparedCount} / {event.memberCount} personal lists ready.{account?.is_admin ? ' Use Resume if preparation was interrupted.' : ''}</p>}
@@ -221,7 +228,7 @@ export default function NetworkingWorkspace({ signedIn, accountName, onSignIn, a
               {matches.length < total && <button className="workspace-button load-more" disabled={busy} onClick={() => void act(async () => { const next = JSON.parse(await list({ eventId, offset: matches.length, limit: pageSize })); setMatches(value => [...value, ...next.items]); setTotal(next.total); listCount.current += pageSize; })}>Load more people</button>}
               {ready && <p className="workspace-muted">Showing {matches.length} of {total} people. During uses these saved Pre scores and live distance.</p>}
             </section>}
-            {stage === 'during' && <><section className="event-checkin"><h3>{chatting ? 'Busy · chatting' : checkedIn ? 'Free · ready to meet' : 'Waiting for location'}</h3><p>Nearby alerts start when you allow location. Accepting a connection makes you busy. Tap End chat when you finish to become free again.</p></section><EventGpsMap key={eventId} eventId={eventId} userId={account!.user_id} pins={pins} checkedIn={eventPhase === 'during'} focusedId={focusedId} stars={stars} onError={setError} /></>}
+            {stage === 'during' && <><section className="event-checkin"><h3>{chatting ? 'Busy · chatting' : checkedIn ? 'Free · ready to meet' : 'Waiting for location'}</h3><p>Nearby alerts start when you allow location. Accepting a connection makes you busy. Tap End chat when you finish to become free again.</p></section><EventGpsMap key={eventId} eventId={eventId} userId={account!.user_id} pins={pins} checkedIn={eventPhase === 'during'} focusedId={focusedId} stars={stars} onError={setError} areaPoints={areaPoints} eventTitle={event.title} onResetFocus={() => setFocusedId('')} /></>}
             {stage !== 'pre' && <section className="event-connections"><h3>{stage === 'post' ? 'Connections to follow up' : 'Your connections'}</h3>{eventInteractions.length ? eventInteractions.map(row => {
               const data = JSON.parse(row.payloadJson), incoming = row.targetId === account?.user_id, name = incoming ? data.user_name : data.target_name;
               return <article className="connection-card" key={row.interactionId}><div><h4>{name || 'Participant'}</h4><p>{row.status === 'requested' ? incoming ? 'Incoming request' : 'Request sent' : row.status === 'accepted' ? 'Connected' : row.status === 'declined' ? 'Request declined' : row.status}</p></div><div className="workspace-actions">

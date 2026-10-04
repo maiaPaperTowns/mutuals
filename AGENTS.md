@@ -34,6 +34,7 @@ After completing a requested change, commit and push it to the current branch an
 - Module/gateway checks, from `agents/spacetime-gateway`: `npm.cmd test`, `npm.cmd run typecheck`; build the real module with the SpacetimeDB CLI.
 - Python checks, from `agents`: `.venv/Scripts/python.exe -m pytest tests -q`, with an accessible temporary base directory when needed.
 - Photon checks, from `photon`, when affected: `npm.cmd test`, `npm.cmd run typecheck`.
+- Event areas use the private `networking_event_area` table, public `networking_event_areas` projection and admin-only `set_networking_event_area` reducer. Preserve event IDs and existing boundaries on deployment; boundaries are display/viewport geometry, not GPS access rules. The open MHacks invitation has an approximate North Campus area that an admin can redraw.
 
 ## Communication
 

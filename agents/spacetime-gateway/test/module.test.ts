@@ -16,6 +16,28 @@ const nodeConsole = globalThis.console;
 const module = await import('../../../map/spacetimedb/src/index.ts');
 globalThis.console = nodeConsole;
 
+test('event areas are admin-only, public boundaries isolated by event, and removed with their event', () => {
+  assert.equal(typeof module.setNetworkingEventArea, 'function');
+  const { ctx, tx, db, eventId, peer } = networkingFixture(1);
+  const areaJson = '[[42.289,-83.72],[42.289,-83.71],[42.295,-83.71],[42.295,-83.72]]';
+  assert.throws(() => module.setNetworkingEventArea({ ...tx, sender: peer }, { eventId, areaJson }), /administrator/);
+  assert.throws(() => module.setNetworkingEventArea(tx, { eventId: 'missing', areaJson }), /unavailable/);
+  for (const invalid of ['broken', '{}', '[[1,2],[3,4]]', '[[91,2],[3,4],[5,6]]', '[[1,2],[2,4],[3,6]]']) {
+    assert.throws(() => module.setNetworkingEventArea(tx, { eventId, areaJson: invalid }), /area|boundary/i);
+  }
+  module.setNetworkingEventArea(tx, { eventId, areaJson });
+  assert.deepEqual(module.networkingEventAreas({ db }), [{ eventId, areaJson }]);
+  assert.equal(db.networkingEvent.eventId.find(eventId).title, 'Engineering meetup');
+  module.setNetworkingEventArea(tx, { eventId, areaJson: '[]' });
+  assert.deepEqual(module.networkingEventAreas({ db }), []);
+  module.setNetworkingEventArea(tx, { eventId, areaJson });
+  ctx.newUuidV4 = () => 'other-event';
+  const other = JSON.parse(module.createNetworkingEvent(ctx, { title: 'Other event', description: '', venue: 'North Campus', startAtMs: 1_790_000_000_000n }));
+  module.setNetworkingEventArea(tx, { eventId: other.event_id, areaJson });
+  module.deleteNetworkingEvent(ctx, { eventId });
+  assert.deepEqual(module.networkingEventAreas({ db }), [{ eventId: other.event_id, areaJson }]);
+});
+
 test('leaving cloud networking removes presence and revokes discoverability', () => {
   const { ctx, tx, db, owner } = cloudFixture();
   module.submitCloudIntroduction(ctx, { message: 'I build software', resumeText: '', filename: '' });
@@ -77,7 +99,7 @@ function fixture() {
   const peer = identity('b'.repeat(64));
   const service = identity('c'.repeat(64));
   const db = {
-    networkingEvent: table('eventId'), networkingEventPhase: table('eventId'), networkingMember: table('memberId'), eventInterestList: table('listId'),
+    networkingEvent: table('eventId'), networkingEventPhase: table('eventId'), networkingEventArea: table('eventId'), networkingMember: table('memberId'), eventInterestList: table('listId'),
     eventStar: table('starId'), eventLocation: table('locationId'), assistantMessage: table('messageId'),
     eventLocationExpiry: table('scheduledId'),
     assistantNotification: table('notificationId'), assistantTurn: table('turnId'),

@@ -301,6 +301,15 @@ export const NetworkingEvent = __t.object("NetworkingEvent", {
 });
 export type NetworkingEvent = __Infer<typeof NetworkingEvent>;
 
+export const NetworkingEventArea = __t.object("NetworkingEventArea", {
+  eventId: __t.string(),
+  areaJson: __t.string(),
+});
+export type NetworkingEventArea = __Infer<typeof NetworkingEventArea>;
+
+export const NetworkingEventAreas = __t.object("NetworkingEventAreas", {});
+export type NetworkingEventAreas = __Infer<typeof NetworkingEventAreas>;
+
 export const NetworkingEventPhase = __t.object("NetworkingEventPhase", {
   eventId: __t.string(),
   phase: __t.string(),

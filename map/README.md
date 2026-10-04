@@ -17,6 +17,12 @@ Tests cover duplicate requests, overlapping acceptance with three participants, 
 
 The public map at `/` has the separate location behavior described below.
 
+### Event areas and map reset
+
+On `/events`, an administrator can use **Draw event area**, click 3–50 boundary points in order, undo points and save. Each event keeps its own public shaded boundary. Everyone can view the area before joining; During also shows it alongside member-only GPS pins. **Reset view** fits the complete activity area. On `/`, it fits all saved event areas with space for the map controls. Drawing does not change GPS sharing or matching eligibility.
+
+Areas are saved by the admin-only `set_networking_event_area` reducer and read through the public `networking_event_areas` view. An empty boundary clears the area; deleting an event clears its area too. Existing event rows and invitation contracts are preserved. The open MHacks invitation uses an approximate North Campus boundary around Duderstadt/Pierpont, adjustable by an administrator.
+
 ## mutuals features
 
 ### FREE-WILi badge (`src/badge.ts`)

@@ -7,6 +7,7 @@ import { useReducer, useSpacetimeDB, useTable } from 'spacetimedb/react';
 import ProfileChat from './ProfileChat';
 import LiveProfileChat from './LiveProfileChat';
 import NetworkingWorkspace from './NetworkingWorkspace';
+import { EventAreaLayer, readEventArea, type EventArea } from './EventAreaMap';
 import { createProfileApi } from './profileApi';
 import { badgeStatus, badgeSupported, useBadge, type BadgeStatus } from './badge';
 import { LEVEL_AT, LEVEL_NAME, TIER_NAME, usePoints, type Connection, type Gain } from './points';
@@ -45,6 +46,9 @@ const venueIcon = L.divIcon({
 function LiveMapContent({ authEnabled, accountName }: { authEnabled: boolean; accountName: string }) {
   const [rows, loaded] = useTable(tables.liveLocation);
   const [publicProfiles] = useTable(tables.publicProfiles);
+  const [eventRows] = useTable(tables.networkingInvitations);
+  const [eventAreas] = useTable(tables.networkingEventAreas);
+  const areas = eventAreas.map(row => ({ eventId: row.eventId, title: eventRows.find(event => event.eventId === row.eventId)?.title || 'Event', points: readEventArea(row.areaJson) }));
   const setPresence = useReducer(reducers.setMyPresence);
   const updateLocation = useReducer(reducers.updateMyLocation);
   const stopLocation = useReducer(reducers.stopSharingLocation);
@@ -132,7 +136,7 @@ function LiveMapContent({ authEnabled, accountName }: { authEnabled: boolean; ac
   };
 
   const connected = isActive;
-  return <MapExperience pins={pins} profileById={profileById} myId={id} loaded={loaded} connected={connected} signedIn={signedIn} sharing={sharing} busy={busy} message={message || locationError} onToggle={toggleSharing} onRequestSignIn={requestSignIn} authEnabled={authEnabled} accountName={accountName} />;
+  return <MapExperience pins={pins} profileById={profileById} myId={id} loaded={loaded} connected={connected} signedIn={signedIn} sharing={sharing} busy={busy} message={message || locationError} onToggle={toggleSharing} onRequestSignIn={requestSignIn} authEnabled={authEnabled} accountName={accountName} areas={areas} />;
 }
 
 function AccountControl({ authEnabled, signedIn, accountName, onRequestSignIn }: {
@@ -228,8 +232,8 @@ function AuthDialog({ onClose, authEnabled }: { onClose: () => void; authEnabled
   </div>;
 }
 
-function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, sharing, busy, message, onToggle, onRequestSignIn, authEnabled, accountName, preview = false }: {
-  pins: LocationPin[]; profileById: Map<string, PublicMapProfile>; myId: string; loaded: boolean; connected: boolean; signedIn: boolean; sharing: boolean; busy: boolean; message: string; onToggle: () => void; onRequestSignIn: () => void; authEnabled: boolean; accountName: string; preview?: boolean;
+function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, sharing, busy, message, onToggle, onRequestSignIn, authEnabled, accountName, preview = false, areas = [] }: {
+  pins: LocationPin[]; profileById: Map<string, PublicMapProfile>; myId: string; loaded: boolean; connected: boolean; signedIn: boolean; sharing: boolean; busy: boolean; message: string; onToggle: () => void; onRequestSignIn: () => void; authEnabled: boolean; accountName: string; preview?: boolean; areas?: EventArea[];
 }) {
   // mutuals: who's near you earns points (+10 nearby, +50 found) and levels; the FREE-WILi badge mirrors it all
   // and its YES / NO buttons work the share switch.
@@ -254,6 +258,7 @@ function MapExperience({ pins, profileById, myId, loaded, connected, signedIn, s
     <MapContainer center={DUDERSTADT} zoom={17} zoomControl={false} scrollWheelZoom className="leaflet-map">
       <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
       <ZoomControl position="bottomright" />
+      <EventAreaLayer areas={areas} homeLayout />
       <Marker position={DUDERSTADT} icon={venueIcon} interactive={false} />
       {pins.map(pin => <Fragment key={pin.participantId}>
         <Circle center={[pin.latitude, pin.longitude]} radius={Math.max(5, pin.accuracyMeters)} pathOptions={{ color: pin.participantId === myId ? '#174d39' : '#227c62', fillColor: pin.participantId === myId ? '#31835f' : '#58a88b', fillOpacity: 0.1, weight: 1 }} />

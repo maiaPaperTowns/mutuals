@@ -207,6 +207,9 @@ const networkingEvent = table({ name: 'networking_event' }, {
 const networkingEventPhase = table({ name: 'networking_event_phase' }, {
   eventId: t.string().primaryKey(), phase: t.string(),
 });
+const networkingEventArea = table({ name: 'networking_event_area' }, {
+  eventId: t.string().primaryKey(), areaJson: t.string(),
+});
 const networkingMember = table({ name: 'networking_member' }, {
   memberId: t.string().primaryKey(), eventId: t.string().index('btree'), userId: t.string().index('btree'),
   joinedAt: t.timestamp(), profileSnapshotJson: t.string(), discoverable: t.bool(), zoneId: t.string(), availabilityStatus: t.string(),
@@ -243,7 +246,7 @@ const spacetimedb = schema({
   presence, participantOwner, liveLocation, userProfile, agentService, agentAuthSubject, agentUserLink, agentProfile,
   agentLinkCode, agentPresence, agentEvent, agentInteraction, agentTranscript,
   agentFollowUpPlan, agentRoiHistoryTable, cloudProviderConfig, cloudAdmin, cloudOperation,
-  networkingEvent, networkingEventPhase, networkingMember, eventInterestList, eventStar, eventLocation, eventLocationExpiry, assistantMessage, assistantNotification, assistantTurn,
+  networkingEvent, networkingEventPhase, networkingEventArea, networkingMember, eventInterestList, eventStar, eventLocation, eventLocationExpiry, assistantMessage, assistantNotification, assistantTurn,
 });
 export default spacetimedb;
 
@@ -1401,6 +1404,8 @@ const invitation = t.row('NetworkingInvitation', {
 export const networkingInvitations = spacetimedb.anonymousView({ name: 'networking_invitations', public: true }, t.array(invitation), ctx =>
   Array.from(ctx.db.networkingEvent.iter()).map(({ eventId, title, description, venue, startAtMs, status, matchingStatus, memberCount, preparedCount }) =>
     ({ eventId, title, description, venue, startAtMs, status, phase: networkingPhase(ctx, eventId), matchingStatus, memberCount, preparedCount })));
+export const networkingEventAreas = spacetimedb.anonymousView({ name: 'networking_event_areas', public: true }, t.array(networkingEventArea.rowType), ctx =>
+  Array.from(ctx.db.networkingEventArea.iter()).filter(row => ctx.db.networkingEvent.eventId.find(row.eventId)));
 const membershipView = t.row('NetworkingMembership', {
   memberId: t.string().primaryKey(), eventId: t.string(), userId: t.string(), discoverable: t.bool(), zoneId: t.string(), availabilityStatus: t.string(),
 });
@@ -1488,6 +1493,28 @@ export const editNetworkingEvent = spacetimedb.reducer(
     ctx.db.networkingEvent.eventId.update({ ...event, title, venue, description, startAtMs: args.startAtMs });
   });
 
+export const setNetworkingEventArea = spacetimedb.reducer({ eventId: t.string(), areaJson: t.string() }, (ctx, { eventId, areaJson }) => {
+  requireCloudAdmin(ctx);
+  requireNetworkingEvent(ctx, eventId);
+  let points: unknown;
+  try { points = areaJson.length <= 10000 ? JSON.parse(areaJson) : null; } catch { points = null; }
+  if (!Array.isArray(points)) throw new SenderError('Provide a valid event area boundary.');
+  if (!points.length) { ctx.db.networkingEventArea.eventId.delete(eventId); return; }
+  if (points.length < 3 || points.length > 50 || points.some(point => !Array.isArray(point) || point.length !== 2
+    || typeof point[0] !== 'number' || typeof point[1] !== 'number' || !Number.isFinite(point[0]) || !Number.isFinite(point[1])
+    || Math.abs(point[0]) > 90 || Math.abs(point[1]) > 180)) throw new SenderError('An event area needs 3–50 valid latitude/longitude boundary points.');
+  const boundary = points as [number, number][];
+  const origin = boundary[0];
+  const area = boundary.reduce((sum, point, i) => {
+    const next = boundary[(i + 1) % boundary.length];
+    return sum + (point[0] - origin[0]) * (next[1] - origin[1]) - (next[0] - origin[0]) * (point[1] - origin[1]);
+  }, 0);
+  if (Math.abs(area) < 1e-12) throw new SenderError('The event area boundary must enclose an area.');
+  const row = { eventId, areaJson: JSON.stringify(boundary) };
+  if (ctx.db.networkingEventArea.eventId.find(eventId)) ctx.db.networkingEventArea.eventId.update(row);
+  else ctx.db.networkingEventArea.insert(row);
+});
+
 export const setNetworkingEventPhase = spacetimedb.reducer({ eventId: t.string(), phase: t.string() }, (ctx, { eventId, phase }) => {
   requireCloudAdmin(ctx);
   const event = requireNetworkingEvent(ctx, eventId);
@@ -1533,6 +1560,7 @@ export const deleteNetworkingEvent = spacetimedb.procedure({ eventId: t.string()
       for (const row of Array.from(tx.db.assistantNotification.iter())) if (row.eventId === eventId) tx.db.assistantNotification.notificationId.delete(row.notificationId);
       for (const row of Array.from(tx.db.assistantTurn.iter())) if (row.eventId === eventId) tx.db.assistantTurn.turnId.delete(row.turnId);
       tx.db.networkingEventPhase.eventId.delete(eventId);
+      tx.db.networkingEventArea.eventId.delete(eventId);
       tx.db.networkingEvent.eventId.delete(eventId);
       return JSON.stringify({ deleted: eventId });
     });

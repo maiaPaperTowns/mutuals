@@ -32,6 +32,19 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
+it('shows an event-area map and reset control before joining, with drawing restricted to admins', async () => {
+  const { rerender } = render(<NetworkingWorkspace {...props} signedIn={false} />);
+  expect(await screen.findByRole('region', { name: 'Event area map' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Reset to event area' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Draw event area' })).toBeNull();
+  state.status.mockResolvedValue('{"user_id":"me","is_admin":true,"profile_ready":true}');
+  rerender(<NetworkingWorkspace {...props} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Draw event area' }));
+  expect(screen.getByRole('button', { name: 'Save event area' }).hasAttribute('disabled')).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel drawing' }));
+  expect(screen.getByRole('button', { name: 'Draw event area' })).toBeTruthy();
+});
+
 it('During follows the event phase, shows a nearby conversation popup, and ends an active chat without a model call', async () => {
   state.invites[0] = { ...state.invites[0], phase: 'during', status: 'started', matchingStatus: 'ready' };
   state.members = [{ eventId: 'e1', userId: 'me', memberId: 'e1__me', availabilityStatus: 'free', discoverable: true }];
