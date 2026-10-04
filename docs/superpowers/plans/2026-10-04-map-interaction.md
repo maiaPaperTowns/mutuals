@@ -28,16 +28,17 @@
 
 **Files:** `map/src/App.tsx`, `EventGpsMap.tsx`, `EventAreaMap.tsx`, `styles.css`; `map/test/event-area-map.test.tsx`.
 
-- [ ] Update viewport tests to require different initial/Center padding, fractional zoom, maxZoom 23, and mobile overlay clearance; observe failure.
-- [ ] Replace circles with centered dots, raise zoom limits, and fit Center against 80% of the remaining viewport.
-- [ ] Verify using the website tests/build and browser inspection.
+- [x] Update viewport tests to require different initial/Center padding, fractional zoom, maxZoom 23, and mobile overlay clearance; observe failure.
+- [x] Replace circles with centered dots, raise zoom limits, and fit Center against 80% of the remaining viewport.
+- [x] Verify using the website tests/build and browser inspection.
 
 ### Task 2: Saved headline and cloud synchronization
 
 **Files:** `map/spacetimedb/src/index.ts`, `map/spacetimedb/src/mapProfile.ts`, generated client bindings; `map/test/map-profile.test.ts`; boundary change evidence in `reports/2026-10-04-map-interaction.md`.
 
-- [ ] Add tests for saved AI headline fallback, missing/malformed profile data and a 140-character bound; observe failure.
-- [ ] Reuse the headline in both existing profile projections; preserve visibility/membership checks.
-- [ ] Build module and regenerate bindings; run website checks and one independent review.
-- [ ] Commit/push, publish Maincloud without deleting data, update only the confirmed MHacks boundary, and deploy existing Vercel project.
-- [ ] Verify remote SHA, deployment READY, desktop Center, dot/tooltip behavior and cloud counts; record evidence.
+- [x] Add tests for saved AI headline fallback, missing/malformed profile data and a 140-character bound; observe failure.
+- [x] Reuse the headline in both existing profile projections; preserve visibility/membership checks.
+- [x] Build module and regenerate bindings; run website checks and one independent review.
+- [x] Commit/push, publish Maincloud without deleting data, update only the confirmed MHacks boundary, and deploy existing Vercel project.
+- [x] Verify remote SHA, deployment READY, desktop Center, dot/tooltip behavior and cloud counts; record evidence.
+

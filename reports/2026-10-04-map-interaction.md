@@ -30,4 +30,16 @@ Target: scale each offset from center `[42.29205,-83.71565]` by 0.85, reducing e
 - Desktop browser: overview boundary height 332px, Center height 471px within a 596px usable height, about 79%. Live dots are 6px without shadows; public name/headline opens on keyboard focus.
 - Independent review identified a mobile padding cap; the shared fitting calculation now respects actual measured padding. Mobile-specific layout testing and changes were discontinued when the user clarified desktop-only scope.
 
-Cloud publication and boundary mutation results will be recorded after deployment verification.
+## Completed cloud synchronization
+
+- Private `main`: implementation `094817c`, desktop-only layout correction `e1d493e`; both pushed and the remote SHA verified equal to local.
+- The user explicitly chose to synchronize only the existing website and private repository. The public `mutuals` repository was left unchanged.
+- Maincloud publication succeeded with `--delete-data=never`. Migration replaced only the `my_event_map_pins` view to add its headline column; persisted tables were retained. Existing clients reconnect after this view schema update.
+- Boundary update succeeded through `set_networking_event_area`; saved coordinates:
+  `[[42.2892875,-83.7197725],[42.2892875,-83.7115275],[42.2948125,-83.7115275],[42.2948125,-83.7197725]]`.
+  Other boundaries were compared before/after and preserved.
+- Vercel deployment `dpl_54jqGzwe7qM3V9ZvQanjLJuJgxX9`: `READY`, production [mutuals.tech](https://mutuals.tech/).
+- Production desktop at 1280x800: `Live sync`; centered boundary height 528px within 676px of unobstructed height, about 78%. Continuous zoom reaches its disabled upper control with native level-19 tiles scaled 16x, verifying zoom 23; no tile load errors observed.
+- Cloud provider check: ASI, Pinecone write/fetch/query and cleanup all pass. Storage check: 11 map profiles, 9 private profiles, 9 indexed vectors; all vectors present.
+- Production had no current live participants at the final check. Actual name/headline focus behavior and 6px/no-shadow dots were verified earlier against live participants on the local desktop preview; profile fallbacks and bounds are covered by the passing tests.
+- Desktop screenshot: ignored local `reports/map-desktop-center.png`.
